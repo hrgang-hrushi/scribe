@@ -435,6 +435,15 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
         ctx.moveTo(start.x, start.y);
         ctx.lineTo(pos.x, pos.y);
         ctx.stroke();
+      } else if (type === 'arrow') {
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(pos.x, pos.y);
+        const angle = Math.atan2(h, w);
+        const headlen = 15;
+        ctx.lineTo(pos.x - headlen * Math.cos(angle - Math.PI / 6), pos.y - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(pos.x, pos.y);
+        ctx.lineTo(pos.x - headlen * Math.cos(angle + Math.PI / 6), pos.y - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
       }
       ctx.restore();
       return;
@@ -497,6 +506,14 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
           path = `M ${start.x + w/2} ${start.y} L ${start.x + w} ${pos.y} L ${start.x} ${pos.y} Z`;
         } else if (type === 'line') {
           path = `M ${start.x} ${start.y} L ${pos.x} ${pos.y}`;
+        } else if (type === 'arrow') {
+          const angle = Math.atan2(h, w);
+          const headlen = 15;
+          const x1 = pos.x - headlen * Math.cos(angle - Math.PI / 6);
+          const y1 = pos.y - headlen * Math.sin(angle - Math.PI / 6);
+          const x2 = pos.x - headlen * Math.cos(angle + Math.PI / 6);
+          const y2 = pos.y - headlen * Math.sin(angle + Math.PI / 6);
+          path = `M ${start.x} ${start.y} L ${pos.x} ${pos.y} M ${x1} ${y1} L ${pos.x} ${pos.y} L ${x2} ${y2}`;
         }
         
         const shape = { type, path };

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import type { Tool, ToolSettings } from '@/lib/types';
 
 interface ToolbarProps {
@@ -21,11 +22,8 @@ const tools: { id: Tool; icon: string; label: string; shortcut: string }[] = [
   { id: 'highlighter', icon: 'M15.5 4.5l4 4L8 20H4v-4L15.5 4.5z', label: 'Highlight', shortcut: 'H' },
   { id: 'eraser', icon: 'M20 20H7l-4-4 9-9 7 7-4 4M18 13l-6-6', label: 'Eraser', shortcut: 'E' },
   { id: 'shapes', icon: 'M3 3h18v18H3V3zm3 12l4-5 3 4 2-3 4 5', label: 'Shapes', shortcut: 'S' },
-  { id: 'lasso', icon: 'M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z', label: 'Lasso', shortcut: 'L' },
-  { id: 'text', icon: 'M4 7V4h16v3M9 20h6M12 4v16', label: 'Text', shortcut: 'T' },
-  { id: 'image', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z', label: 'Image', shortcut: 'I' },
-  { id: 'ruler', icon: 'M2 2l20 20M6.5 2.5l3 3M11 7l3 3M15.5 11.5l3 3', label: 'Ruler', shortcut: 'R' },
-];
+      { id: 'image', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z', label: 'Image', shortcut: 'I' },
+  ];
 
 export default function Toolbar({
   activeTool, onToolChange, toolSettings, onSettingsChange,
@@ -33,6 +31,7 @@ export default function Toolbar({
 }: ToolbarProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   if (!visible) {
     return (
@@ -49,7 +48,18 @@ export default function Toolbar({
   }
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-2 safe-bottom">
+    <motion.div
+      drag
+      dragMomentum={false}
+      dragConstraints={{ left: -1000, right: 1000, top: -1000, bottom: 50 }}
+      style={{ touchAction: 'none' }}
+      className="fixed bottom-6 z-40 flex flex-col items-center gap-2 safe-bottom cursor-grab active:cursor-grabbing"
+      initial={{ x: '-50%' }}
+      animate={{ x: '-50%' }}
+      dragElastic={0}
+      onDragStart={() => document.body.style.overflow = 'hidden'}
+      onDragEnd={() => document.body.style.overflow = 'auto'}
+    >
       {/* Settings Slider */}
       {showSettings && (
         <div
@@ -149,7 +159,7 @@ export default function Toolbar({
             {/* Shapes Submenu */}
             {t.id === 'shapes' && activeTool === 'shapes' && (
               <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-xl shadow-xl border animate-slide-up bg-white dark:bg-gray-800 z-50">
-                {(['rect', 'circle', 'triangle', 'line'] as const).map(shapeType => (
+                {(['rect', 'circle', 'triangle', 'line', 'arrow'] as const).map(shapeType => (
                   <button
                     key={shapeType}
                     onClick={() => onSettingsChange({ ...toolSettings, shapeType })}
@@ -162,6 +172,12 @@ export default function Toolbar({
                     {shapeType === 'triangle' && (
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <polygon points="12 2 22 20 2 20" />
+                      </svg>
+                    )}
+                    {shapeType === 'arrow' && (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="2" y1="12" x2="22" y2="12" />
+                        <polyline points="15 5 22 12 15 19" />
                       </svg>
                     )}
                     {shapeType === 'line' && (
@@ -205,7 +221,36 @@ export default function Toolbar({
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
         </button>
+
+        {/* More Menu */}
+        <div className="relative">
+          <button
+            onClick={() => setShowMoreMenu(v => !v)}
+            className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+            style={{
+              background: showMoreMenu ? 'var(--accent)' : 'transparent',
+              color: showMoreMenu ? 'var(--bg-primary)' : 'var(--text-secondary)',
+            }}
+            title="More Options"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="1" />
+              <circle cx="12" cy="5" r="1" />
+              <circle cx="12" cy="19" r="1" />
+            </svg>
+          </button>
+          
+          {showMoreMenu && (
+            <div className="absolute bottom-full mb-3 right-0 w-48 flex flex-col p-2 rounded-2xl shadow-xl border animate-slide-up bg-white dark:bg-gray-800 z-50">
+              <button className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">Export as PDF</button>
+              <button className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">Export as PNG</button>
+              <div className="w-full h-px bg-gray-200 dark:bg-gray-700 my-1" />
+              <button className="text-left px-3 py-2 text-sm font-medium text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Clear Canvas</button>
+            </div>
+          )}
+        </div>
+
       </div>
-    </div>
+    </motion.div>
   );
 }

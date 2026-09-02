@@ -63,6 +63,7 @@ export interface Note {
   audio?: AudioTrack[];
   createdAt: number;
   updatedAt: number;
+  reminders?: { id: string; text: string; createdAt: number; date: string }[];
 }
 
 export interface AudioTrack {
@@ -79,6 +80,7 @@ export interface ClassItem {
   order: number;
   createdAt: number;
   updatedAt: number;
+  reminders?: { id: string; text: string; createdAt: number; date: string }[];
 }
 
 export type Tool = 'pen' | 'highlighter' | 'eraser' | 'shapes' | 'arrow' | 'lasso' | 'text' | 'image' | 'ruler' | 'link' | 'calculator';
@@ -92,7 +94,7 @@ export interface ToolSettings {
   eraserWidth: number;
   eraserMode: 'stroke' | 'pixel';
   smoothing: number;
-  shapeType?: 'rect' | 'circle' | 'triangle' | 'line';
+  shapeType?: 'rect' | 'circle' | 'triangle' | 'line' | 'arrow';
 }
 
 export interface AppSettings {

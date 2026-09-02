@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { getNotesForClass, createNote, deleteNote, updateNote, getAllClasses } from '@/lib/db';
+import { getNotesForClass, createNote, deleteNote, updateNote, getAllClasses, updateClass } from '@/lib/db';
 import type { Note, ClassItem } from '@/lib/types';
 
 export default function ClassPage() {
@@ -18,6 +18,7 @@ export default function ClassPage() {
 
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [quickNote, setQuickNote] = useState("");
 
   useEffect(() => {
     loadData();
@@ -26,6 +27,16 @@ export default function ClassPage() {
     document.documentElement.setAttribute('data-theme', savedTheme);
   }, [classId]);
 
+  async function handleAddQuickNote(e: React.FormEvent) {
+    e.preventDefault();
+    if (!quickNote.trim() || !cls) return;
+    const reminders = cls.reminders || [];
+    reminders.push({ id: Date.now().toString(), text: quickNote, createdAt: Date.now(), date: new Date().toISOString() });
+    await updateClass(cls.id, { reminders });
+    setQuickNote("");
+    loadData();
+  }
+  
   async function loadData() {
     const allClasses = await getAllClasses();
     const found = allClasses.find(c => c.id === classId);
@@ -142,14 +153,16 @@ export default function ClassPage() {
             const dayNotes = groupedByDate[dateStr];
             const hasNotes = !!dayNotes && dayNotes.length > 0;
             const isToday = dateStr === todayStr;
+            const todayDate = new Date();
+            const isFuture = year > todayDate.getFullYear() || (year === todayDate.getFullYear() && month > todayDate.getMonth()) || (year === todayDate.getFullYear() && month === todayDate.getMonth() && day > todayDate.getDate());
             
             return (
               <motion.button
                 key={day}
                 whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => handleNewNote(dateStr)}
-                className={`aspect-square rounded-[24px] p-3 md:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden transition-shadow ${hasNotes ? 'shadow-md' : 'shadow-sm'}`}
+                onClick={() => !isFuture && handleNewNote(dateStr)}
+                className={`aspect-square rounded-[24px] p-3 md:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden transition-shadow ${hasNotes ? 'shadow-md' : 'shadow-sm'} ${isFuture ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 style={{
                   background: hasNotes ? 'var(--accent)' : 'var(--bg-secondary)',
                   color: hasNotes ? 'var(--bg-primary)' : 'var(--text-primary)',
@@ -200,6 +213,35 @@ export default function ClassPage() {
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-2xl -mr-10 -mt-10"></div>
           <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full blur-xl -ml-5 -mb-5"></div>
         </div>
+
+        
+        {/* Quick Notes / Reminders */}
+        <h3 className="text-xl font-bold mb-4 mt-8" style={{ color: 'var(--text-primary)' }}>Quick Notes & Reminders</h3>
+        <form onSubmit={handleAddQuickNote} className="flex gap-2 mb-6">
+          <input
+            type="text"
+            placeholder="Remind me to..."
+            value={quickNote}
+            onChange={(e) => setQuickNote(e.target.value)}
+            className="flex-1 px-4 py-3 rounded-2xl text-sm font-medium outline-none transition-shadow focus:shadow-md"
+            style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+          />
+          <button type="submit" className="w-12 h-12 rounded-2xl flex items-center justify-center transition-transform hover:scale-105 active:scale-95" style={{ background: 'var(--accent)', color: 'var(--bg-primary)' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14m-7-7h14"/></svg>
+          </button>
+        </form>
+        <div className="flex flex-col gap-3">
+          {cls?.reminders?.map(rem => (
+            <div key={rem.id} className="p-4 rounded-[20px] flex items-start gap-3 shadow-sm border border-black/5 dark:border-white/5" style={{ background: 'var(--bg-tertiary)' }}>
+              <div className="mt-1 w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--accent)' }} />
+              <p className="text-sm font-medium leading-relaxed" style={{ color: 'var(--text-primary)' }}>{rem.text}</p>
+            </div>
+          ))}
+          {!cls?.reminders?.length && (
+            <p className="text-sm italic opacity-50" style={{ color: 'var(--text-muted)' }}>No reminders yet.</p>
+          )}
+        </div>
+
 
         {/* Timeline of recent class notes */}
         <h3 className="text-xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>Recent in {cls?.name}</h3>
