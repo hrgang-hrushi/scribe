@@ -147,7 +147,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
       const rect = containerRef.current.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       setDimensions({ width: rect.width, height: rect.height });
-      [canvasRef.current, overlayCanvasRef.current].forEach(c => {
+      [bgCanvasRef.current, canvasRef.current, overlayCanvasRef.current].forEach(c => {
         if (!c) return;
         c.width = rect.width * dpr;
         c.height = rect.height * dpr;
