@@ -195,15 +195,15 @@ export default function ClassPage() {
         <h3 className="text-2xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>Unified Canvas</h3>
         <div className="rounded-[32px] p-8 mb-10 shadow-lg relative overflow-hidden flex flex-col items-start glass-panel">
           <div className="relative z-10">
-            <h4 className="mix-blend-difference text-white text-3xl font-bold leading-tight mb-2 drop-shadow-sm">All Notes<br/>One Canvas.</h4>
-            <p className="mix-blend-difference text-white/80 font-medium text-sm mb-8 drop-shadow-sm">Scroll infinitely. Write continuously.</p>
+            <h4 className="text-[var(--text-primary)] text-3xl font-bold leading-tight mb-2 drop-shadow-sm">All Notes<br/>One Canvas.</h4>
+            <p className="text-[var(--text-secondary)] font-medium text-sm mb-8 drop-shadow-sm">Scroll infinitely. Write continuously.</p>
             
             <button
               onClick={() => {
                 if (notes.length > 0) router.push(`/notes/${notes[0].id}`);
                 else handleNewNote();
               }}
-              className="px-6 py-4 rounded-full font-bold text-sm mix-blend-difference bg-white text-black transition-transform hover:scale-105 shadow-md flex items-center gap-2"
+              className="px-6 py-4 rounded-full font-bold text-sm bg-[var(--accent)] text-[var(--bg-primary)] transition-transform hover:scale-105 shadow-md flex items-center gap-2"
             >
               Open Notebook
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
