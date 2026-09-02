@@ -1,0 +1,184 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #1a1a2e;
+  --text-secondary: #495057;
+  --text-muted: #868e96;
+  --accent: #667eea;
+  --accent-hover: #5a6fd6;
+  --border: #dee2e6;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  --canvas-bg: #ffffff;
+  --toolbar-bg: rgba(255,255,255,0.95);
+  --card-bg: #ffffff;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0f0f14;
+  --bg-secondary: #1a1a24;
+  --bg-tertiary: #2a2a3a;
+  --text-primary: #e8e8ed;
+  --text-secondary: #a0a0b0;
+  --text-muted: #6a6a7a;
+  --accent: #818cf8;
+  --accent-hover: #6d78e6;
+  --border: #2a2a3a;
+  --shadow: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+  --canvas-bg: #1a1a24;
+  --toolbar-bg: rgba(26,26,36,0.95);
+  --card-bg: #1a1a24;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+html, body {
+  overscroll-behavior: none;
+  overflow: hidden;
+  height: 100%;
+  height: 100dvh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', system-ui, sans-serif;
+}
+
+#__next, #root {
+  height: 100%;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.gradient-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gradient-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.3), rgba(255,255,255,0));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.gradient-card:hover {
+  transform: translateY(-2px) scale(1.02);
+}
+
+.gradient-card:active {
+  transform: scale(0.98);
+}
+
+.toolbar-pill {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toolbar-pill.collapsed {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.toolbar-pill.expanded {
+  width: auto;
+  height: auto;
+  border-radius: 16px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+.sticky-date-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+@keyframes pulse-save {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.save-pulse {
+  animation: pulse-save 1.5s ease-in-out infinite;
+}
+
+.page-template-lined {
+  background-image: repeating-linear-gradient(
+    transparent, transparent 31px, #e2e8f0 31px, #e2e8f0 32px
+  );
+  background-position: 0 20px;
+}
+
+.page-template-grid {
+  background-image:
+    linear-gradient(rgba(203,213,225,0.5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(203,213,225,0.5) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.page-template-dotted {
+  background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+[data-theme="dark"] .page-template-lined {
+  background-image: repeating-linear-gradient(
+    transparent, transparent 31px, #2a2a3a 31px, #2a2a3a 32px
+  );
+}
+
+[data-theme="dark"] .page-template-grid {
+  background-image:
+    linear-gradient(rgba(42,42,58,0.8) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(42,42,58,0.8) 1px, transparent 1px);
+}
+
+[data-theme="dark"] .page-template-dotted {
+  background-image: radial-gradient(circle, #3a3a4a 1px, transparent 1px);
+}
+
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 20px);
+}
+
+.safe-top {
+  padding-top: max(env(safe-area-inset-top), 12px);
+}
