@@ -1,11 +1,15 @@
 const fs = require('fs');
-let toolbarCode = fs.readFileSync('src/components/canvas/Toolbar.tsx', 'utf8');
-toolbarCode = toolbarCode.replace(
-  /className="rounded-2xl p-4 mb-2 animate-slide-up"\n          style={{ background: 'var\(--toolbar-bg\)', border: '1px solid var\(--border\)', backdropFilter: 'blur\(16px\)' }}/g,
-  'className="rounded-2xl p-4 mb-2 animate-slide-up glass-panel"'
-);
-toolbarCode = toolbarCode.replace(
-  /className="flex items-center gap-1 px-3 py-2 rounded-2xl shadow-lg"\n        style={{ background: 'var\(--toolbar-bg\)', border: '1px solid var\(--border\)', backdropFilter: 'blur\(16px\)' }}/g,
-  'className="flex items-center gap-1 px-3 py-2 rounded-2xl shadow-lg glass-panel"'
-);
-fs.writeFileSync('src/components/canvas/Toolbar.tsx', toolbarCode);
+let code = fs.readFileSync('src/components/canvas/Toolbar.tsx', 'utf8');
+
+// Replace all instances of var(--text-secondary) with var(--text-primary) for the tool icons
+code = code.replace(/color: activeTool === t\.id \? 'var\(--bg-primary\)' : 'var\(--text-secondary\)'/g, "color: activeTool === t.id ? 'var(--bg-primary)' : 'var(--text-primary)'");
+code = code.replace(/color: showSettings \? 'var\(--bg-primary\)' : 'var\(--text-secondary\)'/g, "color: showSettings ? 'var(--bg-primary)' : 'var(--text-primary)'");
+code = code.replace(/color: showMoreMenu \? 'var\(--bg-primary\)' : 'var\(--text-secondary\)'/g, "color: showMoreMenu ? 'var(--bg-primary)' : 'var(--text-primary)'");
+code = code.replace(/style=\{\{ color: 'var\(--text-secondary\)' \}\}/g, "style={{ color: 'var(--text-primary)' }}");
+
+// Also let's check the submenu popups (Shapes, More menu) which currently have hardcoded bg-white dark:bg-gray-800
+// "bg-white dark:bg-gray-800"
+code = code.replace(/bg-white dark:bg-gray-800/g, 'glass-panel');
+code = code.replace(/hover:bg-gray-100 dark:hover:bg-gray-700/g, 'hover:bg-[var(--bg-tertiary)]');
+
+fs.writeFileSync('src/components/canvas/Toolbar.tsx', code);

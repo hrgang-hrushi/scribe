@@ -123,7 +123,7 @@ export default function Toolbar({
         <button
           onClick={onUndo}
           className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
-          style={{ color: 'var(--text-secondary)' }}
+          style={{ color: 'var(--text-primary)' }}
           title="Undo (⌘Z)"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -144,7 +144,7 @@ export default function Toolbar({
               }`}
               style={{
                 background: activeTool === t.id ? 'var(--accent)' : 'transparent',
-                color: activeTool === t.id ? 'var(--bg-primary)' : 'var(--text-secondary)',
+                color: activeTool === t.id ? 'var(--bg-primary)' : 'var(--text-primary)',
               }}
               title={`${t.label} (${t.shortcut})`}
             >
@@ -155,13 +155,13 @@ export default function Toolbar({
             
             {/* Shapes Submenu */}
             {t.id === 'shapes' && activeTool === 'shapes' && (
-              <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-xl shadow-xl border animate-slide-up bg-white dark:bg-gray-800 z-50">
+              <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-xl shadow-xl border animate-slide-up glass-panel z-50">
                 {(['rect', 'circle', 'triangle', 'line', 'arrow'] as const).map(shapeType => (
                   <button
                     key={shapeType}
                     onClick={() => onSettingsChange({ ...toolSettings, shapeType })}
                     className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      toolSettings.shapeType === shapeType ? 'bg-[var(--accent)] text-[var(--bg-primary)]' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                      toolSettings.shapeType === shapeType ? 'bg-[var(--accent)] text-[var(--bg-primary)]' : 'hover:bg-[var(--bg-tertiary)]'
                     }`}
                   >
                     {shapeType === 'rect' && <div className="w-4 h-4 border-2 border-current" />}
@@ -209,7 +209,7 @@ export default function Toolbar({
           className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
           style={{
             background: showSettings ? 'var(--accent)' : 'transparent',
-            color: showSettings ? 'var(--bg-primary)' : 'var(--text-secondary)',
+            color: showSettings ? 'var(--bg-primary)' : 'var(--text-primary)',
           }}
           title="Settings"
         >
@@ -226,7 +226,7 @@ export default function Toolbar({
             className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
             style={{
               background: showMoreMenu ? 'var(--accent)' : 'transparent',
-              color: showMoreMenu ? 'var(--bg-primary)' : 'var(--text-secondary)',
+              color: showMoreMenu ? 'var(--bg-primary)' : 'var(--text-primary)',
             }}
             title="More Options"
           >
@@ -238,9 +238,9 @@ export default function Toolbar({
           </button>
           
           {showMoreMenu && (
-            <div className="absolute bottom-full mb-3 right-0 w-48 flex flex-col p-2 rounded-2xl shadow-xl border animate-slide-up bg-white dark:bg-gray-800 z-50">
-              <button className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">Export as PDF</button>
-              <button className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">Export as PNG</button>
+            <div className="absolute bottom-full mb-3 right-0 w-48 flex flex-col p-2 rounded-2xl shadow-xl border animate-slide-up glass-panel z-50">
+              <button className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors">Export as PDF</button>
+              <button className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors">Export as PNG</button>
               <div className="w-full h-px bg-gray-200 dark:bg-gray-700 my-1" />
               <button className="text-left px-3 py-2 text-sm font-medium text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Clear Canvas</button>
             </div>
