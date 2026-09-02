@@ -210,8 +210,8 @@ export default function ClassPage() {
             </button>
           </div>
           {/* Abstract decoration */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-2xl -mr-10 -mt-10"></div>
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full blur-xl -ml-5 -mb-5"></div>
+          
+          
         </div>
 
         

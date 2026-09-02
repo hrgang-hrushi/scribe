@@ -1,4 +1,6 @@
-@import "tailwindcss";
+const fs = require('fs');
+
+const css = `@import "tailwindcss";
 
 :root {
   --bg-primary: #F4F4F4;
@@ -156,3 +158,6 @@ html, body {
 .safe-top {
   padding-top: max(env(safe-area-inset-top), 12px);
 }
+`;
+
+fs.writeFileSync('src/app/globals.css', css);

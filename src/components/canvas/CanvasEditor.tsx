@@ -846,7 +846,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
                 value={tb.text}
                 onChange={e => handleTextBoxChange(tb.id, e.target.value)}
                 onBlur={handleTextBoxBlur}
-                className="w-full min-h-[40px] bg-transparent border rounded-lg p-2 text-sm resize-both outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full min-h-[40px] bg-transparent border rounded-lg p-2 text-sm resize-both outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 style={{
                   fontSize: tb.fontSize,
                   fontFamily: tb.fontFamily,

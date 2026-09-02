@@ -90,7 +90,7 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
           {/* Current Note Template */}
           {onUpdateCurrentNoteTemplate && (
             <div className="mb-6">
-              <label className="text-sm font-medium mb-3 block text-blue-500">Current Note Template</label>
+              <label className="text-sm font-medium mb-3 block text-[var(--text-primary)]">Current Note Template</label>
               <div className="grid grid-cols-3 gap-2">
                 {PAGE_TEMPLATES.map(t => (
                   <button
