@@ -41,6 +41,14 @@ export async function deleteClass(id: string): Promise<void> {
 }
 
 export async function createNote(classId: string, title?: string): Promise<Note> {
+  let defaultTemplate: Note['template'] = 'blank';
+  if (typeof window !== 'undefined') {
+    try {
+      const settings = JSON.parse(localStorage.getItem('scribe-settings') || '{}');
+      if (settings.defaultTemplate) defaultTemplate = settings.defaultTemplate;
+    } catch (e) {}
+  }
+
   const id = crypto.randomUUID();
   const now = Date.now();
   const note: Note = {
@@ -49,7 +57,7 @@ export async function createNote(classId: string, title?: string): Promise<Note>
     date: new Date().toISOString().split('T')[0],
     title: title || `Note ${new Date().toLocaleDateString()}`,
     tags: [],
-    template: 'blank',
+    template: defaultTemplate,
     pageType: 'infinite',
     createdAt: now,
     updatedAt: now,

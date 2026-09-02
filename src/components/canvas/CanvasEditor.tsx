@@ -72,6 +72,7 @@ function detectShape(points: Point[]): { type: string; path: string } | null {
 
 interface CanvasEditorProps {
   page: Page;
+  template?: string;
   tool: Tool;
   settings: ToolSettings;
   theme: 'light' | 'dark';
@@ -79,7 +80,7 @@ interface CanvasEditorProps {
   onUndo: () => void;
 }
 
-export default function CanvasEditor({ page, tool, settings, theme, onSave, onUndo }: CanvasEditorProps) {
+export default function CanvasEditor({ page, template = 'blank', tool, settings, theme, onSave, onUndo }: CanvasEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -141,6 +142,45 @@ export default function CanvasEditor({ page, tool, settings, theme, onSave, onUn
     ctx.translate(panRef.current.x, panRef.current.y);
     ctx.scale(zoomRef.current, zoomRef.current);
 
+    // Draw background template
+    if (template !== 'blank') {
+      const vpX = -panRef.current.x / zoomRef.current;
+      const vpY = -panRef.current.y / zoomRef.current;
+      const vpW = (canvas.width / dpr) / zoomRef.current;
+      const vpH = (canvas.height / dpr) / zoomRef.current;
+      
+      ctx.save();
+      ctx.strokeStyle = theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+      ctx.lineWidth = 1 / zoomRef.current;
+      ctx.beginPath();
+      
+      const startX = Math.floor(vpX / 40) * 40;
+      const startY = Math.floor(vpY / 40) * 40;
+      
+      if (template === 'ruled' || template === 'cornell') {
+        for (let y = startY; y < vpY + vpH; y += 40) {
+          ctx.moveTo(vpX, y); ctx.lineTo(vpX + vpW, y);
+        }
+        if (template === 'cornell') {
+          ctx.moveTo(startX + 120, vpY); ctx.lineTo(startX + 120, vpY + vpH);
+        }
+      } else if (template === 'grid') {
+        for (let y = startY; y < vpY + vpH; y += 40) { ctx.moveTo(vpX, y); ctx.lineTo(vpX + vpW, y); }
+        for (let x = startX; x < vpX + vpW; x += 40) { ctx.moveTo(x, vpY); ctx.lineTo(x, vpY + vpH); }
+      } else if (template === 'dotted') {
+        ctx.fillStyle = ctx.strokeStyle;
+        for (let y = startY; y < vpY + vpH; y += 40) {
+          for (let x = startX; x < vpX + vpW; x += 40) {
+            ctx.moveTo(x, y);
+            ctx.arc(x, y, 1.5 / zoomRef.current, 0, Math.PI * 2);
+          }
+        }
+        ctx.fill();
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // Draw images
     committedImages.current.forEach(img => {
       const image = new Image();
@@ -152,14 +192,13 @@ export default function CanvasEditor({ page, tool, settings, theme, onSave, onUn
       }
     });
 
-    // Draw strokes
+    // Draw all strokes and shapes in chronological order
     committedStrokes.current.forEach(stroke => {
-      drawStroke(ctx, stroke);
-    });
-
-    // Draw shapes (stored as special strokes)
-    committedStrokes.current.filter(s => (s as any).shape).forEach(stroke => {
-      drawShapeStroke(ctx, stroke);
+      if ((stroke as any).shape) {
+        drawShapeStroke(ctx, stroke);
+      } else {
+        drawStroke(ctx, stroke);
+      }
     });
 
     ctx.restore();
@@ -241,31 +280,66 @@ export default function CanvasEditor({ page, tool, settings, theme, onSave, onUn
       return;
     }
     if (tool === 'image') {
-      // Trigger file input
+      // Trigger file input for images and PDFs
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = 'image/*';
-      input.onchange = (e) => {
+      input.accept = 'image/*,application/pdf';
+      input.onchange = async (e) => {
         const file = (e.target as HTMLInputElement).files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const src = ev.target?.result as string;
-          const pos = getPointerPos(e as any);
-          const newImg: ImageBlock = {
-            id: crypto.randomUUID(),
-            x: pos.x - 100,
-            y: pos.y - 75,
-            width: 200,
-            height: 150,
-            src,
+        const pos = getPointerPos(e as any);
+
+        if (file.type === 'application/pdf') {
+          // Dynamic import for pdfjs to avoid SSR issues
+          const pdfjs = await import('pdfjs-dist');
+          pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+          
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+          const page = await pdf.getPage(1); // Import first page for now
+          
+          const viewport = page.getViewport({ scale: 1.5 });
+          const tempCanvas = document.createElement('canvas');
+          const ctx = tempCanvas.getContext('2d');
+          tempCanvas.width = viewport.width;
+          tempCanvas.height = viewport.height;
+          
+          if (ctx) {
+            await page.render({ canvasContext: ctx, viewport } as any).promise;
+            const src = tempCanvas.toDataURL('image/png');
+            const newImg: ImageBlock = {
+              id: crypto.randomUUID(),
+              x: pos.x - viewport.width / 4,
+              y: pos.y - viewport.height / 4,
+              width: viewport.width / 2,
+              height: viewport.height / 2,
+              src,
+            };
+            committedImages.current = [...committedImages.current, newImg];
+            setImages([...committedImages.current]);
+            triggerSave();
+            redrawAll();
+          }
+        } else {
+          // Standard Image Import
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const src = ev.target?.result as string;
+            const newImg: ImageBlock = {
+              id: crypto.randomUUID(),
+              x: pos.x - 100,
+              y: pos.y - 75,
+              width: 200,
+              height: 150,
+              src,
+            };
+            committedImages.current = [...committedImages.current, newImg];
+            setImages([...committedImages.current]);
+            triggerSave();
+            redrawAll();
           };
-          committedImages.current = [...committedImages.current, newImg];
-          setImages([...committedImages.current]);
-          triggerSave();
-          redrawAll();
-        };
-        reader.readAsDataURL(file);
+          reader.readAsDataURL(file);
+        }
       };
       input.click();
       return;
@@ -308,8 +382,30 @@ export default function CanvasEditor({ page, tool, settings, theme, onSave, onUn
       ctx.strokeStyle = settings.penColor;
       ctx.lineWidth = settings.penWidth;
       ctx.setLineDash([5, 5]);
+      
       const start = shapeStartRef.current;
-      ctx.strokeRect(start.x, start.y, pos.x - start.x, pos.y - start.y);
+      const w = pos.x - start.x;
+      const h = pos.y - start.y;
+      const type = settings.shapeType || 'rect';
+      
+      ctx.beginPath();
+      if (type === 'rect') {
+        ctx.strokeRect(start.x, start.y, w, h);
+      } else if (type === 'circle') {
+        const r = Math.sqrt(w*w + h*h);
+        ctx.arc(start.x, start.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (type === 'triangle') {
+        ctx.moveTo(start.x + w/2, start.y);
+        ctx.lineTo(start.x + w, pos.y);
+        ctx.lineTo(start.x, pos.y);
+        ctx.closePath();
+        ctx.stroke();
+      } else if (type === 'line') {
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+      }
       ctx.restore();
       return;
     }
@@ -329,13 +425,24 @@ export default function CanvasEditor({ page, tool, settings, theme, onSave, onUn
 
     const tempStroke: Stroke = {
       id: '',
-      tool: tool === 'pen' || tool === 'highlighter' ? tool : 'pen',
+      tool: tool as 'pen' | 'highlighter' | 'eraser',
       color: tool === 'highlighter' ? settings.highlighterColor : settings.penColor,
-      width: tool === 'highlighter' ? settings.highlighterWidth : settings.penWidth,
+      width: tool === 'highlighter' ? settings.highlighterWidth : (tool === 'eraser' ? settings.eraserWidth : settings.penWidth),
       opacity: tool === 'highlighter' ? 0.35 : settings.penOpacity,
       points: currentStroke.current,
     };
-    drawStroke(ctx, tempStroke);
+    if (tool === 'eraser') {
+      const mainCtx = canvasRef.current?.getContext('2d');
+      if (mainCtx) {
+        mainCtx.save();
+        mainCtx.translate(panRef.current.x, panRef.current.y);
+        mainCtx.scale(zoomRef.current, zoomRef.current);
+        drawStroke(mainCtx, tempStroke);
+        mainCtx.restore();
+      }
+    } else {
+      drawStroke(ctx, tempStroke);
+    }
     ctx.restore();
   }
 
@@ -348,8 +455,21 @@ export default function CanvasEditor({ page, tool, settings, theme, onSave, onUn
       const start = shapeStartRef.current;
       const w = pos.x - start.x;
       const h = pos.y - start.y;
-      if (Math.abs(w) > 10 && Math.abs(h) > 10) {
-        const shape = { type: 'rect', path: `M ${start.x} ${start.y} L ${pos.x} ${start.y} L ${pos.x} ${pos.y} L ${start.x} ${pos.y} Z` };
+      if (Math.abs(w) > 5 || Math.abs(h) > 5) {
+        const type = settings.shapeType || 'rect';
+        let path = '';
+        if (type === 'rect') {
+          path = `M ${start.x} ${start.y} L ${pos.x} ${start.y} L ${pos.x} ${pos.y} L ${start.x} ${pos.y} Z`;
+        } else if (type === 'circle') {
+          const r = Math.sqrt(w*w + h*h);
+          path = `M ${start.x - r} ${start.y} A ${r} ${r} 0 1 1 ${start.x + r} ${start.y} A ${r} ${r} 0 1 1 ${start.x - r} ${start.y} Z`;
+        } else if (type === 'triangle') {
+          path = `M ${start.x + w/2} ${start.y} L ${start.x + w} ${pos.y} L ${start.x} ${pos.y} Z`;
+        } else if (type === 'line') {
+          path = `M ${start.x} ${start.y} L ${pos.x} ${pos.y}`;
+        }
+        
+        const shape = { type, path };
         const shapeStroke: any = {
           id: crypto.randomUUID(),
           tool: 'pen',
@@ -379,9 +499,9 @@ export default function CanvasEditor({ page, tool, settings, theme, onSave, onUn
 
     const newStroke: Stroke = {
       id: crypto.randomUUID(),
-      tool: tool === 'pen' || tool === 'highlighter' ? tool : 'pen',
+      tool: tool as 'pen' | 'highlighter' | 'eraser',
       color: tool === 'highlighter' ? settings.highlighterColor : settings.penColor,
-      width: tool === 'highlighter' ? settings.highlighterWidth : settings.penWidth,
+      width: tool === 'highlighter' ? settings.highlighterWidth : (tool === 'eraser' ? settings.eraserWidth : settings.penWidth),
       opacity: tool === 'highlighter' ? 0.35 : settings.penOpacity,
       points: currentStroke.current,
       ...(detectedShape ? { shape: detectedShape } as any : {}),
@@ -501,6 +621,16 @@ export default function CanvasEditor({ page, tool, settings, theme, onSave, onUn
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onWheel={(e) => {
+          if (e.ctrlKey || e.metaKey) {
+            const scale = Math.exp(-e.deltaY * 0.01);
+            zoomRef.current = Math.min(5, Math.max(0.25, zoomRef.current * scale));
+          } else {
+            panRef.current.x -= e.deltaX;
+            panRef.current.y -= e.deltaY;
+          }
+          redrawAll();
+        }}
       />
       {/* Text boxes overlay */}
       {textBoxes.map(tb => (
@@ -523,7 +653,7 @@ export default function CanvasEditor({ page, tool, settings, theme, onSave, onUn
                 value={tb.text}
                 onChange={e => handleTextBoxChange(tb.id, e.target.value)}
                 onBlur={handleTextBoxBlur}
-                className="w-full min-h-[40px] bg-white/90 dark:bg-gray-800/90 border rounded-lg p-2 text-sm resize-both outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full min-h-[40px] bg-transparent border rounded-lg p-2 text-sm resize-both outline-none focus:ring-2 focus:ring-blue-400"
                 style={{
                   fontSize: tb.fontSize,
                   fontFamily: tb.fontFamily,
@@ -547,7 +677,7 @@ export default function CanvasEditor({ page, tool, settings, theme, onSave, onUn
             </div>
           ) : (
             <div
-              className="cursor-text bg-white/70 dark:bg-gray-800/70 rounded p-1 min-h-[24px] hover:bg-white/90 transition-colors"
+              className="cursor-text bg-transparent rounded p-1 min-h-[24px] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               onClick={() => setEditingTextBox(tb.id)}
               style={{
                 fontSize: tb.fontSize,

@@ -40,12 +40,15 @@ export default function NotePage() {
   const [showToolbar, setShowToolbar] = useState(true);
   const [undoStack, setUndoStack] = useState<Page[]>([]);
   const [redoStack, setRedoStack] = useState<Page[]>([]);
+  const [appSettings, setAppSettings] = useState<any>({});
 
   useEffect(() => {
     loadData();
     const savedTheme = localStorage.getItem('scribe-theme') as 'light' | 'dark' || 'light';
     setTheme(savedTheme);
     document.documentElement.setAttribute('data-theme', savedTheme);
+    const savedSettings = localStorage.getItem('scribe-settings');
+    if (savedSettings) setAppSettings(JSON.parse(savedSettings));
 
     // Keyboard shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -155,22 +158,24 @@ export default function NotePage() {
           }}>
             {saveStatus === 'saved' ? '✓ Saved' : saveStatus === 'saving' ? 'Saving...' : 'Offline'}
           </span>
-          <button
-            onClick={() => setShowCalculator(v => !v)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
-            style={{ background: showCalculator ? 'var(--accent)' : 'var(--bg-tertiary)', color: showCalculator ? 'white' : 'var(--text-primary)' }}
-            title="Calculator (press =)"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="4" y="2" width="16" height="20" rx="2" />
-              <line x1="8" y1="6" x2="16" y2="6" />
-              <line x1="8" y1="10" x2="10" y2="10" />
-              <line x1="14" y1="10" x2="16" y2="10" />
-              <line x1="8" y1="14" x2="10" y2="14" />
-              <line x1="14" y1="14" x2="16" y2="14" />
-              <line x1="8" y1="18" x2="16" y2="18" />
-            </svg>
-          </button>
+          {appSettings.showCalculator !== false && (
+            <button
+              onClick={() => setShowCalculator(v => !v)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+              style={{ background: showCalculator ? 'var(--accent)' : 'var(--bg-tertiary)', color: showCalculator ? 'white' : 'var(--text-primary)' }}
+              title="Calculator (press =)"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="4" y="2" width="16" height="20" rx="2" />
+                <line x1="8" y1="6" x2="16" y2="6" />
+                <line x1="8" y1="10" x2="10" y2="10" />
+                <line x1="14" y1="10" x2="16" y2="10" />
+                <line x1="8" y1="14" x2="10" y2="14" />
+                <line x1="14" y1="14" x2="16" y2="14" />
+                <line x1="8" y1="18" x2="16" y2="18" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={handleManualSave}
             className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
@@ -223,6 +228,7 @@ export default function NotePage() {
         {pages.length > 0 && (
           <CanvasEditor
             page={pages[currentPage]}
+            template={note?.template || 'blank'}
             tool={activeTool}
             settings={toolSettings}
             theme={theme}
@@ -315,7 +321,16 @@ export default function NotePage() {
 
       {/* Settings */}
       {showSettings && (
-        <SettingsPanel onClose={() => setShowSettings(false)} />
+        <SettingsPanel
+          onClose={() => setShowSettings(false)}
+          currentNoteTemplate={note?.template}
+          onUpdateCurrentNoteTemplate={async (t) => {
+            if (note) {
+              await updateNote(noteId, { template: t });
+              setNote({ ...note, template: t });
+            }
+          }}
+        />
       )}
 
       {/* Flashcards */}

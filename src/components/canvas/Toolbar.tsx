@@ -23,6 +23,7 @@ const tools: { id: Tool; icon: string; label: string; shortcut: string }[] = [
   { id: 'shapes', icon: 'M3 3h18v18H3V3zm3 12l4-5 3 4 2-3 4 5', label: 'Shapes', shortcut: 'S' },
   { id: 'lasso', icon: 'M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z', label: 'Lasso', shortcut: 'L' },
   { id: 'text', icon: 'M4 7V4h16v3M9 20h6M12 4v16', label: 'Text', shortcut: 'T' },
+  { id: 'image', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z', label: 'Image', shortcut: 'I' },
   { id: 'ruler', icon: 'M2 2l20 20M6.5 2.5l3 3M11 7l3 3M15.5 11.5l3 3', label: 'Ruler', shortcut: 'R' },
 ];
 
@@ -128,22 +129,51 @@ export default function Toolbar({
 
         {/* Tools */}
         {tools.map(t => (
-          <button
-            key={t.id}
-            onClick={() => onToolChange(t.id)}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-              activeTool === t.id ? 'scale-110' : 'hover:scale-105'
-            }`}
-            style={{
-              background: activeTool === t.id ? 'var(--accent)' : 'transparent',
-              color: activeTool === t.id ? 'white' : 'var(--text-secondary)',
-            }}
-            title={`${t.label} (${t.shortcut})`}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d={t.icon} />
-            </svg>
-          </button>
+          <div key={t.id} className="relative group">
+            <button
+              onClick={() => onToolChange(t.id)}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                activeTool === t.id ? 'scale-110' : 'hover:scale-105'
+              }`}
+              style={{
+                background: activeTool === t.id ? 'var(--accent)' : 'transparent',
+                color: activeTool === t.id ? 'white' : 'var(--text-secondary)',
+              }}
+              title={`${t.label} (${t.shortcut})`}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d={t.icon} />
+              </svg>
+            </button>
+            
+            {/* Shapes Submenu */}
+            {t.id === 'shapes' && activeTool === 'shapes' && (
+              <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-xl shadow-xl border animate-slide-up bg-white dark:bg-gray-800 z-50">
+                {(['rect', 'circle', 'triangle', 'line'] as const).map(shapeType => (
+                  <button
+                    key={shapeType}
+                    onClick={() => onSettingsChange({ ...toolSettings, shapeType })}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      toolSettings.shapeType === shapeType ? 'bg-[var(--accent)] text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {shapeType === 'rect' && <div className="w-4 h-4 border-2 border-current" />}
+                    {shapeType === 'circle' && <div className="w-4 h-4 border-2 border-current rounded-full" />}
+                    {shapeType === 'triangle' && (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polygon points="12 2 22 20 2 20" />
+                      </svg>
+                    )}
+                    {shapeType === 'line' && (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="4" y1="20" x2="20" y2="4" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         ))}
 
         <div className="w-px h-6 mx-1" style={{ background: 'var(--border)' }} />

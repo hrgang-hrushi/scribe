@@ -93,13 +93,17 @@ export default function ClassPage() {
               view === 'date' ? 'bg-white text-gray-900' : 'text-white/80'
             }`}
           >
-            By Date
+            Calendar
           </button>
           <button
-            onClick={() => setView('all')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-              view === 'all' ? 'bg-white text-gray-900' : 'text-white/80'
-            }`}
+            onClick={async () => {
+              if (notes.length > 0) {
+                router.push(`/notes/${notes[0].id}`);
+              } else {
+                handleNewNote();
+              }
+            }}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all text-white/80`}
           >
             All Notes
           </button>
@@ -121,35 +125,39 @@ export default function ClassPage() {
             </button>
           </div>
         ) : view === 'date' ? (
-          sortedDates.map(date => (
-            <div key={date} className="mb-4">
-              <div
-                className="sticky-date-header px-3 py-2 rounded-lg mb-2 text-xs font-semibold uppercase tracking-wider"
-                style={{ background: 'var(--bg-primary)', color: 'var(--text-muted)' }}
-              >
-                {new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-              </div>
-              {groupedByDate[date].map((note, i) => (
-                <NoteCard
-                  key={note.id}
-                  note={note}
-                  index={i}
-                  editingNoteId={editingNoteId}
-                  editTitle={editTitle}
-                  setEditTitle={setEditTitle}
-                  setEditingNoteId={setEditingNoteId}
-                  onRename={handleRenameNote}
-                  onDelete={handleDeleteNote}
-                  onOpen={() => router.push(`/notes/${note.id}`)}
-                />
+          <div className="bg-white/50 dark:bg-black/20 rounded-2xl p-4 md:p-6 shadow-sm border border-black/5 dark:border-white/5">
+            <div className="grid grid-cols-7 gap-2 text-center mb-4">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{day}</div>
               ))}
             </div>
-          ))
+            <div className="grid grid-cols-7 gap-2">
+              {/* Simple calendar generation for current month */}
+              {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay() }).map((_, i) => (
+                <div key={`empty-${i}`} className="p-4" />
+              ))}
+              {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() }).map((_, i) => {
+                const day = i + 1;
+                const dateStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const hasNotes = groupedByDate[dateStr];
+                
+                return (
+                  <button
+                    key={day}
+                    onClick={() => hasNotes ? router.push(`/notes/${hasNotes[0].id}`) : handleNewNote()}
+                    className={`aspect-square rounded-xl p-2 flex flex-col items-center justify-center transition-all ${
+                      hasNotes 
+                        ? 'bg-[var(--accent)] text-white shadow-md hover:scale-110' 
+                        : 'bg-black/5 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-black/10 dark:hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-lg font-medium">{day}</span>
+                    {hasNotes && <span className="w-1.5 h-1.5 rounded-full bg-white mt-1" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         ) : (
           <div>
             {notes.map((note, i) => (

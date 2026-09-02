@@ -199,71 +199,79 @@ export default function Home() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
-            {classes.map((cls, i) => (
-              <motion.div
-                key={cls.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <div
-                  className="gradient-card aspect-[4/3] p-4 flex flex-col justify-between cursor-pointer relative group"
-                  style={{ background: cls.gradient }}
-                  onClick={() => router.push(`/classes/${cls.id}`)}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+            {classes.map((cls, i) => {
+              // Extract a base color for the glow from the hex/gradient
+              const glowColor = cls.gradient.includes('#') ? cls.gradient.match(/#[0-9a-fA-F]{6}/)?.[0] || 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.1)';
+              return (
+                <motion.div
+                  key={cls.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
                 >
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-[20px]" />
-                  <div className="relative z-10">
-                    {editingId === cls.id ? (
-                      <input
-                        autoFocus
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        onBlur={() => handleRename(cls.id)}
-                        onKeyDown={e => e.key === 'Enter' && handleRename(cls.id)}
-                        className="bg-transparent text-white font-bold text-lg outline-none border-b border-white/50 w-full"
-                        onClick={e => e.stopPropagation()}
-                      />
-                    ) : (
-                      <h3 className="font-bold text-lg text-white drop-shadow-sm leading-tight">
-                        {cls.name}
-                      </h3>
-                    )}
-                  </div>
-                  <div className="relative z-10 flex items-end justify-between">
-                    <div className="flex gap-1">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditingId(cls.id); setEditName(cls.name); }}
-                        className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center text-white/80 hover:bg-white/30 transition-colors"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                      </button>
+                  <div
+                    className="rounded-2xl p-4 flex flex-col justify-between cursor-pointer group aspect-[8.5/11] border border-black/5 dark:border-white/5 transition-all hover:-translate-y-1"
+                    style={{ 
+                      background: cls.gradient.includes('gradient') ? 'var(--bg-secondary)' : cls.gradient,
+                      boxShadow: `0 10px 30px -10px ${glowColor}66`,
+                    }}
+                    onClick={() => router.push(`/classes/${cls.id}`)}
+                  >
+                    <div className="relative z-10 flex-1">
+                      {editingId === cls.id ? (
+                        <input
+                          autoFocus
+                          value={editName}
+                          onChange={e => setEditName(e.target.value)}
+                          onBlur={() => handleRename(cls.id)}
+                          onKeyDown={e => e.key === 'Enter' && handleRename(cls.id)}
+                          className="bg-transparent text-gray-900 dark:text-gray-100 font-semibold text-lg outline-none w-full border-b border-gray-400"
+                          onClick={e => e.stopPropagation()}
+                        />
+                      ) : (
+                        <h3 className="font-semibold text-lg text-gray-900 line-clamp-3 leading-tight">
+                          {cls.name}
+                        </h3>
+                      )}
+                    </div>
+                    <div className="relative z-10 flex items-end justify-between mt-4">
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingId(cls.id); setEditName(cls.name); }}
+                          className="w-8 h-8 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
+                          title="Rename"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(cls.id); }}
+                          className="w-8 h-8 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                          title="Delete"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                          </svg>
+                        </button>
+                      </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleQuickNote(cls.id); }}
-                        className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center text-white/80 hover:bg-white/30 transition-colors"
+                        className="w-10 h-10 rounded-full bg-white dark:bg-gray-800 shadow-md flex items-center justify-center text-gray-900 dark:text-gray-100 hover:scale-110 transition-transform"
                         title="Quick new note"
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <line x1="12" y1="5" x2="12" y2="19" />
                           <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
                       </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(cls.id); }}
-                        className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center text-white/80 hover:bg-red-500/50 transition-colors"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                        </svg>
-                      </button>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>

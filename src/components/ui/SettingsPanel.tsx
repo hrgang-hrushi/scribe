@@ -5,6 +5,8 @@ import type { AppSettings } from '@/lib/types';
 
 interface SettingsPanelProps {
   onClose: () => void;
+  currentNoteTemplate?: string;
+  onUpdateCurrentNoteTemplate?: (template: any) => void;
 }
 
 const PAGE_TEMPLATES = [
@@ -15,7 +17,7 @@ const PAGE_TEMPLATES = [
   { id: 'cornell', label: 'Cornell', icon: '📋' },
 ] as const;
 
-export default function SettingsPanel({ onClose }: SettingsPanelProps) {
+export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCurrentNoteTemplate }: SettingsPanelProps) {
   const [settings, setSettings] = useState<AppSettings>({
     theme: 'light',
     defaultTemplate: 'blank',
@@ -80,6 +82,29 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             </div>
           </div>
 
+          {/* Current Note Template */}
+          {onUpdateCurrentNoteTemplate && (
+            <div className="mb-6">
+              <label className="text-sm font-medium mb-3 block text-blue-500">Current Note Template</label>
+              <div className="grid grid-cols-3 gap-2">
+                {PAGE_TEMPLATES.map(t => (
+                  <button
+                    key={'current-'+t.id}
+                    onClick={() => onUpdateCurrentNoteTemplate(t.id)}
+                    className="py-3 rounded-xl text-sm font-medium transition-all flex flex-col items-center gap-1 shadow-sm"
+                    style={{
+                      background: currentNoteTemplate === t.id ? 'var(--accent)' : 'var(--bg-tertiary)',
+                      color: currentNoteTemplate === t.id ? 'white' : 'var(--text-secondary)',
+                    }}
+                  >
+                    <span className="text-lg">{t.icon}</span>
+                    <span>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Default Template */}
           <div className="mb-6">
             <label className="text-sm font-medium mb-3 block" style={{ color: 'var(--text-primary)' }}>Default Page Template</label>
@@ -132,6 +157,24 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
               onChange={e => updateSettings({ autosaveInterval: Number(e.target.value) })}
               className="w-full accent-[var(--accent)]"
             />
+          </div>
+
+          {/* Calculator Toggle */}
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium block" style={{ color: 'var(--text-primary)' }}>Show Calculator</label>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Display calculator button in top bar</p>
+            </div>
+            <button
+              onClick={() => updateSettings({ showCalculator: !settings.showCalculator })}
+              className="w-12 h-7 rounded-full transition-colors relative"
+              style={{ background: settings.showCalculator !== false ? 'var(--accent)' : 'var(--bg-tertiary)' }}
+            >
+              <div
+                className="w-5 h-5 rounded-full bg-white absolute top-1 transition-transform"
+                style={{ left: settings.showCalculator !== false ? '26px' : '4px' }}
+              />
+            </button>
           </div>
 
           {/* Keyboard Shortcuts */}
