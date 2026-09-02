@@ -79,7 +79,7 @@ export default function TagFilter({ onClose }: TagFilterProps) {
                   className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
                   style={{
                     background: selectedTag === tag ? 'var(--accent)' : 'var(--bg-tertiary)',
-                    color: selectedTag === tag ? 'white' : 'var(--text-secondary)',
+                    color: selectedTag === tag ? 'var(--bg-primary)' : 'var(--text-secondary)',
                   }}
                 >
                   #{tag}

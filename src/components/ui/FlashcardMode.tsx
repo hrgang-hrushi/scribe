@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { X, Check } from 'lucide-react';
 import { getPagesForNote, db } from '@/lib/db';
 import type { Note, Page, Stroke } from '@/lib/types';
 
@@ -140,7 +141,7 @@ export default function FlashcardMode({ noteId, onClose }: FlashcardModeProps) {
             <button onClick={() => setShowCreate(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
               Cancel
             </button>
-            <button onClick={handleAddCard} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white" style={{ background: 'var(--accent)' }}>
+            <button onClick={handleAddCard} className="flex-1 py-2.5 rounded-xl text-sm font-medium " style={{ background: 'var(--accent)', color: 'var(--bg-primary)' }}>
               Add Card
             </button>
           </div>
@@ -168,17 +169,17 @@ export default function FlashcardMode({ noteId, onClose }: FlashcardModeProps) {
             onClick={() => setFlipped(!flipped)}
             whileTap={{ scale: 0.98 }}
           >
-            <p className="text-center text-sm font-medium" style={{ color: flipped ? 'white' : 'var(--text-primary)' }}>
+            <p className="text-center text-sm font-medium" style={{ color: flipped ? 'var(--bg-primary)' : 'var(--text-primary)' }}>
               {flipped ? card.back : card.front}
             </p>
           </motion.div>
           {flipped && (
             <div className="flex gap-3 mt-4">
-              <button onClick={() => handleAnswer(false)} className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-red-500">
-                ✗ Again
+              <button onClick={() => handleAnswer(false)} className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-red-500 flex items-center justify-center gap-1.5">
+                <X size={16} /> Again
               </button>
-              <button onClick={() => handleAnswer(true)} className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-green-500">
-                ✓ Got it
+              <button onClick={() => handleAnswer(true)} className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-green-500 flex items-center justify-center gap-1.5">
+                <Check size={16} /> Got it
               </button>
             </div>
           )}

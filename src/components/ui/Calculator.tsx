@@ -103,7 +103,7 @@ export default function Calculator({ onClose }: CalculatorProps) {
               }`}
               style={{
                 background: isOp ? 'var(--accent)' : 'var(--bg-secondary)',
-                color: isOp ? 'white' : isSpecial ? 'var(--accent)' : 'var(--text-primary)',
+                color: isOp ? 'var(--bg-primary)' : isSpecial ? 'var(--accent)' : 'var(--text-primary)',
                 gridColumn: btn === '0' ? 'span 2' : undefined,
               }}
             >

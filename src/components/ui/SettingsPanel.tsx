@@ -9,12 +9,14 @@ interface SettingsPanelProps {
   onUpdateCurrentNoteTemplate?: (template: any) => void;
 }
 
+import { File, AlignJustify, Grid3X3, CircleDot, LayoutTemplate, Sun, Moon } from 'lucide-react';
+
 const PAGE_TEMPLATES = [
-  { id: 'blank', label: 'Blank', icon: '📄' },
-  { id: 'ruled', label: 'Ruled', icon: '📝' },
-  { id: 'grid', label: 'Grid', icon: '📊' },
-  { id: 'dotted', label: 'Dotted', icon: '🔵' },
-  { id: 'cornell', label: 'Cornell', icon: '📋' },
+  { id: 'blank', label: 'Blank', icon: File },
+  { id: 'ruled', label: 'Ruled', icon: AlignJustify },
+  { id: 'grid', label: 'Grid', icon: Grid3X3 },
+  { id: 'dotted', label: 'Dotted', icon: CircleDot },
+  { id: 'cornell', label: 'Cornell', icon: LayoutTemplate },
 ] as const;
 
 export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCurrentNoteTemplate }: SettingsPanelProps) {
@@ -73,10 +75,13 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
                   className="flex-1 py-3 rounded-xl text-sm font-medium transition-all"
                   style={{
                     background: settings.theme === t ? 'var(--accent)' : 'var(--bg-tertiary)',
-                    color: settings.theme === t ? 'white' : 'var(--text-secondary)',
+                    color: settings.theme === t ? 'var(--bg-primary)' : 'var(--text-secondary)',
                   }}
                 >
-                  {t === 'light' ? '☀️ Light' : '🌙 Dark'}
+                  <span className="flex items-center justify-center gap-2">
+                    {t === 'light' ? <Sun size={16} /> : <Moon size={16} />}
+                    <span className="capitalize">{t}</span>
+                  </span>
                 </button>
               ))}
             </div>
@@ -94,10 +99,10 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
                     className="py-3 rounded-xl text-sm font-medium transition-all flex flex-col items-center gap-1 shadow-sm"
                     style={{
                       background: currentNoteTemplate === t.id ? 'var(--accent)' : 'var(--bg-tertiary)',
-                      color: currentNoteTemplate === t.id ? 'white' : 'var(--text-secondary)',
+                      color: currentNoteTemplate === t.id ? 'var(--bg-primary)' : 'var(--text-secondary)',
                     }}
                   >
-                    <span className="text-lg">{t.icon}</span>
+                    <t.icon size={18} />
                     <span>{t.label}</span>
                   </button>
                 ))}
@@ -116,10 +121,10 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
                   className="py-3 rounded-xl text-sm font-medium transition-all flex flex-col items-center gap-1"
                   style={{
                     background: settings.defaultTemplate === t.id ? 'var(--accent)' : 'var(--bg-tertiary)',
-                    color: settings.defaultTemplate === t.id ? 'white' : 'var(--text-secondary)',
+                    color: settings.defaultTemplate === t.id ? 'var(--bg-primary)' : 'var(--text-secondary)',
                   }}
                 >
-                  <span className="text-lg">{t.icon}</span>
+                  <t.icon size={18} />
                   <span>{t.label}</span>
                 </button>
               ))}

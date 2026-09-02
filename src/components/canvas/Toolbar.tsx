@@ -137,7 +137,7 @@ export default function Toolbar({
               }`}
               style={{
                 background: activeTool === t.id ? 'var(--accent)' : 'transparent',
-                color: activeTool === t.id ? 'white' : 'var(--text-secondary)',
+                color: activeTool === t.id ? 'var(--bg-primary)' : 'var(--text-secondary)',
               }}
               title={`${t.label} (${t.shortcut})`}
             >
@@ -154,7 +154,7 @@ export default function Toolbar({
                     key={shapeType}
                     onClick={() => onSettingsChange({ ...toolSettings, shapeType })}
                     className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      toolSettings.shapeType === shapeType ? 'bg-[var(--accent)] text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                      toolSettings.shapeType === shapeType ? 'bg-[var(--accent)] text-[var(--bg-primary)]' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     {shapeType === 'rect' && <div className="w-4 h-4 border-2 border-current" />}
@@ -196,7 +196,7 @@ export default function Toolbar({
           className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
           style={{
             background: showSettings ? 'var(--accent)' : 'transparent',
-            color: showSettings ? 'white' : 'var(--text-secondary)',
+            color: showSettings ? 'var(--bg-primary)' : 'var(--text-secondary)',
           }}
           title="Settings"
         >

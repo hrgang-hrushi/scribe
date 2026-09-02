@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { getNotesForClass, createNote, deleteNote, updateNote, getAllClasses } from '@/lib/db';
 import type { Note, ClassItem } from '@/lib/types';
 
@@ -12,10 +12,12 @@ export default function ClassPage() {
   const classId = params.classId as string;
   const [cls, setClass] = useState<ClassItem | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [view, setView] = useState<'date' | 'all'>('date');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  // Calendar State
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   useEffect(() => {
     loadData();
@@ -32,8 +34,16 @@ export default function ClassPage() {
     setNotes(n.sort((a, b) => b.updatedAt - a.updatedAt));
   }
 
-  async function handleNewNote() {
-    const note = await createNote(classId);
+  async function handleNewNote(dateOverride?: string) {
+    // If a note already exists for this date, just open it to maintain the unified canvas feel per date
+    if (dateOverride) {
+      const existing = notes.find(n => n.date === dateOverride);
+      if (existing) {
+        router.push(`/notes/${existing.id}`);
+        return;
+      }
+    }
+    const note = await createNote(classId, undefined, dateOverride);
     router.push(`/notes/${note.id}`);
   }
 
@@ -52,6 +62,7 @@ export default function ClassPage() {
     }
   }
 
+  // Group by date
   const groupedByDate = notes.reduce((acc, note) => {
     const date = note.date;
     if (!acc[date]) acc[date] = [];
@@ -59,196 +70,163 @@ export default function ClassPage() {
     return acc;
   }, {} as Record<string, Note[]>);
 
-  const sortedDates = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a));
+  // Calendar logic
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const monthName = currentDate.toLocaleString('default', { month: 'long' });
+
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+
+  const todayStr = new Date().toISOString().split('T')[0];
 
   return (
-    <div className="h-full flex flex-col" style={{ background: 'var(--bg-primary)' }}>
-      {/* Header */}
-      <div
-        className="safe-top px-4 pt-4 pb-3"
-        style={{ background: cls?.gradient || 'var(--bg-primary)' }}
-      >
-        <div className="flex items-center gap-3 mb-3">
+    <div className="h-full flex flex-col md:flex-row font-sans overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
+      {/* Left Pane - Calendar (70%) */}
+      <div className="flex-1 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar">
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-12">
           <button
             onClick={() => router.push('/')}
-            className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/20 backdrop-blur-sm"
+            className="w-12 h-12 rounded-full flex items-center justify-center transition-transform hover:scale-105 shadow-sm"
+            style={{ background: 'var(--bg-tertiary)' }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--text-primary)' }}>
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <h1 className="text-xl font-bold text-white flex-1 drop-shadow-sm">{cls?.name || 'Loading...'}</h1>
-          <button
-            onClick={handleNewNote}
-            className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/20 backdrop-blur-sm text-white font-bold"
-          >
-            +
-          </button>
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+              {cls?.name || 'Loading...'}
+            </h1>
+            <p className="text-sm font-medium mt-1" style={{ color: 'var(--text-muted)' }}>Class Calendar & Notes</p>
+          </div>
         </div>
-        {/* View Toggle */}
-        <div className="flex bg-white/20 backdrop-blur-sm rounded-xl p-1">
-          <button
-            onClick={() => setView('date')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-              view === 'date' ? 'bg-white text-gray-900' : 'text-white/80'
-            }`}
-          >
-            Calendar
-          </button>
-          <button
-            onClick={async () => {
-              if (notes.length > 0) {
-                router.push(`/notes/${notes[0].id}`);
-              } else {
-                handleNewNote();
-              }
-            }}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all text-white/80`}
-          >
-            All Notes
-          </button>
-        </div>
-      </div>
 
-      {/* Notes List */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-8 pt-4">
-        {notes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-center">
-            <div className="text-4xl mb-3">📝</div>
-            <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>No notes yet</p>
-            <button
-              onClick={handleNewNote}
-              className="px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-transform hover:scale-105 active:scale-95"
-              style={{ background: 'var(--accent)' }}
-            >
-              Start First Note
+        {/* Calendar Controls */}
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-4xl font-bold" style={{ color: 'var(--text-primary)' }}>
+            {monthName} <span style={{ color: 'var(--text-muted)' }}>{year}</span>
+          </h2>
+          <div className="flex gap-2">
+            <button onClick={prevMonth} className="w-12 h-12 rounded-full flex items-center justify-center transition-colors hover:bg-black/5 dark:hover:bg-white/5" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6" /></svg>
+            </button>
+            <button onClick={() => setCurrentDate(new Date())} className="px-6 h-12 rounded-full font-bold text-sm transition-transform hover:scale-105" style={{ background: 'var(--accent)', color: 'var(--bg-primary)' }}>
+              Today
+            </button>
+            <button onClick={nextMonth} className="w-12 h-12 rounded-full flex items-center justify-center transition-colors hover:bg-black/5 dark:hover:bg-white/5" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
             </button>
           </div>
-        ) : view === 'date' ? (
-          <div className="bg-white/50 dark:bg-black/20 rounded-2xl p-4 md:p-6 shadow-sm border border-black/5 dark:border-white/5">
-            <div className="grid grid-cols-7 gap-2 text-center mb-4">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{day}</div>
-              ))}
+        </div>
+
+        {/* Calendar Grid */}
+        <div className="grid grid-cols-7 gap-3 md:gap-4 mb-8">
+          {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day => (
+            <div key={day} className="text-xs font-bold text-center tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>
+              {day}
             </div>
-            <div className="grid grid-cols-7 gap-2">
-              {/* Simple calendar generation for current month */}
-              {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay() }).map((_, i) => (
-                <div key={`empty-${i}`} className="p-4" />
-              ))}
-              {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() }).map((_, i) => {
-                const day = i + 1;
-                const dateStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const hasNotes = groupedByDate[dateStr];
+          ))}
+          
+          {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+            <div key={`empty-${i}`} className="aspect-square rounded-[24px]" />
+          ))}
+          
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const day = i + 1;
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dayNotes = groupedByDate[dateStr];
+            const hasNotes = !!dayNotes && dayNotes.length > 0;
+            const isToday = dateStr === todayStr;
+            
+            return (
+              <motion.button
+                key={day}
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleNewNote(dateStr)}
+                className={`aspect-square rounded-[24px] p-3 md:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden transition-shadow ${hasNotes ? 'shadow-md' : 'shadow-sm'}`}
+                style={{
+                  background: hasNotes ? 'var(--accent)' : 'var(--bg-secondary)',
+                  color: hasNotes ? 'var(--bg-primary)' : 'var(--text-primary)',
+                  border: isToday && !hasNotes ? '2px solid var(--accent)' : '2px solid transparent'
+                }}
+              >
+                <span className="text-xl md:text-2xl font-bold z-10">{day}</span>
                 
-                return (
-                  <button
-                    key={day}
-                    onClick={() => hasNotes ? router.push(`/notes/${hasNotes[0].id}`) : handleNewNote()}
-                    className={`aspect-square rounded-xl p-2 flex flex-col items-center justify-center transition-all ${
-                      hasNotes 
-                        ? 'bg-[var(--accent)] text-white shadow-md hover:scale-110' 
-                        : 'bg-black/5 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-black/10 dark:hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="text-lg font-medium">{day}</span>
-                    {hasNotes && <span className="w-1.5 h-1.5 rounded-full bg-white mt-1" />}
-                  </button>
-                );
-              })}
+                {hasNotes && (
+                  <div className="w-full z-10">
+                    <div className="w-full h-1.5 rounded-full bg-white/30 mb-1"></div>
+                    <div className="w-2/3 h-1.5 rounded-full bg-white/30"></div>
+                  </div>
+                )}
+                
+                {/* Decorative background shape for notes */}
+                {hasNotes && (
+                  <div className="absolute -bottom-4 -right-4 w-16 h-16 rounded-full bg-white/10 blur-xl"></div>
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Right Pane - All Notes & Info (30%) */}
+      <div className="w-full md:w-96 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar shadow-2xl z-10" style={{ background: 'var(--bg-secondary)' }}>
+        
+        {/* Unified Canvas Jump */}
+        <h3 className="text-2xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>Unified Canvas</h3>
+        <div className="rounded-[32px] p-8 mb-10 shadow-lg relative overflow-hidden flex flex-col items-start" style={{ background: cls?.gradient || 'var(--bg-tertiary)' }}>
+          <div className="relative z-10">
+            <h4 className="mix-blend-difference text-white text-3xl font-bold leading-tight mb-2 drop-shadow-sm">All Notes<br/>One Canvas.</h4>
+            <p className="mix-blend-difference text-white/80 font-medium text-sm mb-8 drop-shadow-sm">Scroll infinitely. Write continuously.</p>
+            
+            <button
+              onClick={() => {
+                if (notes.length > 0) router.push(`/notes/${notes[0].id}`);
+                else handleNewNote();
+              }}
+              className="px-6 py-4 rounded-full font-bold text-sm mix-blend-difference bg-white text-black transition-transform hover:scale-105 shadow-md flex items-center gap-2"
+            >
+              Open Notebook
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+          {/* Abstract decoration */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-2xl -mr-10 -mt-10"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full blur-xl -ml-5 -mb-5"></div>
+        </div>
+
+        {/* Timeline of recent class notes */}
+        <h3 className="text-xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>Recent in {cls?.name}</h3>
+        <div className="flex-1 space-y-4">
+          {notes.slice(0, 5).map(note => (
+            <div 
+              key={note.id} 
+              onClick={() => router.push(`/notes/${note.id}`)}
+              className="p-5 rounded-[24px] cursor-pointer group transition-colors shadow-sm"
+              style={{ background: 'var(--bg-primary)' }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                  {new Date(note.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </span>
+                <svg className="opacity-0 group-hover:opacity-100 transition-opacity" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </div>
+              <h4 className="text-lg font-bold truncate" style={{ color: 'var(--text-primary)' }}>{note.title || 'Untitled Note'}</h4>
             </div>
-          </div>
-        ) : (
-          <div>
-            {notes.map((note, i) => (
-              <NoteCard
-                key={note.id}
-                note={note}
-                index={i}
-                editingNoteId={editingNoteId}
-                editTitle={editTitle}
-                setEditTitle={setEditTitle}
-                setEditingNoteId={setEditingNoteId}
-                onRename={handleRenameNote}
-                onDelete={handleDeleteNote}
-                onOpen={() => router.push(`/notes/${note.id}`)}
-              />
-            ))}
-          </div>
-        )}
+          ))}
+          {notes.length === 0 && (
+            <div className="p-6 text-center opacity-60">
+              <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>No recent notes.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
-  );
-}
-
-function NoteCard({ note, index, editingNoteId, editTitle, setEditTitle, setEditingNoteId, onRename, onDelete, onOpen }: {
-  note: Note;
-  index: number;
-  editingNoteId: string | null;
-  editTitle: string;
-  setEditTitle: (v: string) => void;
-  setEditingNoteId: (v: string | null) => void;
-  onRename: (id: string) => void;
-  onDelete: (id: string) => void;
-  onOpen: () => void;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.03 }}
-      className="rounded-xl p-4 mb-2 cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] group"
-      style={{
-        background: 'var(--bg-secondary)',
-        border: '1px solid var(--border)',
-      }}
-      onClick={onOpen}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          {editingNoteId === note.id ? (
-            <input
-              autoFocus
-              value={editTitle}
-              onChange={e => setEditTitle(e.target.value)}
-              onBlur={() => onRename(note.id)}
-              onKeyDown={e => e.key === 'Enter' && onRename(note.id)}
-              onClick={e => e.stopPropagation()}
-              className="w-full bg-transparent font-medium text-sm outline-none border-b"
-              style={{ color: 'var(--text-primary)', borderColor: 'var(--accent)' }}
-            />
-          ) : (
-            <h3 className="font-medium text-sm truncate" style={{ color: 'var(--text-primary)' }}>
-              {note.title}
-            </h3>
-          )}
-          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-            {new Date(note.updatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-            {note.tags.length > 0 && ` · ${note.tags.join(', ')}`}
-          </p>
-        </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={(e) => { e.stopPropagation(); setEditingNoteId(note.id); setEditTitle(note.title); }}
-            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-            style={{ background: 'var(--bg-tertiary)' }}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-secondary)' }}>
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
-            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-red-500/10"
-            style={{ background: 'var(--bg-tertiary)' }}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-secondary)' }}>
-              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </motion.div>
   );
 }

@@ -6,6 +6,7 @@ import { getAllClasses, createClass, deleteClass, updateClass, searchAll, create
 import type { ClassItem } from '@/lib/types';
 import { GRADIENT_PRESETS } from '@/lib/types';
 import { useRouter } from 'next/navigation';
+import { BookOpen } from 'lucide-react';
 import TagFilter from '@/components/ui/TagFilter';
 import FlashcardMode from '@/components/ui/FlashcardMode';
 import PomodoroTimer from '@/components/ui/PomodoroTimer';
@@ -26,6 +27,8 @@ export default function Home() {
   const [showPomodoro, setShowPomodoro] = useState(false);
   const router = useRouter();
 
+  const [totalNotes, setTotalNotes] = useState(0);
+
   useEffect(() => {
     loadClasses();
     const savedTheme = localStorage.getItem('scribe-theme') as 'light' | 'dark' || 'light';
@@ -44,6 +47,8 @@ export default function Home() {
   async function loadClasses() {
     const all = await getAllClasses();
     setClasses(all);
+    const result = await searchAll('');
+    setTotalNotes(result.notes.length);
   }
 
   function toggleTheme() {
@@ -82,198 +87,245 @@ export default function Home() {
   }
 
   return (
-    <div className="h-full flex flex-col" style={{ background: 'var(--bg-primary)' }}>
-      {/* Header */}
-      <div className="safe-top px-6 pt-4 pb-3 flex items-center justify-between" style={{ background: 'var(--bg-primary)' }}>
-        <h1 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-          Scribe
-        </h1>
-        <div className="flex items-center gap-3">
+    <div className="h-full flex flex-col md:flex-row overflow-hidden font-sans" style={{ background: 'var(--bg-primary)' }}>
+      {/* Left Main Content */}
+      <div className="flex-1 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar">
+        {/* Top Bar */}
+        <div className="flex items-center justify-between mb-16">
+          <h1 className="text-xl font-bold tracking-tight" style={{ color: 'var(--text-muted)' }}>
+            Scribe
+          </h1>
           <button
-            onClick={toggleTheme}
-            className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
-            style={{ background: 'var(--bg-tertiary)' }}
+            onClick={() => setShowPomodoro(true)}
+            className="w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-105 shadow-sm"
+            style={{ background: 'var(--bg-secondary)' }}
           >
-            {theme === 'light' ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-primary)' }}>
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-primary)' }}>
-                <circle cx="12" cy="12" r="5" />
-                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-              </svg>
-            )}
-          </button>
-          <button
-            onClick={() => setShowTagFilter(true)}
-            className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
-            style={{ background: 'var(--bg-tertiary)' }}
-            title="Filter by tag"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-primary)' }}>
-              <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
-              <line x1="7" y1="7" x2="7.01" y2="7" />
-            </svg>
-          </button>
-          <button
-            onClick={() => setShowPomodoro(v => !v)}
-            className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
-            style={{ background: showPomodoro ? 'var(--accent)' : 'var(--bg-tertiary)', color: showPomodoro ? 'white' : 'var(--text-primary)' }}
-            title="Pomodoro timer"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-primary)' }}>
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
             </svg>
           </button>
+        </div>
+
+        {/* Hero */}
+        <h2 className="text-5xl md:text-6xl font-medium tracking-tight leading-[1.1] mb-12" style={{ color: 'var(--text-primary)' }}>
+          Check it,<br/>Crack it!
+        </h2>
+
+        {/* Nav Pills */}
+        <div className="flex gap-3 mb-12">
           <button
-            onClick={() => setShowCreate(true)}
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-medium text-xl transition-transform hover:scale-105 active:scale-95"
-            style={{ background: 'var(--accent)' }}
+            className="px-6 py-3 rounded-full font-medium shadow-md transition-transform hover:scale-105"
+            style={{ background: 'var(--accent)', color: 'var(--bg-primary)' }}
           >
-            +
+            Home
+          </button>
+          <button
+            onClick={() => {
+              const el = document.getElementById('search-input');
+              if (el) el.focus();
+            }}
+            className="px-6 py-3 rounded-full font-medium transition-colors hover:opacity-80"
+            style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+          >
+            Search Notes
           </button>
         </div>
-      </div>
 
-      {/* Search */}
-      <div className="px-6 pb-4">
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-muted)' }}>
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search notes, classes, tags..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-xl text-sm outline-none transition-all"
-            style={{
-              background: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border)',
-            }}
-          />
-        </div>
-        {searchQuery.length >= 2 && (searchResults.notes.length > 0 || searchResults.classes.length > 0) && (
-          <div className="mt-2 rounded-xl p-3 max-h-60 overflow-y-auto no-scrollbar" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-            {searchResults.classes.map(c => (
-              <button
-                key={c.id}
-                onClick={() => router.push(`/classes/${c.id}`)}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors hover:bg-[var(--bg-tertiary)]"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                📁 {c.name}
-              </button>
-            ))}
-            {searchResults.notes.map(n => (
-              <button
-                key={n.id}
-                onClick={() => router.push(`/notes/${n.id}`)}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors hover:bg-[var(--bg-tertiary)]"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                📝 {n.title}
-              </button>
-            ))}
+        {/* Classes Section */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <h3 className="text-2xl font-medium" style={{ color: 'var(--text-primary)' }}>Your Classes, {classes.length}</h3>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-muted)' }}>
+              <path d="M9 18l6-6-6-6" />
+            </svg>
           </div>
-        )}
-      </div>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-105 shadow-sm"
+            style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
 
-      {/* Class Grid */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-8">
+        {/* Classes Grid */}
         {classes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-center">
-            <div className="text-5xl mb-4">📚</div>
+          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center rounded-[32px] border-2 border-dashed" style={{ borderColor: 'var(--border)' }}>
+            <BookOpen className="w-12 h-12 mb-4 opacity-50" style={{ color: 'var(--text-primary)' }} />
             <p className="text-lg font-medium mb-2" style={{ color: 'var(--text-primary)' }}>No classes yet</p>
-            <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>Create your first class to start taking notes</p>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="px-6 py-3 rounded-xl text-white font-medium transition-transform hover:scale-105 active:scale-95"
-              style={{ background: 'var(--accent)' }}
-            >
-              Create Class
-            </button>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Create your first class to start taking notes</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-            {classes.map((cls, i) => {
-              // Extract a base color for the glow from the hex/gradient
-              const glowColor = cls.gradient.includes('#') ? cls.gradient.match(/#[0-9a-fA-F]{6}/)?.[0] || 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.1)';
-              return (
-                <motion.div
-                  key={cls.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-12">
+            {classes.map((cls, i) => (
+              <motion.div
+                key={cls.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <div
+                  className="rounded-[32px] p-6 flex flex-col justify-between cursor-pointer group aspect-[1.2] transition-transform hover:-translate-y-1 shadow-sm relative overflow-hidden"
+                  style={{ background: cls.gradient }}
+                  onClick={() => router.push(`/classes/${cls.id}`)}
                 >
-                  <div
-                    className="rounded-2xl p-4 flex flex-col justify-between cursor-pointer group aspect-[8.5/11] border border-black/5 dark:border-white/5 transition-all hover:-translate-y-1"
-                    style={{ 
-                      background: cls.gradient.includes('gradient') ? 'var(--bg-secondary)' : cls.gradient,
-                      boxShadow: `0 10px 30px -10px ${glowColor}66`,
-                    }}
-                    onClick={() => router.push(`/classes/${cls.id}`)}
-                  >
-                    <div className="relative z-10 flex-1">
-                      {editingId === cls.id ? (
-                        <input
-                          autoFocus
-                          value={editName}
-                          onChange={e => setEditName(e.target.value)}
-                          onBlur={() => handleRename(cls.id)}
-                          onKeyDown={e => e.key === 'Enter' && handleRename(cls.id)}
-                          className="bg-transparent text-gray-900 dark:text-gray-100 font-semibold text-lg outline-none w-full border-b border-gray-400"
-                          onClick={e => e.stopPropagation()}
-                        />
-                      ) : (
-                        <h3 className="font-semibold text-lg text-gray-900 line-clamp-3 leading-tight">
-                          {cls.name}
-                        </h3>
-                      )}
-                    </div>
-                    <div className="relative z-10 flex items-end justify-between mt-4">
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditingId(cls.id); setEditName(cls.name); }}
-                          className="w-8 h-8 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
-                          title="Rename"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(cls.id); }}
-                          className="w-8 h-8 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-                          title="Delete"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                          </svg>
-                        </button>
-                      </div>
+                  <div className="relative z-10 flex-1 flex justify-between items-start">
+                    {editingId === cls.id ? (
+                      <input
+                        autoFocus
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        onBlur={() => handleRename(cls.id)}
+                        onKeyDown={e => e.key === 'Enter' && handleRename(cls.id)}
+                        className="bg-transparent mix-blend-difference text-white font-medium text-2xl outline-none w-full border-b border-white/40"
+                        onClick={e => e.stopPropagation()}
+                        
+                      />
+                    ) : (
+                      <h3 className="mix-blend-difference text-white font-medium text-2xl line-clamp-3 leading-tight" >
+                        {cls.name}
+                      </h3>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleQuickNote(cls.id); }}
+                      className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center transition-transform hover:scale-110 shrink-0 ml-4 mix-blend-difference text-white"
+                      
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="relative z-10 flex items-end justify-between mt-4">
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleQuickNote(cls.id); }}
-                        className="w-10 h-10 rounded-full bg-white dark:bg-gray-800 shadow-md flex items-center justify-center text-gray-900 dark:text-gray-100 hover:scale-110 transition-transform"
-                        title="Quick new note"
+                        onClick={(e) => { e.stopPropagation(); setEditingId(cls.id); setEditName(cls.name); }}
+                        className="w-8 h-8 rounded-full bg-black/10 flex items-center justify-center transition-colors hover:bg-black/20 mix-blend-difference text-white"
+                        
                       >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="12" y1="5" x2="12" y2="19" />
-                          <line x1="5" y1="12" x2="19" y2="12" />
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(cls.id); }}
+                        className="w-8 h-8 rounded-full bg-black/10 flex items-center justify-center transition-colors hover:bg-red-500/80 mix-blend-difference text-white"
+                        
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
                         </svg>
                       </button>
                     </div>
                   </div>
-                </motion.div>
-              );
-            })}
+                </div>
+              </motion.div>
+            ))}
           </div>
         )}
+      </div>
+
+      {/* Right Sidebar */}
+      <div className="w-full md:w-96 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar shadow-xl" style={{ background: 'var(--bg-secondary)' }}>
+        <div className="flex justify-end mb-12">
+          <button onClick={toggleTheme} className="p-2 transition-transform hover:scale-110" style={{ color: 'var(--text-primary)' }}>
+            {theme === 'light' ? (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="5" />
+                <line x1="12" y1="1" x2="12" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="23" />
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                <line x1="1" y1="12" x2="3" y2="12" />
+                <line x1="21" y1="12" x2="23" y2="12" />
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+              </svg>
+            )}
+          </button>
+        </div>
+
+        <h2 className="text-3xl font-medium leading-tight mb-10" style={{ color: 'var(--text-primary)' }}>
+          Hi,<br/>Scholar
+        </h2>
+
+        <div className="flex gap-4 mb-12">
+          <div className="flex-1 rounded-[24px] p-6 shadow-md" style={{ background: 'var(--accent)' }}>
+            <div className="text-4xl font-bold mb-2" style={{ color: 'var(--bg-primary)' }}>{classes.length}</div>
+            <div className="text-sm font-medium" style={{ color: 'var(--bg-primary)', opacity: 0.8 }}>Level (Classes)</div>
+          </div>
+          <div className="flex-1 rounded-[24px] p-6 shadow-md" style={{ background: 'var(--accent)' }}>
+            <div className="text-4xl font-bold mb-2" style={{ color: 'var(--bg-primary)' }}>{totalNotes}</div>
+            <div className="text-sm font-medium" style={{ color: 'var(--bg-primary)', opacity: 0.8 }}>Mates (Notes)</div>
+          </div>
+        </div>
+
+        <div className="flex-1">
+          <div className="flex items-center gap-4 mb-6 text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
+            <span style={{ color: 'var(--text-primary)' }}>Search</span>
+            <span>Filtering</span>
+          </div>
+          
+          <div className="relative mb-8">
+            <input
+              id="search-input"
+              type="text"
+              placeholder="Find notes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-3 rounded-2xl outline-none shadow-sm"
+              style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+            />
+          </div>
+
+          <div className="space-y-6">
+            {/* Mock recent activity items designed like the inspiration */}
+            {searchResults.notes.length > 0 ? (
+              searchResults.notes.map((note) => (
+                <div key={note.id} onClick={() => router.push(`/notes/${note.id}`)} className="cursor-pointer group flex flex-col items-end">
+                  <div className="w-full border-b pb-4" style={{ borderColor: 'var(--border)' }}>
+                    <div className="text-lg font-medium mb-1" style={{ color: 'var(--text-primary)' }}>{note.title || 'Untitled'}</div>
+                    <div className="inline-block px-3 py-1 rounded-full text-xs font-medium border" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                      Updated Note
+                    </div>
+                  </div>
+                  {/* Decorative bar chart mimic */}
+                  <div className="flex items-end gap-1 mt-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                    <div className="w-4 h-6 rounded-t-sm" style={{ background: 'var(--bg-tertiary)' }}></div>
+                    <div className="w-4 h-10 rounded-t-sm" style={{ background: 'var(--text-muted)' }}></div>
+                    <div className="w-4 h-16 rounded-t-sm" style={{ background: 'var(--accent)' }}></div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="opacity-60">
+                <div className="flex flex-col items-end mb-8">
+                  <div className="w-full border-b pb-4" style={{ borderColor: 'var(--border)' }}>
+                    <div className="text-lg font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Current week</div>
+                    <div className="inline-block px-3 py-1 rounded-full text-xs font-medium border" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                      {totalNotes} Notes
+                    </div>
+                  </div>
+                  <div className="flex items-end gap-1 mt-2">
+                    <div className="w-4 h-6 rounded-t-sm" style={{ background: 'var(--bg-tertiary)' }}></div>
+                    <div className="w-4 h-10 rounded-t-sm" style={{ background: 'var(--text-muted)' }}></div>
+                    <div className="w-4 h-16 rounded-t-sm" style={{ background: 'var(--accent)' }}></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Create Class Modal */}
@@ -291,32 +343,31 @@ export default function Home() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-sm rounded-2xl p-6"
+              className="w-full max-w-sm rounded-[32px] p-8 shadow-2xl"
               style={{ background: 'var(--bg-secondary)' }}
               onClick={e => e.stopPropagation()}
             >
-              <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>New Class</h2>
+              <h2 className="text-2xl font-medium mb-6" style={{ color: 'var(--text-primary)' }}>New Class</h2>
               <input
                 autoFocus
                 type="text"
-                placeholder="Class name (e.g. Organic Chemistry)"
+                placeholder="Class name"
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleCreate()}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none mb-4"
+                className="w-full px-5 py-4 rounded-[20px] text-base outline-none mb-6"
                 style={{
                   background: 'var(--bg-tertiary)',
                   color: 'var(--text-primary)',
-                  border: '1px solid var(--border)',
                 }}
               />
-              <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Choose a color</p>
-              <div className="grid grid-cols-7 gap-2 mb-4">
+              <p className="text-sm font-medium mb-3" style={{ color: 'var(--text-muted)' }}>Choose a preset</p>
+              <div className="grid grid-cols-7 gap-2 mb-8">
                 {GRADIENT_PRESETS.map((g, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedGradient(g)}
-                    className="w-8 h-8 rounded-lg transition-transform hover:scale-110"
+                    className="w-8 h-8 rounded-full transition-transform hover:scale-110"
                     style={{
                       background: g,
                       outline: selectedGradient === g ? '2px solid var(--accent)' : 'none',
@@ -328,15 +379,15 @@ export default function Home() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowCreate(false)}
-                  className="flex-1 py-3 rounded-xl text-sm font-medium transition-colors"
+                  className="flex-1 py-4 rounded-full font-medium transition-colors"
                   style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreate}
-                  className="flex-1 py-3 rounded-xl text-sm font-medium text-white transition-transform hover:scale-[1.02] active:scale-[0.98]"
-                  style={{ background: 'var(--accent)' }}
+                  className="flex-1 py-4 rounded-full font-medium transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ background: 'var(--accent)', color: 'var(--bg-primary)' }}
                 >
                   Create
                 </button>
@@ -346,19 +397,11 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* Tag Filter */}
+      {/* Additional Modals */}
       <AnimatePresence>
-        {showTagFilter && (
-          <TagFilter onClose={() => setShowTagFilter(false)} />
-        )}
+        {showTagFilter && <TagFilter onClose={() => setShowTagFilter(false)} />}
       </AnimatePresence>
-
-      {/* Pomodoro Timer */}
-      {showPomodoro && (
-        <PomodoroTimer onClose={() => setShowPomodoro(false)} />
-      )}
-
-      {/* Flashcard Mode */}
+      {showPomodoro && <PomodoroTimer onClose={() => setShowPomodoro(false)} />}
       <AnimatePresence>
         {showFlashcards && flashcardNoteId && (
           <FlashcardMode noteId={flashcardNoteId} onClose={() => { setShowFlashcards(false); setFlashcardNoteId(null); }} />

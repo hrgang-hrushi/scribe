@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getPagesForNote, updatePage, updateNote, db } from '@/lib/db';
 import type { Note, Page, Stroke, TextBox, ImageBlock, Tool, ToolSettings } from '@/lib/types';
@@ -12,6 +12,7 @@ import Calculator from '@/components/ui/Calculator';
 import SettingsPanel from '@/components/ui/SettingsPanel';
 import FlashcardMode from '@/components/ui/FlashcardMode';
 import { exportToPdf } from '@/lib/pdf-export';
+import { Check } from 'lucide-react';
 
 export default function NotePage() {
   const params = useParams();
@@ -20,13 +21,14 @@ export default function NotePage() {
   const [note, setNote] = useState<Note | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<Tool>('pen');
   const [toolSettings, setToolSettings] = useState<ToolSettings>({
-    penWidth: 2,
-    penColor: '#000000',
+    penColor: INK_COLORS[0],
+    penWidth: 3,
     penOpacity: 1,
     highlighterWidth: 20,
-    highlighterColor: '#ffeb3b',
+    highlighterColor: '#FEF08A',
     eraserWidth: 20,
     eraserMode: 'stroke',
     smoothing: 0.5,
@@ -38,9 +40,8 @@ export default function NotePage() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'offline'>('saved');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showToolbar, setShowToolbar] = useState(true);
-  const [undoStack, setUndoStack] = useState<Page[]>([]);
-  const [redoStack, setRedoStack] = useState<Page[]>([]);
   const [appSettings, setAppSettings] = useState<any>({});
+  const canvasEditorRef = useRef<any>(null);
 
   useEffect(() => {
     loadData();
@@ -71,25 +72,20 @@ export default function NotePage() {
   }, [noteId]);
 
   async function loadData() {
-    const noteData = await db.notes.get(noteId);
-    if (noteData) setNote(noteData);
-    const pagesData = await getPagesForNote(noteId);
-    setPages(pagesData);
+    setIsLoading(true);
+    const n = await db.notes.get(noteId);
+    if (n) setNote(n);
+    const p = await getPagesForNote(noteId);
+    setPages(p);
+    setIsLoading(false);
   }
 
   function handleUndo() {
-    if (pages.length === 0) return;
-    const current = pages[currentPage];
-    if (!current) return;
-    setUndoStack(prev => [...prev.slice(-20), JSON.parse(JSON.stringify(current))]);
-    // Undo is handled inside CanvasEditor via ref
+    if (canvasEditorRef.current) canvasEditorRef.current.undo();
   }
 
   function handleRedo() {
-    if (undoStack.length === 0) return;
-    const prev = undoStack[undoStack.length - 1];
-    setUndoStack(s => s.slice(0, -1));
-    setRedoStack(r => [...r, prev]);
+    if (canvasEditorRef.current) canvasEditorRef.current.redo();
   }
 
   async function handleSave(pageData: Page) {
@@ -156,13 +152,13 @@ export default function NotePage() {
           <span className="text-xs px-2 py-1 rounded-md" style={{
             color: saveStatus === 'saved' ? '#22c55e' : saveStatus === 'saving' ? '#f59e0b' : '#ef4444',
           }}>
-            {saveStatus === 'saved' ? '✓ Saved' : saveStatus === 'saving' ? 'Saving...' : 'Offline'}
+            {saveStatus === 'saved' ? <><Check size={14} className="inline mr-1" />Saved</> : saveStatus === 'saving' ? 'Saving...' : 'Offline'}
           </span>
           {appSettings.showCalculator !== false && (
             <button
               onClick={() => setShowCalculator(v => !v)}
               className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
-              style={{ background: showCalculator ? 'var(--accent)' : 'var(--bg-tertiary)', color: showCalculator ? 'white' : 'var(--text-primary)' }}
+              style={{ background: showCalculator ? 'var(--accent)' : 'var(--bg-tertiary)', color: showCalculator ? 'var(--bg-primary)' : 'var(--text-primary)' }}
               title="Calculator (press =)"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -227,6 +223,7 @@ export default function NotePage() {
       <div className="flex-1 relative overflow-hidden">
         {pages.length > 0 && (
           <CanvasEditor
+            ref={canvasEditorRef}
             page={pages[currentPage]}
             template={note?.template || 'blank'}
             tool={activeTool}

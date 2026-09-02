@@ -40,7 +40,7 @@ export async function deleteClass(id: string): Promise<void> {
   await db.classes.delete(id);
 }
 
-export async function createNote(classId: string, title?: string): Promise<Note> {
+export async function createNote(classId: string, title?: string, dateOverride?: string): Promise<Note> {
   let defaultTemplate: Note['template'] = 'blank';
   if (typeof window !== 'undefined') {
     try {
@@ -54,7 +54,7 @@ export async function createNote(classId: string, title?: string): Promise<Note>
   const note: Note = {
     id,
     classId,
-    date: new Date().toISOString().split('T')[0],
+    date: dateOverride || new Date().toISOString().split('T')[0],
     title: title || `Note ${new Date().toLocaleDateString()}`,
     tags: [],
     template: defaultTemplate,

@@ -105,16 +105,13 @@ export interface AppSettings {
 }
 
 export const GRADIENT_PRESETS = [
-  '#F4F4F5', // Zinc 100
-  '#FEE2E2', // Red 100
-  '#FEF3C7', // Amber 100
-  '#DCFCE7', // Green 100
-  '#DBEAFE', // Blue 100
-  '#F3E8FF', // Purple 100
-  '#FCE7F3', // Pink 100
-  '#E0E7FF', // Indigo 100
-  '#FFEDD5', // Orange 100
-  '#ECFEFF', // Cyan 100
+  '#1A1A1A', // Deep Black
+  '#333333', // Dark Gray
+  '#EBEBEB', // Light Gray
+  '#DCDCDC', // Gray
+  '#FF453A', // Vibrant Red Accent
+  '#FF9F0A', // Orange Accent
+  '#32ADE6', // Blue Accent
 ];
 
 export const INK_COLORS = [

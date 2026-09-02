@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { Brain, Coffee } from 'lucide-react';
 
 interface PomodoroTimerProps {
   onClose: () => void;
@@ -61,8 +62,8 @@ export default function PomodoroTimer({ onClose }: PomodoroTimerProps) {
     >
       {/* Title bar */}
       <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-        <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-          {mode === 'work' ? '🍅 Focus' : '☕ Break'}
+        <span className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+          {mode === 'work' ? <><Brain size={14}/> Focus</> : <><Coffee size={14}/> Break</>}
         </span>
         <button onClick={onClose} className="w-5 h-5 rounded flex items-center justify-center" style={{ color: 'var(--text-muted)' }}>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

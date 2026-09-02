@@ -80,7 +80,14 @@ interface CanvasEditorProps {
   onUndo: () => void;
 }
 
-export default function CanvasEditor({ page, template = 'blank', tool, settings, theme, onSave, onUndo }: CanvasEditorProps) {
+import { forwardRef, useImperativeHandle } from 'react';
+
+export interface CanvasEditorRef {
+  undo: () => void;
+  redo: () => void;
+}
+
+const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, template = 'blank', tool, settings, theme, onSave, onUndo }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -93,6 +100,29 @@ export default function CanvasEditor({ page, template = 'blank', tool, settings,
   const zoomRef = useRef(1);
   const lastPinchDist = useRef(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [undoStack, setUndoStack] = useState<Stroke[][]>([]);
+  const [redoStack, setRedoStack] = useState<Stroke[][]>([]);
+
+  useImperativeHandle(ref, () => ({
+    undo: () => {
+      if (committedStrokes.current.length === 0) return;
+      const lastStroke = committedStrokes.current[committedStrokes.current.length - 1];
+      setUndoStack(prev => [...prev, [lastStroke]]);
+      committedStrokes.current = committedStrokes.current.slice(0, -1);
+      redrawAll();
+      triggerSave();
+    },
+    redo: () => {
+      if (undoStack.length === 0) return;
+      const strokesToRestore = undoStack[undoStack.length - 1];
+      setUndoStack(prev => prev.slice(0, -1));
+      committedStrokes.current = [...committedStrokes.current, ...strokesToRestore];
+      redrawAll();
+      triggerSave();
+    }
+  }));
+
   const shapeStartRef = useRef<Point | null>(null);
   const [textBoxes, setTextBoxes] = useState<TextBox[]>(page.textBoxes);
   const [images, setImages] = useState<ImageBlock[]>(page.images);
@@ -280,14 +310,14 @@ export default function CanvasEditor({ page, template = 'blank', tool, settings,
       return;
     }
     if (tool === 'image') {
+      const pos = getPointerPos(e);
       // Trigger file input for images and PDFs
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*,application/pdf';
-      input.onchange = async (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
+      input.onchange = async (fileEvent) => {
+        const file = (fileEvent.target as HTMLInputElement).files?.[0];
         if (!file) return;
-        const pos = getPointerPos(e as any);
 
         if (file.type === 'application/pdf') {
           // Dynamic import for pdfjs to avoid SSR issues
@@ -695,4 +725,7 @@ export default function CanvasEditor({ page, template = 'blank', tool, settings,
       ))}
     </div>
   );
-}
+});
+
+CanvasEditor.displayName = 'CanvasEditor';
+export default CanvasEditor;
