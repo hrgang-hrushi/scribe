@@ -88,10 +88,13 @@ export interface CanvasEditorRef {
 }
 
 const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, template = 'blank', tool, settings, theme, onSave, onUndo }, ref) => {
+  const bgCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDrawing = useRef(false);
+  const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoShapeData = useRef<{ type: string; start: {x: number, y: number}; end: {x: number, y: number} } | null>(null);
   const currentStroke = useRef<Point[]>([]);
   const committedStrokes = useRef<Stroke[]>([...page.strokes]);
   const committedTextBoxes = useRef<TextBox[]>([...page.textBoxes]);
@@ -160,6 +163,10 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
     return () => window.removeEventListener('resize', resize);
   }, []);
 
+  useEffect(() => {
+    redrawAll();
+  }, [template, theme]);
+
   const redrawAll = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -172,43 +179,54 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
     ctx.translate(panRef.current.x, panRef.current.y);
     ctx.scale(zoomRef.current, zoomRef.current);
 
-    // Draw background template
-    if (template !== 'blank') {
-      const vpX = -panRef.current.x / zoomRef.current;
-      const vpY = -panRef.current.y / zoomRef.current;
-      const vpW = (canvas.width / dpr) / zoomRef.current;
-      const vpH = (canvas.height / dpr) / zoomRef.current;
-      
-      ctx.save();
-      ctx.strokeStyle = theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
-      ctx.lineWidth = 1 / zoomRef.current;
-      ctx.beginPath();
-      
-      const startX = Math.floor(vpX / 40) * 40;
-      const startY = Math.floor(vpY / 40) * 40;
-      
-      if (template === 'ruled' || template === 'cornell') {
-        for (let y = startY; y < vpY + vpH; y += 40) {
-          ctx.moveTo(vpX, y); ctx.lineTo(vpX + vpW, y);
-        }
-        if (template === 'cornell') {
-          ctx.moveTo(startX + 120, vpY); ctx.lineTo(startX + 120, vpY + vpH);
-        }
-      } else if (template === 'grid') {
-        for (let y = startY; y < vpY + vpH; y += 40) { ctx.moveTo(vpX, y); ctx.lineTo(vpX + vpW, y); }
-        for (let x = startX; x < vpX + vpW; x += 40) { ctx.moveTo(x, vpY); ctx.lineTo(x, vpY + vpH); }
-      } else if (template === 'dotted') {
-        ctx.fillStyle = ctx.strokeStyle;
-        for (let y = startY; y < vpY + vpH; y += 40) {
-          for (let x = startX; x < vpX + vpW; x += 40) {
-            ctx.moveTo(x, y);
-            ctx.arc(x, y, 1.5 / zoomRef.current, 0, Math.PI * 2);
+    // Draw background template to bgCanvas
+    const bgCanvas = bgCanvasRef.current;
+    if (bgCanvas) {
+      const bgCtx = bgCanvas.getContext('2d');
+      if (bgCtx) {
+        bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        bgCtx.clearRect(0, 0, bgCanvas.width / dpr, bgCanvas.height / dpr);
+        if (template !== 'blank') {
+          bgCtx.save();
+          bgCtx.translate(panRef.current.x, panRef.current.y);
+          bgCtx.scale(zoomRef.current, zoomRef.current);
+          
+          const vpX = -panRef.current.x / zoomRef.current;
+          const vpY = -panRef.current.y / zoomRef.current;
+          const vpW = (bgCanvas.width / dpr) / zoomRef.current;
+          const vpH = (bgCanvas.height / dpr) / zoomRef.current;
+          
+          bgCtx.strokeStyle = theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
+          bgCtx.lineWidth = 1 / zoomRef.current;
+          bgCtx.beginPath();
+          
+          const startX = Math.floor(vpX / 40) * 40;
+          const startY = Math.floor(vpY / 40) * 40;
+          
+          if (template === 'ruled' || template === 'cornell') {
+            for (let y = startY; y < vpY + vpH; y += 40) {
+              bgCtx.moveTo(vpX, y); bgCtx.lineTo(vpX + vpW, y);
+            }
+            if (template === 'cornell') {
+              bgCtx.moveTo(startX + 120, vpY); bgCtx.lineTo(startX + 120, vpY + vpH);
+            }
+          } else if (template === 'grid') {
+            for (let y = startY; y < vpY + vpH; y += 40) { bgCtx.moveTo(vpX, y); bgCtx.lineTo(vpX + vpW, y); }
+            for (let x = startX; x < vpX + vpW; x += 40) { bgCtx.moveTo(x, vpY); bgCtx.lineTo(x, vpY + vpH); }
+          } else if (template === 'dotted') {
+            bgCtx.fillStyle = bgCtx.strokeStyle;
+            for (let y = startY; y < vpY + vpH; y += 40) {
+              for (let x = startX; x < vpX + vpW; x += 40) {
+                bgCtx.moveTo(x, y);
+                bgCtx.arc(x, y, 1.5 / zoomRef.current, 0, Math.PI * 2);
+              }
+            }
+            bgCtx.fill();
           }
+          bgCtx.stroke();
+          bgCtx.restore();
         }
-        ctx.fill();
       }
-      ctx.stroke();
-      ctx.restore();
     }
 
     // Draw images
@@ -232,7 +250,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
     });
 
     ctx.restore();
-  }, []);
+  }, [template, theme]);
 
   function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
     if ((stroke as any).shape) return; // Shapes drawn separately
@@ -382,6 +400,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
     if (tool === 'lasso' || tool === 'ruler') return;
 
     isDrawing.current = true;
+    autoShapeData.current = null;
+    if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
     const pos = getPointerPos(e);
     currentStroke.current = [pos];
 
@@ -449,13 +469,98 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
       return;
     }
 
-    currentStroke.current.push(pos);
-
     const overlay = overlayCanvasRef.current;
     if (!overlay) return;
     const ctx = overlay.getContext('2d');
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
+
+    // Handle Auto Shape Update
+    if (autoShapeData.current && tool === 'pen') {
+      autoShapeData.current.end = pos;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
+      ctx.save();
+      ctx.translate(panRef.current.x, panRef.current.y);
+      ctx.scale(zoomRef.current, zoomRef.current);
+      
+      ctx.strokeStyle = settings.penColor;
+      ctx.lineWidth = settings.penWidth;
+      
+      const { type, start, end } = autoShapeData.current;
+      const w = end.x - start.x;
+      const h = end.y - start.y;
+      
+      ctx.beginPath();
+      if (type === 'rect') {
+        ctx.strokeRect(start.x, start.y, w, h);
+      } else if (type === 'circle') {
+        const r = Math.sqrt(w*w + h*h);
+        ctx.arc(start.x, start.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (type === 'line') {
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+      return;
+    }
+
+    currentStroke.current.push(pos);
+
+    // Hold-to-shape detection timeout
+    if (tool === 'pen') {
+      if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = setTimeout(() => {
+        if (!isDrawing.current || currentStroke.current.length < 10) return;
+        const pts = currentStroke.current;
+        const start = pts[0];
+        const end = pts[pts.length - 1];
+        const dist = Math.hypot(end.x - start.x, end.y - start.y);
+        let pathLen = 0;
+        for (let i = 1; i < pts.length; i++) {
+          pathLen += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+        }
+        
+        let detectedType = null;
+        let shapeStart: {x: number, y: number} = {x: start.x, y: start.y};
+        let shapeEnd: {x: number, y: number} = {x: end.x, y: end.y};
+
+        if (dist > pathLen * 0.85) {
+          detectedType = 'line';
+        } else if (dist < pathLen * 0.3) {
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          pts.forEach(p => {
+            if (p.x < minX) minX = p.x;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.y > maxY) maxY = p.y;
+          });
+          const w = maxX - minX;
+          const h = maxY - minY;
+          detectedType = Math.abs(w - h) < Math.max(w, h) * 0.3 ? 'circle' : 'rect';
+          
+          if (detectedType === 'circle') {
+            shapeStart = { x: minX + w/2, y: minY + h/2 }; // center
+            shapeEnd = { x: shapeStart.x + w/2, y: shapeStart.y }; // radius point
+          } else {
+            shapeStart = { x: minX, y: minY };
+            shapeEnd = { x: maxX, y: maxY };
+          }
+        }
+        
+        if (detectedType) {
+          autoShapeData.current = { type: detectedType, start: shapeStart, end: shapeEnd };
+          // Vibrate if supported to indicate snapping
+          if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
+          
+          // Force a re-render of the overlay immediately with the new shape
+          handlePointerMove({ ...e, clientX: e.clientX, clientY: e.clientY } as any);
+        }
+      }, 500); // 500ms hold
+    }
+
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
     ctx.save();
@@ -488,6 +593,46 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
   function handlePointerUp(e: React.PointerEvent) {
     if (!isDrawing.current) return;
     isDrawing.current = false;
+    if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
+
+    // Commit auto-shape if it was created
+    if (autoShapeData.current && tool === 'pen') {
+      const { type, start, end } = autoShapeData.current;
+      const w = end.x - start.x;
+      const h = end.y - start.y;
+      let path = '';
+      if (type === 'rect') {
+        path = `M ${start.x} ${start.y} L ${end.x} ${start.y} L ${end.x} ${end.y} L ${start.x} ${end.y} Z`;
+      } else if (type === 'circle') {
+        const r = Math.sqrt(w*w + h*h);
+        path = `M ${start.x - r} ${start.y} A ${r} ${r} 0 1 1 ${start.x + r} ${start.y} A ${r} ${r} 0 1 1 ${start.x - r} ${start.y} Z`;
+      } else if (type === 'line') {
+        path = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+      }
+      
+      const shapeStroke: any = {
+        id: crypto.randomUUID(),
+        tool: 'shapes',
+        color: settings.penColor,
+        width: settings.penWidth,
+        opacity: 1,
+        points: [],
+        shape: { type, path }
+      };
+      
+      committedStrokes.current.push(shapeStroke);
+      setUndoStack([]);
+      
+      const overlay = overlayCanvasRef.current;
+      if (overlay) {
+        const ctx = overlay.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, overlay.width, overlay.height);
+      }
+      redrawAll();
+      triggerSave();
+      autoShapeData.current = null;
+      return;
+    }
 
     if (tool === 'shapes' && shapeStartRef.current) {
       const pos = getPointerPos(e);
@@ -652,6 +797,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
 
   return (
     <div ref={containerRef} className="absolute inset-0" style={{ touchAction: 'none' }}>
+      <canvas ref={bgCanvasRef} className="absolute inset-0" style={{ touchAction: 'none' }} />
       <canvas
         ref={canvasRef}
         className="absolute inset-0"
