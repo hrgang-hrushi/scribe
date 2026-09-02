@@ -232,7 +232,7 @@ export default function Home() {
       </div>
 
       {/* Right Sidebar */}
-      <div className="w-full md:w-96 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar shadow-xl" style={{ background: 'var(--bg-secondary)' }}>
+      <div className="w-full md:w-96 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar shadow-xl glass-panel">
         <div className="flex justify-end mb-12">
           <button onClick={toggleTheme} className="p-2 transition-transform hover:scale-110" style={{ color: 'var(--text-primary)' }}>
             {theme === 'light' ? (

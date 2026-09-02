@@ -58,7 +58,7 @@ export default function PomodoroTimer({ onClose }: PomodoroTimerProps) {
   return (
     <div
       className="fixed bottom-24 right-6 z-50 w-56 rounded-2xl overflow-hidden shadow-2xl animate-slide-up"
-      style={{ background: 'var(--toolbar-bg)', border: '1px solid var(--border)', backdropFilter: 'blur(16px)' }}
+      
     >
       {/* Title bar */}
       <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>

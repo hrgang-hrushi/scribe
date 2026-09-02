@@ -80,7 +80,7 @@ export default function FlashcardMode({ noteId, onClose }: FlashcardModeProps) {
       >
         <div
           className="w-full max-w-sm rounded-2xl p-6 text-center"
-          style={{ background: 'var(--bg-secondary)' }}
+          
           onClick={e => e.stopPropagation()}
         >
           <div className="text-4xl mb-3">🃏</div>
@@ -109,7 +109,7 @@ export default function FlashcardMode({ noteId, onClose }: FlashcardModeProps) {
       >
         <div
           className="w-full max-w-sm rounded-2xl p-6"
-          style={{ background: 'var(--bg-secondary)' }}
+          
           onClick={e => e.stopPropagation()}
         >
           <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>New Flashcard</h2>
@@ -199,7 +199,7 @@ export default function FlashcardMode({ noteId, onClose }: FlashcardModeProps) {
     >
       <div
         className="w-full max-w-sm rounded-2xl overflow-hidden max-h-[80vh] flex flex-col"
-        style={{ background: 'var(--bg-secondary)' }}
+        
         onClick={e => e.stopPropagation()}
       >
         <div className="p-4" style={{ borderBottom: '1px solid var(--border)' }}>

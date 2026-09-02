@@ -58,7 +58,7 @@ export default function TagFilter({ onClose }: TagFilterProps) {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         className="w-full max-w-md rounded-2xl overflow-hidden max-h-[80vh] flex flex-col"
-        style={{ background: 'var(--bg-secondary)' }}
+        
         onClick={e => e.stopPropagation()}
       >
         <div className="p-4" style={{ borderBottom: '1px solid var(--border)' }}>

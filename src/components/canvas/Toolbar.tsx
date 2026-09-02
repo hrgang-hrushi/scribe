@@ -62,8 +62,7 @@ export default function Toolbar({
       {/* Settings Slider */}
       {showSettings && (
         <div
-          className="rounded-2xl p-4 mb-2 animate-slide-up"
-          style={{ background: 'var(--toolbar-bg)', border: '1px solid var(--border)', backdropFilter: 'blur(16px)' }}
+          className="rounded-2xl p-4 mb-2 animate-slide-up glass-panel"
         >
           <div className="flex flex-col gap-3 min-w-[220px]">
             <div>
@@ -118,8 +117,7 @@ export default function Toolbar({
 
       {/* Main Toolbar */}
       <div
-        className="flex items-center gap-1 px-3 py-2 rounded-2xl shadow-lg"
-        style={{ background: 'var(--toolbar-bg)', border: '1px solid var(--border)', backdropFilter: 'blur(16px)' }}
+        className="flex items-center gap-1 px-3 py-2 rounded-2xl shadow-lg glass-panel"
       >
         {/* Undo */}
         <button

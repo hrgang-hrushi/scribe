@@ -189,11 +189,11 @@ export default function ClassPage() {
       </div>
 
       {/* Right Pane - All Notes & Info (30%) */}
-      <div className="w-full md:w-96 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar shadow-2xl z-10" style={{ background: 'var(--bg-secondary)' }}>
+      <div className="w-full md:w-96 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar shadow-2xl z-10 glass-panel">
         
         {/* Unified Canvas Jump */}
         <h3 className="text-2xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>Unified Canvas</h3>
-        <div className="rounded-[32px] p-8 mb-10 shadow-lg relative overflow-hidden flex flex-col items-start" style={{ background: cls?.gradient || 'var(--bg-tertiary)' }}>
+        <div className="rounded-[32px] p-8 mb-10 shadow-lg relative overflow-hidden flex flex-col items-start glass-panel">
           <div className="relative z-10">
             <h4 className="mix-blend-difference text-white text-3xl font-bold leading-tight mb-2 drop-shadow-sm">All Notes<br/>One Canvas.</h4>
             <p className="mix-blend-difference text-white/80 font-medium text-sm mb-8 drop-shadow-sm">Scroll infinitely. Write continuously.</p>

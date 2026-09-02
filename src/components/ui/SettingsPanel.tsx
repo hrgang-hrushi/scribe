@@ -50,8 +50,8 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl overflow-hidden max-h-[80vh] overflow-y-auto"
-        style={{ background: 'var(--bg-secondary)' }}
+        className="w-full max-w-md rounded-2xl overflow-hidden max-h-[80vh] overflow-y-auto glass-panel"
+        
         onClick={e => e.stopPropagation()}
       >
         <div className="p-6">
