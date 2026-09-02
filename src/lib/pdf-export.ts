@@ -70,7 +70,7 @@ export async function exportToPdf(noteTitle: string, pages: Page[]): Promise<voi
     page.textBoxes.forEach(tb => {
       ctx.save();
       ctx.fillStyle = '#1a1a2e';
-      ctx.font = `${tb.italic ? 'italic' : ''} ${tb.bold ? 'bold' : ''} ${tb.fontSize}px ${tb.fontFamily}`;
+      ctx.font = `${tb.italic ? 'italic' : ''} ${tb.bold ? 'bold' : ''} ${tb.fontSize}px Manrope, sans-serif`;
       ctx.fillText(tb.text, tb.x, tb.y + tb.fontSize);
       ctx.restore();
     });

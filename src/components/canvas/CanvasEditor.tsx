@@ -229,7 +229,7 @@ export default function CanvasEditor({ page, tool, settings, theme, onSave, onUn
         height: 40,
         text: '',
         fontSize: 16,
-        fontFamily: '-apple-system, sans-serif',
+        fontFamily: 'var(--font-aileron), Manrope, sans-serif',
         bold: false,
         italic: false,
         underline: false,
