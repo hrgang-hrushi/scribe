@@ -169,8 +169,7 @@ export default function Home() {
                 transition={{ delay: i * 0.05 }}
               >
                 <div
-                  className="rounded-[32px] p-6 flex flex-col justify-between cursor-pointer group aspect-[1.2] transition-transform hover:-translate-y-1 shadow-sm relative overflow-hidden"
-                  style={{ background: cls.gradient }}
+                  className="rounded-[32px] p-6 flex flex-col justify-between cursor-pointer group aspect-[1.2] transition-transform hover:-translate-y-1 shadow-sm relative overflow-hidden glass-panel"
                   onClick={() => router.push(`/classes/${cls.id}`)}
                 >
                   <div className="relative z-10 flex-1 flex justify-between items-start">
@@ -343,8 +342,7 @@ export default function Home() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-sm rounded-[32px] p-8 shadow-2xl"
-              style={{ background: 'var(--bg-secondary)' }}
+              className="w-full max-w-sm rounded-[32px] p-8 shadow-2xl glass-panel"
               onClick={e => e.stopPropagation()}
             >
               <h2 className="text-2xl font-medium mb-6" style={{ color: 'var(--text-primary)' }}>New Class</h2>
@@ -361,21 +359,7 @@ export default function Home() {
                   color: 'var(--text-primary)',
                 }}
               />
-              <p className="text-sm font-medium mb-3" style={{ color: 'var(--text-muted)' }}>Choose a preset</p>
-              <div className="grid grid-cols-7 gap-2 mb-8">
-                {GRADIENT_PRESETS.map((g, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedGradient(g)}
-                    className="w-8 h-8 rounded-full transition-transform hover:scale-110"
-                    style={{
-                      background: g,
-                      outline: selectedGradient === g ? '2px solid var(--accent)' : 'none',
-                      outlineOffset: '2px',
-                    }}
-                  />
-                ))}
-              </div>
+              
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowCreate(false)}
