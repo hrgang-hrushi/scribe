@@ -168,7 +168,7 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
           <div className="mb-6 flex items-center justify-between">
             <div>
               <label className="text-sm font-medium block" style={{ color: 'var(--text-primary)' }}>Show Calculator</label>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Display calculator button in top bar</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-primary)' }}>Display calculator button in top bar</p>
             </div>
             <button
               onClick={() => updateSettings({ showCalculator: !settings.showCalculator })}
@@ -185,7 +185,7 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
           {/* Keyboard Shortcuts */}
           <div className="mb-6">
             <label className="text-sm font-medium mb-3 block" style={{ color: 'var(--text-primary)' }}>Keyboard Shortcuts</label>
-            <div className="space-y-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            <div className="space-y-2 text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
               <div className="flex justify-between"><span>Pan tool</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>P</kbd></div>
               <div className="flex justify-between"><span>Highlighter</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>H</kbd></div>
               <div className="flex justify-between"><span>Eraser</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>E</kbd></div>
