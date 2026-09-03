@@ -38,6 +38,8 @@ export default function NotePage() {
   const [showSettings, setShowSettings] = useState(false);
   const [showFlashcards, setShowFlashcards] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'offline'>('saved');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showToolbar, setShowToolbar] = useState(true);
   const [appSettings, setAppSettings] = useState<any>({});
@@ -99,6 +101,14 @@ export default function NotePage() {
     }
   }
 
+  async function handleRename() {
+    if (!note) return;
+    setIsEditingTitle(false);
+    const newTitle = editTitle.trim() || 'Untitled Note';
+    await updateNote(note.id, { title: newTitle });
+    setNote({ ...note, title: newTitle });
+  }
+
   async function handleManualSave() {
     if (pages[currentPage]) {
       await handleSave(pages[currentPage]);
@@ -142,10 +152,26 @@ export default function NotePage() {
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold truncate max-w-[180px]" style={{ color: 'var(--text-primary)' }}>
-              {note?.title || 'Loading...'}
-            </h2>
+          <div className="min-w-0 flex items-center gap-1 cursor-text" onClick={() => setIsEditingTitle(true)}>
+            {isEditingTitle ? (
+              <input
+                autoFocus
+                type="text"
+                value={editTitle}
+                onChange={e => setEditTitle(e.target.value)}
+                onBlur={handleRename}
+                onKeyDown={e => e.key === 'Enter' && handleRename()}
+                className="text-sm font-semibold bg-transparent outline-none border-b border-gray-400"
+                style={{ color: 'var(--text-primary)' }}
+              />
+            ) : (
+              <h2 className="text-sm font-semibold truncate max-w-[180px]" style={{ color: 'var(--text-primary)' }}>
+                {note?.title || 'Untitled'}
+              </h2>
+            )}
+            {note?.date && (
+              <span className="text-sm font-semibold opacity-50" style={{ color: 'var(--text-primary)' }}>.({note.date})</span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -337,3 +363,5 @@ export default function NotePage() {
     </div>
   );
 }
+
+

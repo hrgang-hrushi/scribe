@@ -259,7 +259,7 @@ export default function ClassPage() {
                 </span>
                 <svg className="opacity-0 group-hover:opacity-100 transition-opacity" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </div>
-              <h4 className="text-lg font-bold truncate" style={{ color: 'var(--text-primary)' }}>{note.title || 'Untitled Note'}</h4>
+              <h4 className="text-lg font-bold truncate" style={{ color: 'var(--text-primary)' }}>{note.title || 'Untitled Note'}<span className="opacity-50 text-sm ml-1">.({note.date})</span></h4>
             </div>
           ))}
           {notes.length === 0 && (

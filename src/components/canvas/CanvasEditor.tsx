@@ -93,6 +93,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDrawing = useRef(false);
+  const isPanningRef = useRef(false);
+  const lastTouchPanRef = useRef<{x: number, y: number} | null>(null);
   const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoShapeData = useRef<{ type: string; start: {x: number, y: number}; end: {x: number, y: number} } | null>(null);
   const currentStroke = useRef<Point[]>([]);
@@ -304,7 +306,11 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
   }
 
   function handlePointerDown(e: React.PointerEvent) {
-    if (e.pointerType === 'touch' && tool !== 'ruler') return;
+    if (e.pointerType === 'touch' && tool !== 'ruler') {
+      isPanningRef.current = true;
+      lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
+      return;
+    }
     if (tool === 'text') {
       // Create text box at click position
       const pos = getPointerPos(e);
@@ -413,6 +419,17 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
   }
 
   function handlePointerMove(e: React.PointerEvent) {
+    if (isPanningRef.current && e.pointerType === 'touch') {
+      if (lastTouchPanRef.current) {
+        const dx = e.clientX - lastTouchPanRef.current.x;
+        const dy = e.clientY - lastTouchPanRef.current.y;
+        panRef.current.x += dx;
+        panRef.current.y += dy;
+        lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
+        redrawAll();
+      }
+      return;
+    }
     if (!isDrawing.current) return;
     if (e.pointerType === 'touch') return;
 
@@ -591,6 +608,11 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
   }
 
   function handlePointerUp(e: React.PointerEvent) {
+    if (isPanningRef.current && e.pointerType === 'touch') {
+      isPanningRef.current = false;
+      lastTouchPanRef.current = null;
+      return;
+    }
     if (!isDrawing.current) return;
     isDrawing.current = false;
     if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
