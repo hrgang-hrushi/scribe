@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { File, AlignJustify, Grid3X3, CircleDot, LayoutTemplate, Sun, Moon } from 'lucide-react';
 import type { AppSettings } from '@/lib/types';
 
 interface SettingsPanelProps {
@@ -8,8 +9,6 @@ interface SettingsPanelProps {
   currentNoteTemplate?: string;
   onUpdateCurrentNoteTemplate?: (template: any) => void;
 }
-
-import { File, AlignJustify, Grid3X3, CircleDot, LayoutTemplate, Sun, Moon } from 'lucide-react';
 
 const PAGE_TEMPLATES = [
   { id: 'blank', label: 'Blank', icon: File },

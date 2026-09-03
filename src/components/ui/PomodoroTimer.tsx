@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { Brain, Coffee } from 'lucide-react';
 
 interface PomodoroTimerProps {

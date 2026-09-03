@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAllClasses, createClass, deleteClass, updateClass, searchAll, createNote } from '@/lib/db';
+import { getAllClasses, createClass, deleteClass, updateClass, searchAll } from '@/lib/db';
 import type { ClassItem } from '@/lib/types';
 import { GRADIENT_PRESETS } from '@/lib/types';
 import { useRouter } from 'next/navigation';

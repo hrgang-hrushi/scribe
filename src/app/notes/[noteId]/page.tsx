@@ -21,9 +21,7 @@ import {
   Maximize2,
   Play,
   Pause,
-  RotateCcw,
   Clock,
-  Sparkles,
   Palette,
   ChevronLeft
 } from 'lucide-react';

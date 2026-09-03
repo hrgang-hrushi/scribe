@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, PanInfo } from 'framer-motion';
+import { motion } from 'framer-motion';
 import type { Tool, ToolSettings } from '@/lib/types';
 import { TAPE_COLORS } from '@/lib/types';
 
@@ -48,7 +48,7 @@ export default function Toolbar({
   const isLeft = orientation === 'vertical-left';
 
   // Dynamic orientation detection on drag
-  const handleDrag = (_: any, info: PanInfo) => {
+  const handleDrag = (_: any, info: { point: { x: number; y: number } }) => {
     if (typeof window === 'undefined') return;
     const screenW = window.innerWidth;
     const x = info.point.x;

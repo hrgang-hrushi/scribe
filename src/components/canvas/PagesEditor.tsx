@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { getStroke } from 'perfect-freehand';
-import type { Page, Stroke, Point, TextBox, ImageBlock, Tool, ToolSettings, PaperColor } from '@/lib/types';
+import type { Page, Stroke, Point, ImageBlock, Tool, ToolSettings, PaperColor } from '@/lib/types';
 import { PAPER_THEMES } from '@/lib/types';
 import { detectScribble, strokeIntersectsBox, detectHoldShape, isPointInPolygon } from '@/lib/canvas-gestures';
 import { Plus, Trash2, Copy } from 'lucide-react';

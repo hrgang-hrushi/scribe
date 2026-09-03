@@ -1,5 +1,5 @@
-import jsPDF from 'jspdf';
-import type { Page, Stroke, PaperColor } from './types';
+import { jsPDF } from 'jspdf';
+import type { Page, PaperColor } from './types';
 import { PAPER_THEMES } from './types';
 import { getStroke } from 'perfect-freehand';
 

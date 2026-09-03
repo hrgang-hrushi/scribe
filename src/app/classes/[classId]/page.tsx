@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getNotesForClass, createNote, deleteNote, updateNote, getAllClasses, updateClass } from '@/lib/db';
+import { getNotesForClass, deleteNote, updateNote, getAllClasses, updateClass } from '@/lib/db';
 import type { Note, ClassItem } from '@/lib/types';
 import CreateNoteModal from '@/components/ui/CreateNoteModal';
 

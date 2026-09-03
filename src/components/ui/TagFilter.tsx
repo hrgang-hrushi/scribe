@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { getAllClasses, getNotesForClass, searchAll } from '@/lib/db';
-import type { Note, ClassItem } from '@/lib/types';
+import type { Note } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 
 interface TagFilterProps {
