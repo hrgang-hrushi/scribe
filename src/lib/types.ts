@@ -150,6 +150,7 @@ export interface ToolSettings {
   shapeType?: 'rect' | 'circle' | 'triangle' | 'line' | 'arrow';
   holdToShape?: boolean;
   scribbleToErase?: boolean;
+  palmRejection?: boolean;
   quickColors?: string[];
 }
 
@@ -159,8 +160,8 @@ export interface AppSettings {
   defaultPageType?: 'infinite' | 'paginated';
   defaultPaperColor?: PaperColor;
   palmRejection: boolean;
-  holdToShape: boolean;
-  scribbleToErase: boolean;
+  holdToShape?: boolean;
+  scribbleToErase?: boolean;
   autosaveInterval: number;
   showSaveStatus: boolean;
   showCalculator?: boolean;

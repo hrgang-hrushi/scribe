@@ -23,6 +23,8 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
     theme: 'light',
     defaultTemplate: 'blank',
     palmRejection: true,
+    holdToShape: true,
+    scribbleToErase: true,
     autosaveInterval: 1,
     showSaveStatus: true,
   });

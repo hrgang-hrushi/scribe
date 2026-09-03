@@ -595,11 +595,6 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
     const pos = getPointerPosOnPage(e, pageId);
 
-    if (tool === 'select') {
-      setSelectedImage(null);
-      return;
-    }
-
     // Tap on existing tape to toggle reveal
     if (tool === 'tape' || tool === 'select') {
       const page = pageDataMap.current.get(pageId);
@@ -618,6 +613,11 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
           return;
         }
       }
+    }
+
+    if (tool === 'select') {
+      setSelectedImage(null);
+      return;
     }
 
     if (tool === 'lasso') {

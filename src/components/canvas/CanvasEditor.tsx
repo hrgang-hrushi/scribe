@@ -775,6 +775,19 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       return;
     }
     if (tool === 'select') {
+      const pos = getPointerPos(e);
+      const clickedTape = committedStrokes.current.find(s => {
+        if (s.tool !== 'tape') return false;
+        const radius = (s.width || 32) / 2 + 10;
+        return s.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) <= radius);
+      });
+      if (clickedTape) {
+        clickedTape.isRevealed = !clickedTape.isRevealed;
+        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(18);
+        redrawAll();
+        triggerSave();
+        return;
+      }
       isPanningRef.current = true;
       lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
       return;
@@ -889,8 +902,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
 
     const pos = getPointerPos(e);
 
-    // If tool is 'tape' or 'select', check if user tapped on an existing tape stroke to peel/reveal it!
-    if (tool === 'tape' || tool === 'select') {
+    // If tool is 'tape', check if user tapped on an existing tape stroke to peel/reveal it!
+    if (tool === 'tape') {
       const clickedTape = committedStrokes.current.find(s => {
         if (s.tool !== 'tape') return false;
         const radius = (s.width || 32) / 2 + 10;
