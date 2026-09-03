@@ -729,7 +729,6 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
 
     if (!isDrawing.current && !isLassoing.current) return;
-    if (e.pointerType === 'touch' && settings.palmRejection) return;
 
     const pos = getPointerPosOnPage(e, pageId);
     const overlay = pageRefs.current.get(pageId)?.overlayCanvas;
