@@ -40,12 +40,25 @@ export async function deleteClass(id: string): Promise<void> {
   await db.classes.delete(id);
 }
 
-export async function createNote(classId: string, title?: string, dateOverride?: string): Promise<Note> {
+export async function createNote(
+  classId: string,
+  title?: string,
+  dateOverride?: string,
+  options?: {
+    template?: Note['template'];
+    pageType?: Note['pageType'];
+    paperColor?: Note['paperColor'];
+  }
+): Promise<Note> {
   let defaultTemplate: Note['template'] = 'blank';
+  let defaultPageType: Note['pageType'] = 'paginated'; // GoodNotes style continuous pages by default
+  let defaultPaperColor: Note['paperColor'] = 'navy'; // Midnight Navy like in user's screenshot
   if (typeof window !== 'undefined') {
     try {
       const settings = JSON.parse(localStorage.getItem('scribe-settings') || '{}');
       if (settings.defaultTemplate) defaultTemplate = settings.defaultTemplate;
+      if (settings.defaultPageType) defaultPageType = settings.defaultPageType;
+      if (settings.defaultPaperColor) defaultPaperColor = settings.defaultPaperColor;
     } catch (e) {}
   }
 
@@ -57,8 +70,9 @@ export async function createNote(classId: string, title?: string, dateOverride?:
     date: dateOverride || new Date().toISOString().split('T')[0],
     title: title || `Note ${new Date().toLocaleDateString()}`,
     tags: [],
-    template: defaultTemplate,
-    pageType: 'infinite',
+    template: options?.template || defaultTemplate,
+    pageType: options?.pageType || defaultPageType,
+    paperColor: options?.paperColor || defaultPaperColor,
     createdAt: now,
     updatedAt: now,
   };
@@ -93,17 +107,26 @@ export async function updatePage(id: string, updates: Partial<Page>): Promise<vo
   await db.pages.update(id, updates);
 }
 
-export async function addPage(noteId: string, order: number): Promise<Page> {
+export async function addPage(noteId: string, order?: number): Promise<Page> {
+  let nextOrder = order;
+  if (nextOrder === undefined) {
+    const existing = await db.pages.where('noteId').equals(noteId).toArray();
+    nextOrder = existing.length;
+  }
   const page: Page = {
     id: crypto.randomUUID(),
     noteId,
-    order,
+    order: nextOrder,
     strokes: [],
     textBoxes: [],
     images: [],
   };
   await db.pages.add(page);
   return page;
+}
+
+export async function deletePage(pageId: string): Promise<void> {
+  await db.pages.delete(pageId);
 }
 
 export async function getNotesForClass(classId: string): Promise<Note[]> {

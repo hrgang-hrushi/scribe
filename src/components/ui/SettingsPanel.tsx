@@ -149,6 +149,42 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
             </button>
           </div>
 
+          {/* Hold to Shape */}
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium block" style={{ color: 'var(--text-primary)' }}>Hold to Shape</label>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Hold pen still at stroke end to snap lines/circles</p>
+            </div>
+            <button
+              onClick={() => updateSettings({ holdToShape: settings.holdToShape === false })}
+              className="w-12 h-7 rounded-full transition-colors relative"
+              style={{ background: settings.holdToShape !== false ? 'var(--accent)' : 'var(--bg-tertiary)' }}
+            >
+              <div
+                className="w-5 h-5 rounded-full bg-white absolute top-1 transition-transform"
+                style={{ left: settings.holdToShape !== false ? '26px' : '4px' }}
+              />
+            </button>
+          </div>
+
+          {/* Scribble to Erase */}
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium block" style={{ color: 'var(--text-primary)' }}>Scribble to Erase</label>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Scratch out handwriting strokes to delete them</p>
+            </div>
+            <button
+              onClick={() => updateSettings({ scribbleToErase: settings.scribbleToErase === false })}
+              className="w-12 h-7 rounded-full transition-colors relative"
+              style={{ background: settings.scribbleToErase !== false ? 'var(--accent)' : 'var(--bg-tertiary)' }}
+            >
+              <div
+                className="w-5 h-5 rounded-full bg-white absolute top-1 transition-transform"
+                style={{ left: settings.scribbleToErase !== false ? '26px' : '4px' }}
+              />
+            </button>
+          </div>
+
           {/* Autosave */}
           <div className="mb-6">
             <label className="text-sm font-medium mb-2 block" style={{ color: 'var(--text-primary)' }}>
@@ -186,15 +222,24 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
           <div className="mb-6">
             <label className="text-sm font-medium mb-3 block" style={{ color: 'var(--text-primary)' }}>Keyboard Shortcuts</label>
             <div className="space-y-2 text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
-              <div className="flex justify-between"><span>Pan tool</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>P</kbd></div>
+              <div className="flex justify-between"><span>Select & Move</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>V / M</kbd></div>
+              <div className="flex justify-between"><span>Pen</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>P</kbd></div>
               <div className="flex justify-between"><span>Highlighter</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>H</kbd></div>
+              <div className="flex justify-between"><span>Study Tape (Active Recall)</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>K</kbd></div>
               <div className="flex justify-between"><span>Eraser</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>E</kbd></div>
               <div className="flex justify-between"><span>Shapes</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>S</kbd></div>
-              <div className="flex justify-between"><span>Text</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>T</kbd></div>
-              <div className="flex justify-between"><span>Colors</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>C</kbd></div>
+              <div className="flex justify-between"><span>Lasso</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>L</kbd></div>
+              <div className="flex justify-between"><span>Text Box</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>T</kbd></div>
+              <div className="flex justify-between"><span>Color Palette</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>C</kbd></div>
               <div className="flex justify-between"><span>Calculator</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>=</kbd></div>
-              <div className="flex justify-between"><span>Undo</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>⌘Z</kbd></div>
-              <div className="flex justify-between"><span>Save</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>⌘S</kbd></div>
+              <div className="flex justify-between"><span>Focus Mode</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>F</kbd></div>
+              <div className="flex justify-between"><span>Undo / Redo</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>⌘Z / ⌘⇧Z</kbd></div>
+              <div className="flex justify-between"><span>Duplicate Object</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>⌘D</kbd></div>
+              <div className="flex justify-between"><span>Lock / Unlock</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>⌘L</kbd></div>
+              <div className="flex justify-between"><span>Crop Image</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>Shift + C</kbd></div>
+              <div className="flex justify-between"><span>Group PDF Pages</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>⌘G</kbd></div>
+              <div className="flex justify-between"><span>Delete Selection</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>Delete / ⌫</kbd></div>
+              <div className="flex justify-between"><span>Save Note</span><kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)' }}>⌘S</kbd></div>
             </div>
           </div>
         </div>

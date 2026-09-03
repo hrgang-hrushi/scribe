@@ -1,8 +1,11 @@
 'use client';
 
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from 'react';
 import { getStroke } from 'perfect-freehand';
-import type { Page, Stroke, Point, TextBox, ImageBlock, Tool, ToolSettings } from '@/lib/types';
+import type { Page, Stroke, Point, TextBox, ImageBlock, Tool, ToolSettings, PaperColor } from '@/lib/types';
+import { PAPER_THEMES } from '@/lib/types';
+import { detectScribble, strokeIntersectsBox, detectHoldShape, isPointInPolygon } from '@/lib/canvas-gestures';
+import ImageElementOverlay from './ImageElementOverlay';
 
 function getSvgPathFromStroke(stroke: number[][]): string {
   if (stroke.length === 0) return '';
@@ -30,49 +33,10 @@ function getStrokeOptions(width: number, smoothing: number) {
   };
 }
 
-function detectShape(points: Point[]): { type: string; path: string } | null {
-  if (points.length < 10) return null;
-  const xs = points.map(p => p.x);
-  const ys = points.map(p => p.y);
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const w = maxX - minX, h = maxY - minY;
-  const first = points[0], last = points[points.length - 1];
-  const dist = Math.sqrt((first.x - last.x) ** 2 + (first.y - last.y) ** 2);
-  const closedness = dist / (Math.sqrt(w * w + h * h) || 1);
-
-  // Line: very narrow aspect ratio or nearly straight
-  const avgY = ys.reduce((a, b) => a + b, 0) / ys.length;
-  const variance = ys.reduce((a, y) => a + (y - avgY) ** 2, 0) / ys.length;
-  if (variance < (h * h) * 0.05 && w > 30) {
-    return { type: 'line', path: `M ${minX} ${minY + h / 2} L ${maxX} ${minY + h / 2}` };
-  }
-
-  // Rectangle: closed + 4 corners + right angles
-  if (closedness < 0.3 && w > 20 && h > 20) {
-    const ratio = w / h;
-    if (ratio > 0.7 && ratio < 1.4) {
-      return { type: 'rect', path: `M ${minX} ${minY} L ${maxX} ${minY} L ${maxX} ${maxY} L ${minX} ${maxY} Z` };
-    }
-    return { type: 'rect', path: `M ${minX} ${minY} L ${maxX} ${minY} L ${maxX} ${maxY} L ${minX} ${maxY} Z` };
-  }
-
-  // Circle: closed + roughly square + consistent radius
-  if (closedness < 0.3 && w > 20 && h > 20) {
-    const ratio = w / h;
-    if (ratio > 0.8 && ratio < 1.2) {
-      const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-      const rx = w / 2, ry = h / 2;
-      return { type: 'circle', path: `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx - rx} ${cy} Z` };
-    }
-  }
-
-  return null;
-}
-
 interface CanvasEditorProps {
   page: Page;
   template?: string;
+  paperColor?: PaperColor;
   tool: Tool;
   settings: ToolSettings;
   theme: 'light' | 'dark';
@@ -80,16 +44,26 @@ interface CanvasEditorProps {
   onUndo: () => void;
 }
 
-import { forwardRef, useImperativeHandle } from 'react';
-
 export interface CanvasEditorRef {
   undo: () => void;
   redo: () => void;
   clear: () => void;
   importMedia: (file: File) => void;
+  toggleAllTape: (reveal: boolean) => void;
+  getTapeStats: () => { total: number; revealed: number };
+  exportCompositeImage: () => Promise<string>;
 }
 
-const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, template = 'blank', tool, settings, theme, onSave, onUndo }, ref) => {
+const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
+  page,
+  template = 'blank',
+  paperColor = 'navy',
+  tool,
+  settings,
+  theme,
+  onSave,
+  onUndo
+}, ref) => {
   const bgCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -98,7 +72,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
   const isPanningRef = useRef(false);
   const lastTouchPanRef = useRef<{x: number, y: number} | null>(null);
   const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const autoShapeData = useRef<{ type: string; start: {x: number, y: number}; end: {x: number, y: number} } | null>(null);
+  const autoShapeData = useRef<{ type: string; path: string } | null>(null);
   const currentStroke = useRef<Point[]>([]);
   const committedStrokes = useRef<Stroke[]>([...page.strokes]);
   const committedTextBoxes = useRef<TextBox[]>([...page.textBoxes]);
@@ -108,114 +82,474 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
   const lastPinchDist = useRef(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [undoStack, setUndoStack] = useState<Stroke[][]>([]);
-  const [redoStack, setRedoStack] = useState<Stroke[][]>([]);
+  // Lasso states
+  const lassoPolygon = useRef<Point[]>([]);
+  const isLassoing = useRef(false);
+  const [selectedStrokes, setSelectedStrokes] = useState<string[]>([]);
+
+  const undoStackRef = useRef<Stroke[][]>([]);
+  const redoStackRef = useRef<Stroke[][]>([]);
 
   useImperativeHandle(ref, () => ({
     undo: () => {
-      if (committedStrokes.current.length === 0) return;
-      const lastStroke = committedStrokes.current[committedStrokes.current.length - 1];
-      setUndoStack(prev => [...prev, [lastStroke]]);
-      committedStrokes.current = committedStrokes.current.slice(0, -1);
+      if (undoStackRef.current.length === 0) return;
+      const lastStrokes = undoStackRef.current.pop()!;
+      redoStackRef.current.push(lastStrokes);
+      const lastIdSet = new Set(lastStrokes.map(s => s.id));
+      committedStrokes.current = committedStrokes.current.filter(s => !lastIdSet.has(s.id));
+      redrawAll();
+      triggerSave();
+    },
+    redo: () => {
+      if (redoStackRef.current.length === 0) return;
+      const strokesToRestore = redoStackRef.current.pop()!;
+      undoStackRef.current.push(strokesToRestore);
+      committedStrokes.current = [...committedStrokes.current, ...strokesToRestore];
       redrawAll();
       triggerSave();
     },
     clear: () => {
+      if (committedStrokes.current.length > 0) {
+        undoStackRef.current.push([...committedStrokes.current]);
+        redoStackRef.current = [];
+      }
       committedStrokes.current = [];
       committedTextBoxes.current = [];
       committedImages.current = [];
-            setTextBoxes([]);
+      setTextBoxes([]);
       setImages([]);
       triggerSave();
       redrawAll();
     },
+    toggleAllTape: (reveal: boolean) => {
+      committedStrokes.current = committedStrokes.current.map(s => {
+        if (s.tool === 'tape') {
+          return { ...s, isRevealed: reveal };
+        }
+        return s;
+      });
+      redrawAll();
+      triggerSave();
+    },
+    getTapeStats: () => {
+      const tapeStrokes = committedStrokes.current.filter(s => s.tool === 'tape');
+      return {
+        total: tapeStrokes.length,
+        revealed: tapeStrokes.filter(s => s.isRevealed).length,
+      };
+    },
+    exportCompositeImage: async (): Promise<string> => {
+      const w = containerRef.current?.clientWidth || 1200;
+      const h = containerRef.current?.clientHeight || 900;
+      const canvas = document.createElement('canvas');
+      const scale = 2;
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return '';
+      ctx.scale(scale, scale);
+
+      // Background
+      const themeConfig = PAPER_THEMES[paperColor] || PAPER_THEMES.navy;
+      ctx.fillStyle = themeConfig.bg;
+      ctx.fillRect(0, 0, w, h);
+
+      // Apply current view pan and zoom
+      ctx.save();
+      ctx.translate(panRef.current.x, panRef.current.y);
+      ctx.scale(zoomRef.current, zoomRef.current);
+
+      // Draw images
+      for (const imgBlock of committedImages.current) {
+        try {
+          const img = await new Promise<HTMLImageElement>(res => {
+            const el = new Image();
+            if (imgBlock.src.startsWith('http')) el.crossOrigin = 'anonymous';
+            el.onload = () => res(el);
+            el.onerror = () => res(el);
+            el.src = imgBlock.src;
+          });
+          if (img.width > 0) {
+            ctx.drawImage(img, imgBlock.x, imgBlock.y, imgBlock.width, imgBlock.height);
+          }
+        } catch {}
+      }
+
+      // Draw strokes
+      committedStrokes.current.forEach(s => drawStroke(ctx, s));
+      ctx.restore();
+
+      return canvas.toDataURL('image/png');
+    },
     importMedia: async (file: File) => {
-      const pos = { x: 100 - panRef.current.x, y: 100 - panRef.current.y };
+      // Position at current view center in world coordinates
+      const containerW = containerRef.current?.clientWidth || window.innerWidth;
+      const containerH = containerRef.current?.clientHeight || window.innerHeight;
+      const centerX = Math.round((containerW / 2 - panRef.current.x) / zoomRef.current);
+      const centerY = Math.round((containerH / 2 - panRef.current.y) / zoomRef.current);
       
       if (file.type === 'application/pdf') {
         const pdfjs = await import('pdfjs-dist');
-        // Let's use a standard reliable version or the local one via unpkg
         pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
         
-        let currentY = pos.y;
-        const newImages = [];
+        let currentY = centerY - 250;
+        const newImages: ImageBlock[] = [];
         
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
           const page = await pdf.getPage(pageNum);
-          const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better resolution
+          const viewport = page.getViewport({ scale: 2.0 });
           const tempCanvas = document.createElement('canvas');
           const ctx = tempCanvas.getContext('2d');
           tempCanvas.width = viewport.width;
           tempCanvas.height = viewport.height;
           
           if (ctx) {
-            // MUST fill with white background first, otherwise PDFs with transparent backgrounds render poorly
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-            
             await page.render({ canvasContext: ctx, viewport } as any).promise;
             const src = tempCanvas.toDataURL('image/png');
             
-            // Scaled down visually by 2 (matching the 2.0 scale)
             const displayWidth = viewport.width / 2;
             const displayHeight = viewport.height / 2;
             
             newImages.push({
               id: crypto.randomUUID(),
-              x: pos.x,
+              x: centerX - displayWidth / 2,
               y: currentY,
               width: displayWidth,
               height: displayHeight,
               src,
+              locked: false,
             });
             
-            currentY += displayHeight + 20; // 20px gap between pages
+            currentY += displayHeight + 30; // 30px gap between consecutive pages
           }
         }
         
         committedImages.current = [...committedImages.current, ...newImages];
         setImages([...committedImages.current]);
+        if (newImages.length > 0) {
+          setSelectedImageIds([newImages[0].id]);
+        }
         triggerSave();
         redrawAll();
       } else {
         const reader = new FileReader();
         reader.onload = (ev) => {
           const src = ev.target?.result as string;
-          const newImg = {
-            id: crypto.randomUUID(),
-            x: pos.x,
-            y: pos.y,
-            width: 300,
-            height: 200,
-            src,
+          const imgObj = new Image();
+          imgObj.onload = () => {
+            const maxW = 500;
+            const scale = imgObj.width > maxW ? maxW / imgObj.width : 1;
+            const w = imgObj.width * scale;
+            const h = imgObj.height * scale;
+            const newImg: ImageBlock = {
+              id: crypto.randomUUID(),
+              x: centerX - w / 2,
+              y: centerY - h / 2,
+              width: w,
+              height: h,
+              src,
+              locked: false,
+            };
+            committedImages.current = [...committedImages.current, newImg];
+            setImages([...committedImages.current]);
+            setSelectedImageIds([newImg.id]);
+            triggerSave();
+            redrawAll();
           };
-          committedImages.current = [...committedImages.current, newImg];
-          setImages([...committedImages.current]);
-          triggerSave();
-          redrawAll();
+          imgObj.src = src;
         };
         reader.readAsDataURL(file);
       }
-    },
-    redo: () => {
-      if (undoStack.length === 0) return;
-      const strokesToRestore = undoStack[undoStack.length - 1];
-      setUndoStack(prev => prev.slice(0, -1));
-      committedStrokes.current = [...committedStrokes.current, ...strokesToRestore];
-      redrawAll();
-      triggerSave();
     }
   }));
 
   const shapeStartRef = useRef<Point | null>(null);
   const [textBoxes, setTextBoxes] = useState<TextBox[]>(page.textBoxes);
   const [images, setImages] = useState<ImageBlock[]>(page.images);
+  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
+  const [croppingImageId, setCroppingImageId] = useState<string | null>(null);
+  const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, zoom: 1 });
   const [editingTextBox, setEditingTextBox] = useState<string | null>(null);
   const [editingImage, setEditingImage] = useState<string | null>(null);
   const dragDataRef = useRef<{ id: string; type: 'text' | 'image'; startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const multiDragInitMap = useRef<Map<string, { x: number; y: number }>>(new Map());
+
+  function handleSelectImage(id: string, isMulti?: boolean) {
+    setEditingTextBox(null);
+    setSelectedStrokes([]);
+    if (isMulti) {
+      setSelectedImageIds(prev =>
+        prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+      );
+    } else {
+      setSelectedImageIds([id]);
+    }
+  }
+
+  function handleStartMoveSelected(primaryId: string) {
+    multiDragInitMap.current.clear();
+    const idsToMove = selectedImageIds.includes(primaryId) ? selectedImageIds : [primaryId];
+    committedImages.current.forEach(img => {
+      if (idsToMove.includes(img.id)) {
+        multiDragInitMap.current.set(img.id, { x: img.x, y: img.y });
+      }
+    });
+  }
+
+  function handleMoveDelta(dx: number, dy: number) {
+    if (multiDragInitMap.current.size === 0) return;
+    const updated = committedImages.current.map(img => {
+      const init = multiDragInitMap.current.get(img.id);
+      if (init && !img.locked) {
+        return {
+          ...img,
+          x: Math.round(init.x + dx),
+          y: Math.round(init.y + dy),
+        };
+      }
+      return img;
+    });
+    committedImages.current = updated;
+    setImages(updated);
+  }
+
+  function handleEndMove() {
+    multiDragInitMap.current.clear();
+    triggerSave();
+  }
+
+  function handleUpdateImage(id: string, updates: Partial<ImageBlock>) {
+    const updated = images.map(img => img.id === id ? { ...img, ...updates } : img);
+    setImages(updated);
+    committedImages.current = updated;
+    triggerSave();
+  }
+
+  function handleDeleteImage(id: string) {
+    committedImages.current = committedImages.current.filter(i => i.id !== id);
+    setImages([...committedImages.current]);
+    setSelectedImageIds(prev => prev.filter(item => item !== id));
+    setEditingImage(null);
+    if (croppingImageId === id) setCroppingImageId(null);
+    triggerSave();
+  }
+
+  function handleDeleteSelectedImages() {
+    if (selectedImageIds.length === 0) return;
+    const targetSet = new Set(selectedImageIds);
+    committedImages.current = committedImages.current.filter(img => !targetSet.has(img.id));
+    setImages([...committedImages.current]);
+    setSelectedImageIds([]);
+    setCroppingImageId(null);
+    triggerSave();
+  }
+
+  function handleDuplicateImage(id: string) {
+    const target = images.find(img => img.id === id);
+    if (!target) return;
+    const copy: ImageBlock = {
+      ...target,
+      id: crypto.randomUUID(),
+      x: target.x + 30,
+      y: target.y + 30,
+    };
+    const updated = [...images, copy];
+    committedImages.current = updated;
+    setImages(updated);
+    setSelectedImageIds([copy.id]);
+    triggerSave();
+  }
+
+  function handleDuplicateSelectedImages() {
+    if (selectedImageIds.length === 0) return;
+    const targets = committedImages.current.filter(img => selectedImageIds.includes(img.id));
+    const duplicates: ImageBlock[] = targets.map(t => ({
+      ...t,
+      id: crypto.randomUUID(),
+      x: t.x + 30,
+      y: t.y + 30,
+    }));
+    const updated = [...committedImages.current, ...duplicates];
+    committedImages.current = updated;
+    setImages(updated);
+    setSelectedImageIds(duplicates.map(d => d.id));
+    triggerSave();
+  }
+
+  function handleToggleLockSelectedImages() {
+    if (selectedImageIds.length === 0) return;
+    const targets = committedImages.current.filter(img => selectedImageIds.includes(img.id));
+    const anyUnlocked = targets.some(img => !img.locked);
+    const targetSet = new Set(selectedImageIds);
+    const updated = committedImages.current.map(img => {
+      if (targetSet.has(img.id)) {
+        return { ...img, locked: anyUnlocked };
+      }
+      return img;
+    });
+    committedImages.current = updated;
+    setImages(updated);
+    triggerSave();
+  }
+
+  // Combine / Group Multiple PDF Pages into One Consolidated Document
+  async function handleGroupSelectedImages() {
+    const targets = committedImages.current.filter(img => selectedImageIds.includes(img.id));
+    if (targets.length < 2) return;
+
+    // Sort by vertical position (Y coordinate) from top to bottom
+    targets.sort((a, b) => a.y - b.y);
+
+    try {
+      // Load all images
+      const loadedImages = await Promise.all(
+        targets.map(t => new Promise<HTMLImageElement>((resolve) => {
+          const img = new Image();
+          if (t.src.startsWith('http')) img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(img);
+          img.src = t.originalSrc || t.src;
+        }))
+      );
+
+      const gap = 16; // 16px page break gap between consecutive pages
+      const maxWidth = Math.max(...loadedImages.map(img => img.naturalWidth || 800));
+
+      const totalHeight = loadedImages.reduce((sum, img) => {
+        const naturalW = img.naturalWidth || maxWidth;
+        const naturalH = img.naturalHeight || 600;
+        const scaledH = (naturalH / naturalW) * maxWidth;
+        return sum + scaledH;
+      }, 0) + (loadedImages.length - 1) * gap;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(maxWidth);
+      canvas.height = Math.round(totalHeight);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Clean white paper background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      let currentY = 0;
+      for (let i = 0; i < loadedImages.length; i++) {
+        const img = loadedImages[i];
+        const naturalW = img.naturalWidth || maxWidth;
+        const naturalH = img.naturalHeight || 600;
+        const renderW = maxWidth;
+        const renderH = (naturalH / naturalW) * maxWidth;
+
+        ctx.drawImage(img, 0, currentY, renderW, renderH);
+        currentY += renderH;
+
+        // Draw clean divider line between pages
+        if (i < loadedImages.length - 1) {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, currentY + gap / 2);
+          ctx.lineTo(maxWidth, currentY + gap / 2);
+          ctx.stroke();
+          ctx.restore();
+          currentY += gap;
+        }
+      }
+
+      const mergedDataUrl = canvas.toDataURL('image/png');
+
+      const minX = Math.min(...targets.map(t => t.x));
+      const minY = Math.min(...targets.map(t => t.y));
+      const displayWidth = Math.max(...targets.map(t => t.width));
+      const displayHeight = targets.reduce((sum, t) => sum + t.height, 0) + (targets.length - 1) * 8;
+
+      const mergedBlock: ImageBlock = {
+        id: crypto.randomUUID(),
+        x: minX,
+        y: minY,
+        width: Math.round(displayWidth),
+        height: Math.round(displayHeight),
+        src: mergedDataUrl,
+        originalSrc: mergedDataUrl,
+        locked: false,
+      };
+
+      const targetIdSet = new Set(targets.map(t => t.id));
+      const remaining = committedImages.current.filter(img => !targetIdSet.has(img.id));
+      committedImages.current = [...remaining, mergedBlock];
+      setImages([...committedImages.current]);
+      setSelectedImageIds([mergedBlock.id]);
+      triggerSave();
+      redrawAll();
+    } catch (err) {
+      console.error('Error grouping PDF pages:', err);
+    }
+  }
+
+  // Keyboard Shortcuts for Selected Objects (Delete, Cmd+D, Shift+C, Cmd+L, Cmd+G)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (selectedImageIds.length === 0) return;
+
+      // 1. Delete or Backspace: Delete selected object(s)
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDeleteSelectedImages();
+        return;
+      }
+
+      // 2. Cmd + D / Ctrl + D: Duplicate selected object(s)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        handleDuplicateSelectedImages();
+        return;
+      }
+
+      // 3. Shift + C: Crop selected object
+      if (e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        if (selectedImageIds.length === 1) {
+          setCroppingImageId(selectedImageIds[0]);
+        }
+        return;
+      }
+
+      // 4. Cmd + L / Ctrl + L: Lock / Unlock selected object(s)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        handleToggleLockSelectedImages();
+        return;
+      }
+
+      // 5. Cmd + G / Ctrl + G: Group selected pages into one
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (selectedImageIds.length > 1) {
+          handleGroupSelectedImages();
+        }
+        return;
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedImageIds]);
 
   useEffect(() => {
     committedStrokes.current = [...page.strokes];
@@ -250,9 +584,10 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
 
   useEffect(() => {
     redrawAll();
-  }, [template, theme]);
+  }, [template, theme, paperColor]);
 
   const redrawAll = useCallback(() => {
+    setCanvasTransform({ x: panRef.current.x, y: panRef.current.y, zoom: zoomRef.current });
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -264,13 +599,17 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
     ctx.translate(panRef.current.x, panRef.current.y);
     ctx.scale(zoomRef.current, zoomRef.current);
 
+    const activePaperTheme = PAPER_THEMES[paperColor || (theme === 'dark' ? 'navy' : 'white')] || PAPER_THEMES.navy;
+
     // Draw background template to bgCanvas
     const bgCanvas = bgCanvasRef.current;
     if (bgCanvas) {
       const bgCtx = bgCanvas.getContext('2d');
       if (bgCtx) {
         bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        bgCtx.clearRect(0, 0, bgCanvas.width / dpr, bgCanvas.height / dpr);
+        bgCtx.fillStyle = activePaperTheme.bg;
+        bgCtx.fillRect(0, 0, bgCanvas.width / dpr, bgCanvas.height / dpr);
+
         if (template !== 'blank') {
           bgCtx.save();
           bgCtx.translate(panRef.current.x, panRef.current.y);
@@ -281,7 +620,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
           const vpW = (bgCanvas.width / dpr) / zoomRef.current;
           const vpH = (bgCanvas.height / dpr) / zoomRef.current;
           
-          bgCtx.strokeStyle = theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
+          bgCtx.strokeStyle = activePaperTheme.lineColor;
+          bgCtx.fillStyle = activePaperTheme.dotColor;
           bgCtx.lineWidth = 1 / zoomRef.current;
           bgCtx.beginPath();
           
@@ -295,41 +635,79 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
             if (template === 'cornell') {
               bgCtx.moveTo(startX + 120, vpY); bgCtx.lineTo(startX + 120, vpY + vpH);
             }
+            bgCtx.stroke();
           } else if (template === 'grid') {
             for (let y = startY; y < vpY + vpH; y += 40) { bgCtx.moveTo(vpX, y); bgCtx.lineTo(vpX + vpW, y); }
             for (let x = startX; x < vpX + vpW; x += 40) { bgCtx.moveTo(x, vpY); bgCtx.lineTo(x, vpY + vpH); }
+            bgCtx.stroke();
           } else if (template === 'dotted') {
-            bgCtx.fillStyle = bgCtx.strokeStyle;
             for (let y = startY; y < vpY + vpH; y += 40) {
               for (let x = startX; x < vpX + vpW; x += 40) {
                 bgCtx.moveTo(x, y);
-                bgCtx.arc(x, y, 1.5 / zoomRef.current, 0, Math.PI * 2);
+                bgCtx.arc(x, y, 1.4 / zoomRef.current, 0, Math.PI * 2);
               }
             }
             bgCtx.fill();
           }
-          bgCtx.stroke();
           bgCtx.restore();
         }
       }
     }
 
-    // Images are now rendered as DOM overlays
-
-    // Draw all strokes and shapes in chronological order
+    // 1. Draw Highlighters underneath (so math notes and pen ink stay 100% visible!)
     committedStrokes.current.forEach(stroke => {
-      if ((stroke as any).shape) {
-        drawShapeStroke(ctx, stroke);
-      } else {
+      if (stroke.tool === 'highlighter') {
         drawStroke(ctx, stroke);
       }
     });
 
+    // 2. Draw Pen, Shapes, and Eraser marks on top
+    committedStrokes.current.forEach(stroke => {
+      if (stroke.tool !== 'highlighter') {
+        if ((stroke as any).shape) {
+          drawShapeStroke(ctx, stroke);
+        } else {
+          drawStroke(ctx, stroke);
+        }
+      }
+    });
+
     ctx.restore();
-  }, [template, theme]);
+  }, [template, theme, paperColor]);
 
   function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
     if ((stroke as any).shape) return; // Shapes drawn separately
+
+    if (stroke.tool === 'tape') {
+      if (stroke.points.length === 0) return;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = stroke.width || 32;
+      ctx.strokeStyle = stroke.color || '#f59e0b';
+      ctx.globalAlpha = stroke.isRevealed ? 0.18 : 0.95;
+
+      ctx.beginPath();
+      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 1; i < stroke.points.length; i++) {
+        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+      }
+      ctx.stroke();
+
+      // If active/hidden, draw a subtle diagonal paper tape micro-pattern
+      if (!stroke.isRevealed && stroke.points.length > 1) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 8]);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      ctx.restore();
+      return;
+    }
+
     const options = getStrokeOptions(stroke.width, settings.smoothing);
     const outlinePoints = getStroke(stroke.points.map(p => [p.x, p.y, p.pressure]), options);
     const path = new Path2D(getSvgPathFromStroke(outlinePoints));
@@ -382,9 +760,28 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
   function handlePointerDown(e: React.PointerEvent) {
     setEditingTextBox(null);
     setEditingImage(null);
-    if (e.pointerType === 'touch' && tool !== 'ruler') {
+    if (!e.shiftKey) {
+      setSelectedImageIds([]);
+      setCroppingImageId(null);
+    }
+    setSelectedStrokes([]);
+
+    if (e.pointerType === 'touch' && settings.palmRejection && tool !== 'ruler') {
+      return;
+    }
+    if (e.pointerType === 'touch' && !settings.palmRejection && tool !== 'ruler') {
       isPanningRef.current = true;
       lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
+      return;
+    }
+    if (tool === 'select') {
+      isPanningRef.current = true;
+      lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
+      return;
+    }
+    if (tool === 'lasso') {
+      isLassoing.current = true;
+      lassoPolygon.current = [getPointerPos(e)];
       return;
     }
     if (tool === 'text') {
@@ -420,54 +817,47 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
         if (!file) return;
 
         if (file.type === 'application/pdf') {
-        const pdfjs = await import('pdfjs-dist');
-        // Let's use a standard reliable version or the local one via unpkg
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-        
-        let currentY = pos.y;
-        const newImages = [];
-        
-        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-          const page = await pdf.getPage(pageNum);
-          const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better resolution
-          const tempCanvas = document.createElement('canvas');
-          const ctx = tempCanvas.getContext('2d');
-          tempCanvas.width = viewport.width;
-          tempCanvas.height = viewport.height;
+          const pdfjs = await import('pdfjs-dist');
+          pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
           
-          if (ctx) {
-            // MUST fill with white background first, otherwise PDFs with transparent backgrounds render poorly
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+          let currentY = pos.y;
+          const newImages = [];
+          
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 2.0 });
+            const tempCanvas = document.createElement('canvas');
+            const ctx = tempCanvas.getContext('2d');
+            tempCanvas.width = viewport.width;
+            tempCanvas.height = viewport.height;
             
-            await page.render({ canvasContext: ctx, viewport } as any).promise;
-            const src = tempCanvas.toDataURL('image/png');
-            
-            // Scaled down visually by 2 (matching the 2.0 scale)
-            const displayWidth = viewport.width / 2;
-            const displayHeight = viewport.height / 2;
-            
-            newImages.push({
-              id: crypto.randomUUID(),
-              x: pos.x,
-              y: currentY,
-              width: displayWidth,
-              height: displayHeight,
-              src,
-            });
-            
-            currentY += displayHeight + 20; // 20px gap between pages
+            if (ctx) {
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+              await page.render({ canvasContext: ctx, viewport } as any).promise;
+              const src = tempCanvas.toDataURL('image/png');
+              const displayWidth = viewport.width / 2;
+              const displayHeight = viewport.height / 2;
+              
+              newImages.push({
+                id: crypto.randomUUID(),
+                x: pos.x,
+                y: currentY,
+                width: displayWidth,
+                height: displayHeight,
+                src,
+              });
+              currentY += displayHeight + 20;
+            }
           }
-        }
-        
-        committedImages.current = [...committedImages.current, ...newImages];
-        setImages([...committedImages.current]);
-        triggerSave();
-        redrawAll();
-      } else {
-          // Standard Image Import
+          
+          committedImages.current = [...committedImages.current, ...newImages];
+          setImages([...committedImages.current]);
+          triggerSave();
+          redrawAll();
+        } else {
           const reader = new FileReader();
           reader.onload = (ev) => {
             const src = ev.target?.result as string;
@@ -495,12 +885,29 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
       isDrawing.current = true;
       return;
     }
-    if (tool === 'lasso' || tool === 'ruler') return;
+    if (tool === 'ruler') return;
+
+    const pos = getPointerPos(e);
+
+    // If tool is 'tape' or 'select', check if user tapped on an existing tape stroke to peel/reveal it!
+    if (tool === 'tape' || tool === 'select') {
+      const clickedTape = committedStrokes.current.find(s => {
+        if (s.tool !== 'tape') return false;
+        const radius = (s.width || 32) / 2 + 10;
+        return s.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) <= radius);
+      });
+      if (clickedTape) {
+        clickedTape.isRevealed = !clickedTape.isRevealed;
+        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(18);
+        redrawAll();
+        triggerSave();
+        return;
+      }
+    }
 
     isDrawing.current = true;
     autoShapeData.current = null;
     if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
-    const pos = getPointerPos(e);
     currentStroke.current = [pos];
 
     const overlay = overlayCanvasRef.current;
@@ -522,17 +929,49 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
       }
       return;
     }
-    if (!isDrawing.current) return;
-    if (e.pointerType === 'touch') return;
+    if (tool === 'select') {
+      if (isPanningRef.current && lastTouchPanRef.current) {
+        const dx = e.clientX - lastTouchPanRef.current.x;
+        const dy = e.clientY - lastTouchPanRef.current.y;
+        panRef.current.x += dx;
+        panRef.current.y += dy;
+        lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
+        redrawAll();
+      }
+      return;
+    }
+    if (!isDrawing.current && !isLassoing.current) return;
+    if (e.pointerType === 'touch' && settings.palmRejection) return;
 
     const pos = getPointerPos(e);
+    const overlay = overlayCanvasRef.current;
+    if (!overlay) return;
+    const ctx = overlay.getContext('2d');
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+
+    // Handle Lasso Polygon
+    if (isLassoing.current) {
+      lassoPolygon.current.push(pos);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
+      ctx.save();
+      ctx.translate(panRef.current.x, panRef.current.y);
+      ctx.scale(zoomRef.current, zoomRef.current);
+      ctx.strokeStyle = '#32ADE6';
+      ctx.lineWidth = 2 / zoomRef.current;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      lassoPolygon.current.forEach((p, idx) => {
+        if (idx === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
 
     if (tool === 'shapes' && shapeStartRef.current) {
-      const overlay = overlayCanvasRef.current;
-      if (!overlay) return;
-      const ctx = overlay.getContext('2d');
-      if (!ctx) return;
-      const dpr = window.devicePixelRatio || 1;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
       ctx.save();
@@ -578,176 +1017,149 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
       return;
     }
 
-    const overlay = overlayCanvasRef.current;
-    if (!overlay) return;
-    const ctx = overlay.getContext('2d');
-    if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
+    currentStroke.current.push(pos);
 
-    // Handle Auto Shape Update
-    if (autoShapeData.current && tool === 'pen') {
-      autoShapeData.current.end = pos;
+    // Controlled Hold-to-shape detection timeout (ONLY triggers if held still for 500ms!)
+    if (tool === 'pen' && settings.holdToShape !== false) {
+      if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = setTimeout(() => {
+        if (!isDrawing.current || currentStroke.current.length < 8) return;
+        const detected = detectHoldShape(currentStroke.current);
+        if (detected) {
+          autoShapeData.current = detected;
+          if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(30);
+
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
+          ctx.save();
+          ctx.translate(panRef.current.x, panRef.current.y);
+          ctx.scale(zoomRef.current, zoomRef.current);
+          ctx.strokeStyle = settings.penColor;
+          ctx.lineWidth = settings.penWidth;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          const p = new Path2D(detected.path);
+          ctx.stroke(p);
+          ctx.restore();
+        }
+      }, 500);
+    }
+
+    if (!autoShapeData.current) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
       ctx.save();
       ctx.translate(panRef.current.x, panRef.current.y);
       ctx.scale(zoomRef.current, zoomRef.current);
-      
-      ctx.strokeStyle = settings.penColor;
-      ctx.lineWidth = settings.penWidth;
-      
-      const { type, start, end } = autoShapeData.current;
-      const w = end.x - start.x;
-      const h = end.y - start.y;
-      
-      ctx.beginPath();
-      if (type === 'rect') {
-        ctx.strokeRect(start.x, start.y, w, h);
-      } else if (type === 'circle') {
-        const r = Math.sqrt(w*w + h*h);
-        ctx.arc(start.x, start.y, r, 0, Math.PI * 2);
-        ctx.stroke();
-      } else if (type === 'line') {
-        ctx.moveTo(start.x, start.y);
-        ctx.lineTo(end.x, end.y);
-        ctx.stroke();
+
+      const strokeWidth = tool === 'tape'
+        ? (settings.tapeWidth || 32)
+        : tool === 'highlighter'
+        ? settings.highlighterWidth
+        : tool === 'eraser'
+        ? settings.eraserWidth
+        : settings.penWidth;
+
+      const strokeColor = tool === 'tape'
+        ? (settings.tapeColor || '#f59e0b')
+        : tool === 'highlighter'
+        ? settings.highlighterColor
+        : settings.penColor;
+
+      const tempStroke: Stroke = {
+        id: '',
+        tool: tool as 'pen' | 'highlighter' | 'eraser' | 'tape',
+        color: strokeColor,
+        width: strokeWidth,
+        opacity: tool === 'tape' ? 0.95 : tool === 'highlighter' ? 0.35 : settings.penOpacity,
+        points: currentStroke.current,
+        isRevealed: false,
+      };
+
+      if (tool === 'eraser') {
+        const mainCtx = canvasRef.current?.getContext('2d');
+        if (mainCtx) {
+          mainCtx.save();
+          mainCtx.translate(panRef.current.x, panRef.current.y);
+          mainCtx.scale(zoomRef.current, zoomRef.current);
+          drawStroke(mainCtx, tempStroke);
+          mainCtx.restore();
+        }
+      } else {
+        drawStroke(ctx, tempStroke);
       }
       ctx.restore();
-      return;
     }
-
-    currentStroke.current.push(pos);
-
-    // Hold-to-shape detection timeout
-    if (tool === 'pen') {
-      if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
-      holdTimeoutRef.current = setTimeout(() => {
-        if (!isDrawing.current || currentStroke.current.length < 10) return;
-        const pts = currentStroke.current;
-        const start = pts[0];
-        const end = pts[pts.length - 1];
-        const dist = Math.hypot(end.x - start.x, end.y - start.y);
-        let pathLen = 0;
-        for (let i = 1; i < pts.length; i++) {
-          pathLen += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
-        }
-        
-        let detectedType = null;
-        let shapeStart: {x: number, y: number} = {x: start.x, y: start.y};
-        let shapeEnd: {x: number, y: number} = {x: end.x, y: end.y};
-
-        if (dist > pathLen * 0.85) {
-          detectedType = 'line';
-        } else if (dist < pathLen * 0.3) {
-          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-          pts.forEach(p => {
-            if (p.x < minX) minX = p.x;
-            if (p.x > maxX) maxX = p.x;
-            if (p.y < minY) minY = p.y;
-            if (p.y > maxY) maxY = p.y;
-          });
-          const w = maxX - minX;
-          const h = maxY - minY;
-          detectedType = Math.abs(w - h) < Math.max(w, h) * 0.3 ? 'circle' : 'rect';
-          
-          if (detectedType === 'circle') {
-            shapeStart = { x: minX + w/2, y: minY + h/2 }; // center
-            shapeEnd = { x: shapeStart.x + w/2, y: shapeStart.y }; // radius point
-          } else {
-            shapeStart = { x: minX, y: minY };
-            shapeEnd = { x: maxX, y: maxY };
-          }
-        }
-        
-        if (detectedType) {
-          autoShapeData.current = { type: detectedType, start: shapeStart, end: shapeEnd };
-          // Vibrate if supported to indicate snapping
-          if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
-          
-          // Force a re-render of the overlay immediately with the new shape
-          handlePointerMove({ ...e, clientX: e.clientX, clientY: e.clientY } as any);
-        }
-      }, 500); // 500ms hold
-    }
-
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
-    ctx.save();
-    ctx.translate(panRef.current.x, panRef.current.y);
-    ctx.scale(zoomRef.current, zoomRef.current);
-
-    const tempStroke: Stroke = {
-      id: '',
-      tool: tool as 'pen' | 'highlighter' | 'eraser',
-      color: tool === 'highlighter' ? settings.highlighterColor : settings.penColor,
-      width: tool === 'highlighter' ? settings.highlighterWidth : (tool === 'eraser' ? settings.eraserWidth : settings.penWidth),
-      opacity: tool === 'highlighter' ? 0.35 : settings.penOpacity,
-      points: currentStroke.current,
-    };
-    if (tool === 'eraser') {
-      const mainCtx = canvasRef.current?.getContext('2d');
-      if (mainCtx) {
-        mainCtx.save();
-        mainCtx.translate(panRef.current.x, panRef.current.y);
-        mainCtx.scale(zoomRef.current, zoomRef.current);
-        drawStroke(mainCtx, tempStroke);
-        mainCtx.restore();
-      }
-    } else {
-      drawStroke(ctx, tempStroke);
-    }
-    ctx.restore();
   }
 
   function handlePointerUp(e: React.PointerEvent) {
+    if (tool === 'select') {
+      isPanningRef.current = false;
+      lastTouchPanRef.current = null;
+      return;
+    }
+
     if (isPanningRef.current && e.pointerType === 'touch') {
       isPanningRef.current = false;
       lastTouchPanRef.current = null;
       return;
     }
-    if (!isDrawing.current) return;
-    isDrawing.current = false;
+
     if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
 
-    // Commit auto-shape if it was created
-    if (autoShapeData.current && tool === 'pen') {
-      const { type, start, end } = autoShapeData.current;
-      const w = end.x - start.x;
-      const h = end.y - start.y;
-      let path = '';
-      if (type === 'rect') {
-        path = `M ${start.x} ${start.y} L ${end.x} ${start.y} L ${end.x} ${end.y} L ${start.x} ${end.y} Z`;
-      } else if (type === 'circle') {
-        const r = Math.sqrt(w*w + h*h);
-        path = `M ${start.x - r} ${start.y} A ${r} ${r} 0 1 1 ${start.x + r} ${start.y} A ${r} ${r} 0 1 1 ${start.x - r} ${start.y} Z`;
-      } else if (type === 'line') {
-        path = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
-      }
-      
-      const shapeStroke: any = {
-        id: crypto.randomUUID(),
-        tool: 'shapes',
-        color: settings.penColor,
-        width: settings.penWidth,
-        opacity: 1,
-        points: [],
-        shape: { type, path }
-      };
-      
-      committedStrokes.current.push(shapeStroke);
-      setUndoStack([]);
-      
+    const clearOverlay = () => {
       const overlay = overlayCanvasRef.current;
       if (overlay) {
         const ctx = overlay.getContext('2d');
         if (ctx) ctx.clearRect(0, 0, overlay.width, overlay.height);
       }
-      redrawAll();
-      triggerSave();
-      autoShapeData.current = null;
+    };
+
+    // 1. Handle Lasso Completion
+    if (isLassoing.current) {
+      isLassoing.current = false;
+      clearOverlay();
+      if (lassoPolygon.current.length > 5) {
+        const selected: string[] = [];
+        committedStrokes.current.forEach(s => {
+          if (s.points.some(pt => isPointInPolygon(pt, lassoPolygon.current))) {
+            selected.push(s.id);
+          }
+        });
+        if (selected.length > 0) {
+          setSelectedStrokes(selected);
+          if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(20);
+        }
+      }
+      lassoPolygon.current = [];
       return;
     }
 
+    if (!isDrawing.current) return;
+    isDrawing.current = false;
+
+    // 2. Commit auto-shape (ONLY if Hold-to-Shape was intentionally triggered)
+    if (autoShapeData.current && tool === 'pen') {
+      const shapeStroke: any = {
+        id: crypto.randomUUID(),
+        tool: 'pen',
+        color: settings.penColor,
+        width: settings.penWidth,
+        opacity: settings.penOpacity,
+        points: [],
+        shape: autoShapeData.current,
+      };
+      committedStrokes.current.push(shapeStroke);
+      undoStackRef.current.push([shapeStroke]);
+      redoStackRef.current = [];
+      autoShapeData.current = null;
+      clearOverlay();
+      redrawAll();
+      triggerSave();
+      return;
+    }
+
+    // 3. Handle Manual Shapes Tool
     if (tool === 'shapes' && shapeStartRef.current) {
       const pos = getPointerPos(e);
       const start = shapeStartRef.current;
@@ -786,43 +1198,77 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
           shape,
         };
         committedStrokes.current = [...committedStrokes.current, shapeStroke as Stroke];
+        undoStackRef.current.push([shapeStroke as Stroke]);
+        redoStackRef.current = [];
       }
       shapeStartRef.current = null;
-      const overlay = overlayCanvasRef.current;
-      if (overlay) {
-        const ctx = overlay.getContext('2d');
-        if (ctx) ctx.clearRect(0, 0, overlay.width, overlay.height);
-      }
+      clearOverlay();
       redrawAll();
       triggerSave();
       return;
     }
 
-    if (currentStroke.current.length < 2) return;
+    if (currentStroke.current.length < 2) {
+      clearOverlay();
+      return;
+    }
 
-    // Try shape detection for pen tool
-    const detectedShape = tool === 'pen' ? detectShape(currentStroke.current) : null;
+    // 4. Scribble to Erase (GoodNotes signature scratch-out!)
+    if ((tool === 'pen' || tool === 'highlighter') && settings.scribbleToErase !== false) {
+      const scribble = detectScribble(currentStroke.current);
+      if (scribble) {
+        const originalCount = committedStrokes.current.length;
+        const remaining = committedStrokes.current.filter(s => !strokeIntersectsBox(s, scribble.bounds));
+        if (remaining.length < originalCount) {
+          const removed = committedStrokes.current.filter(s => strokeIntersectsBox(s, scribble.bounds));
+          committedStrokes.current = remaining;
+          if (removed.length > 0) {
+            undoStackRef.current.push(removed);
+            redoStackRef.current = [];
+          }
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(35);
+          }
+          currentStroke.current = [];
+          clearOverlay();
+          redrawAll();
+          triggerSave();
+          return;
+        }
+      }
+    }
+
+    // 5. Normal Handwriting Ink or Study Tape
+    const finalWidth = tool === 'tape'
+      ? (settings.tapeWidth || 32)
+      : tool === 'highlighter'
+      ? settings.highlighterWidth
+      : tool === 'eraser'
+      ? settings.eraserWidth
+      : settings.penWidth;
+
+    const finalColor = tool === 'tape'
+      ? (settings.tapeColor || '#f59e0b')
+      : tool === 'highlighter'
+      ? settings.highlighterColor
+      : settings.penColor;
 
     const newStroke: Stroke = {
       id: crypto.randomUUID(),
-      tool: tool as 'pen' | 'highlighter' | 'eraser',
-      color: tool === 'highlighter' ? settings.highlighterColor : settings.penColor,
-      width: tool === 'highlighter' ? settings.highlighterWidth : (tool === 'eraser' ? settings.eraserWidth : settings.penWidth),
-      opacity: tool === 'highlighter' ? 0.35 : settings.penOpacity,
+      tool: tool as 'pen' | 'highlighter' | 'eraser' | 'tape',
+      color: finalColor,
+      width: finalWidth,
+      opacity: tool === 'tape' ? 0.95 : tool === 'highlighter' ? 0.35 : settings.penOpacity,
       points: currentStroke.current,
-      ...(detectedShape ? { shape: detectedShape } as any : {}),
+      isRevealed: false,
     };
 
     committedStrokes.current = [...committedStrokes.current, newStroke];
-
-    const overlay = overlayCanvasRef.current;
-    if (overlay) {
-      const ctx = overlay.getContext('2d');
-      if (ctx) ctx.clearRect(0, 0, overlay.width, overlay.height);
-    }
-
-    redrawAll();
+    undoStackRef.current.push([newStroke]);
+    redoStackRef.current = [];
     currentStroke.current = [];
+    clearOverlay();
+    redrawAll();
     triggerSave();
   }
 
@@ -888,13 +1334,6 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
     triggerSave();
   };
 
-  function handleDeleteImage(id: string) {
-    committedImages.current = committedImages.current.filter(i => i.id !== id);
-    setImages([...committedImages.current]);
-    setEditingImage(null);
-    triggerSave();
-  }
-  
   function handleDeleteTextBox(id: string) {
     committedTextBoxes.current = committedTextBoxes.current.filter(tb => tb.id !== id);
     setTextBoxes([...committedTextBoxes.current]);
@@ -956,16 +1395,119 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
 
   return (
     <div ref={containerRef} className="absolute inset-0" style={{ touchAction: 'none' }}>
-      <canvas ref={bgCanvasRef} className="absolute inset-0" style={{ touchAction: 'none' }} />
+      {/* 1. Paper Background */}
+      <canvas ref={bgCanvasRef} className="absolute inset-0 pointer-events-none" style={{ touchAction: 'none', zIndex: 1 }} />
+
+      {/* 2. World-space Document / Image & Text Layer (Rendered underneath ink in pen mode, and on top in select mode!) */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          transform: `translate(${canvasTransform.x}px, ${canvasTransform.y}px) scale(${canvasTransform.zoom})`,
+          transformOrigin: '0 0',
+          zIndex: (tool === 'select' || tool === 'image') ? 25 : 5,
+        }}
+      >
+        {/* Interactive PDF & Image Objects */}
+        {images.map(img => (
+          <ImageElementOverlay
+            key={img.id}
+            image={img}
+            isSelected={selectedImageIds.includes(img.id)}
+            onSelect={(isMulti) => handleSelectImage(img.id, isMulti)}
+            onUpdate={(updates) => handleUpdateImage(img.id, updates)}
+            onDelete={() => handleDeleteImage(img.id)}
+            onDuplicate={() => handleDuplicateImage(img.id)}
+            zoom={canvasTransform.zoom}
+            tool={tool}
+            isCropping={croppingImageId === img.id}
+            onSetCropping={(c) => setCroppingImageId(c ? img.id : null)}
+            onStartMove={() => handleStartMoveSelected(img.id)}
+            onMoveDelta={handleMoveDelta}
+            onEndMove={handleEndMove}
+            showSingleBar={selectedImageIds.length <= 1}
+          />
+        ))}
+
+        {/* Text boxes overlay */}
+        {textBoxes.map(tb => (
+          <div
+            key={tb.id}
+            className="absolute"
+            onPointerDown={(e) => handleOverlayPointerDown(e, tb.id, 'text', tb.x, tb.y)}
+            onPointerMove={handleOverlayPointerMove}
+            onPointerUp={handleOverlayPointerUp}
+            onPointerCancel={handleOverlayPointerUp}
+            style={{
+              left: tb.x,
+              top: tb.y,
+              minWidth: 100,
+              minHeight: 30,
+              zIndex: 20,
+              pointerEvents: (tool === 'text' || editingTextBox === tb.id) ? 'auto' : 'none',
+            }}
+          >
+            {editingTextBox === tb.id ? (
+              <div className="relative">
+                <textarea
+                  autoFocus
+                  value={tb.text}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onChange={e => handleTextBoxChange(tb.id, e.target.value)}
+                  onBlur={handleTextBoxBlur}
+                  className="w-full min-h-[40px] bg-transparent border rounded-lg p-2 text-sm resize-both outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  style={{
+                    fontSize: tb.fontSize,
+                    fontFamily: tb.fontFamily,
+                    fontWeight: tb.bold ? 'bold' : 'normal',
+                    fontStyle: tb.italic ? 'italic' : 'normal',
+                    textDecoration: tb.underline ? 'underline' : 'none',
+                    color: theme === 'dark' ? '#e8e8ed' : '#1a1a2e',
+                    borderColor: 'var(--accent)',
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') handleTextBoxBlur();
+                    if (e.key === 'Delete' && e.metaKey) handleDeleteTextBox(tb.id);
+                  }}
+                />
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => handleDeleteTextBox(tb.id)}
+                  className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center pointer-events-auto z-20"
+                >
+                  ×
+                </button>
+              </div>
+            ) : (
+              <div
+                className="cursor-move bg-transparent rounded p-1 min-h-[24px] hover:bg-black/5 dark:hover:bg-white/5 transition-colors pointer-events-none"
+                style={{
+                  fontSize: tb.fontSize,
+                  fontFamily: tb.fontFamily,
+                  fontWeight: tb.bold ? 'bold' : 'normal',
+                  fontStyle: tb.italic ? 'italic' : 'normal',
+                  textDecoration: tb.underline ? 'underline' : 'none',
+                  color: theme === 'dark' ? '#e8e8ed' : '#1a1a2e',
+                }}
+              >
+                {tb.text || <span className="opacity-40">Type here...</span>}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* 3. Main Handwriting Ink Canvas (Rendered ON TOP of the PDF!) */}
       <canvas
         ref={canvasRef}
-        className="absolute inset-0"
-        style={{ touchAction: 'none' }}
+        className="absolute inset-0 pointer-events-none"
+        style={{ touchAction: 'none', zIndex: 10 }}
       />
+
+      {/* 4. Interactive Overlay Canvas (Captures Pen, Highlighter, Eraser gestures!) */}
       <canvas
         ref={overlayCanvasRef}
         className="absolute inset-0"
-        style={{ touchAction: 'none' }}
+        style={{ touchAction: 'none', zIndex: 15 }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -984,115 +1526,102 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
           redrawAll();
         }}
       />
-      {/* Image overlays */}
-      {images.map(img => (
-        <div
-          key={img.id}
-          className="absolute group"
-          onPointerDown={(e) => handleOverlayPointerDown(e, img.id, 'image', img.x, img.y)}
-          onPointerMove={handleOverlayPointerMove}
-          onPointerUp={handleOverlayPointerUp}
-          onPointerCancel={handleOverlayPointerUp}
-          style={{
-            left: img.x,
-            top: img.y,
-            width: img.width,
-            height: img.height,
-            transform: `scale(${zoomRef.current})`,
-            transformOrigin: 'top left',
-            pointerEvents: (tool === 'image' || editingImage === img.id) ? 'auto' : 'none',
-            zIndex: 10,
-          }}
-        >
-          <img 
-            src={img.src} 
-            alt="Imported" 
-            draggable={false}
-            className="w-full h-full object-contain pointer-events-none" 
-            style={{ pointerEvents: 'none' }}
-          />
-          {(editingImage === img.id || tool === 'image') && (
-            <div className="absolute inset-0 border-2 border-[var(--accent)] border-dashed pointer-events-none" />
-          )}
-          {editingImage === img.id && (
-            <button
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => handleDeleteImage(img.id)}
-              className="absolute -top-3 -right-3 w-6 h-6 rounded-full bg-red-500 text-white text-sm flex items-center justify-center shadow-md hover:bg-red-600 transition-colors pointer-events-auto z-20"
-            >
-              ×
-            </button>
-          )}
-        </div>
-      ))}
 
-      {/* Text boxes overlay */}
-      {textBoxes.map(tb => (
+      {/* Floating Lasso Actions */}
+      {selectedStrokes.length > 0 && (
         <div
-          key={tb.id}
-          className="absolute"
-          onPointerDown={(e) => handleOverlayPointerDown(e, tb.id, 'text', tb.x, tb.y)}
-          onPointerMove={handleOverlayPointerMove}
-          onPointerUp={handleOverlayPointerUp}
-          onPointerCancel={handleOverlayPointerUp}
-          style={{
-            left: tb.x,
-            top: tb.y,
-            minWidth: 100,
-            minHeight: 30,
-            transform: `scale(${zoomRef.current})`,
-            transformOrigin: 'top left',
-            zIndex: 20,
-          }}
+          className="absolute top-6 right-6 z-30 flex items-center gap-2 p-1.5 rounded-2xl glass-panel shadow-2xl animate-fade-in pointer-events-auto"
+          onClick={e => e.stopPropagation()}
         >
-          {editingTextBox === tb.id ? (
-            <div className="relative">
-              <textarea
-                autoFocus
-                value={tb.text}
-                onPointerDown={(e) => e.stopPropagation()}
-                onChange={e => handleTextBoxChange(tb.id, e.target.value)}
-                onBlur={handleTextBoxBlur}
-                className="w-full min-h-[40px] bg-transparent border rounded-lg p-2 text-sm resize-both outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                style={{
-                  fontSize: tb.fontSize,
-                  fontFamily: tb.fontFamily,
-                  fontWeight: tb.bold ? 'bold' : 'normal',
-                  fontStyle: tb.italic ? 'italic' : 'normal',
-                  textDecoration: tb.underline ? 'underline' : 'none',
-                  color: theme === 'dark' ? '#e8e8ed' : '#1a1a2e',
-                  borderColor: 'var(--accent)',
-                }}
-                onKeyDown={e => {
-                  if (e.key === 'Escape') handleTextBoxBlur();
-                  if (e.key === 'Delete' && e.metaKey) handleDeleteTextBox(tb.id);
-                }}
-              />
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => handleDeleteTextBox(tb.id)}
-                className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center pointer-events-auto z-20"
-              >
-                ×
-              </button>
-            </div>
-          ) : (
-            <div
-              className="cursor-move bg-transparent rounded p-1 min-h-[24px] hover:bg-black/5 dark:hover:bg-white/5 transition-colors pointer-events-none"
-              style={{
-                fontSize: tb.fontSize,
-                fontFamily: tb.fontFamily,
-                fontWeight: tb.bold ? 'bold' : 'normal',
-                fontStyle: tb.italic ? 'italic' : 'normal',
-                textDecoration: tb.underline ? 'underline' : 'none',
-                color: theme === 'dark' ? '#e8e8ed' : '#1a1a2e',
-              }}
-            >
-              {tb.text || <span className="opacity-40">Type here...</span>}
-            </div>
-          )}
+          <span className="text-xs font-semibold px-2 py-1" style={{ color: 'var(--text-muted)' }}>
+            {selectedStrokes.length} selected
+          </span>
+          <button
+            onClick={() => {
+              const newStrokes: Stroke[] = [];
+              committedStrokes.current.forEach(s => {
+                if (selectedStrokes.includes(s.id)) {
+                  newStrokes.push({
+                    ...s,
+                    id: crypto.randomUUID(),
+                    points: s.points.map(p => ({ ...p, x: p.x + 30, y: p.y + 30 })),
+                  });
+                }
+              });
+              committedStrokes.current = [...committedStrokes.current, ...newStrokes];
+              setSelectedStrokes([]);
+              redrawAll();
+              triggerSave();
+            }}
+            className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 hover:bg-black/10 dark:hover:bg-white/10"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            Duplicate
+          </button>
+          <button
+            onClick={() => {
+              committedStrokes.current = committedStrokes.current.filter(s => !selectedStrokes.includes(s.id));
+              setSelectedStrokes([]);
+              redrawAll();
+              triggerSave();
+            }}
+            className="px-3 py-1.5 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-500/10 flex items-center gap-1.5"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => setSelectedStrokes([])}
+            className="w-6 h-6 rounded-full flex items-center justify-center text-xs hover:bg-black/10 dark:hover:bg-white/10"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            ✕
+          </button>
         </div>
-      ))}
+      )}
+
+      {/* Floating Multi-Selection Action Bar for Images / PDF Pages */}
+      {selectedImageIds.length > 1 && (
+        <div
+          className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 p-1.5 rounded-2xl glass-panel shadow-2xl animate-fade-in pointer-events-auto border border-black/10 dark:border-white/10"
+          onClick={e => e.stopPropagation()}
+        >
+          <span className="text-xs font-bold px-2 py-1 text-[var(--text-muted)]">
+            {selectedImageIds.length} pages selected
+          </span>
+          <button
+            type="button"
+            onClick={handleGroupSelectedImages}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[var(--accent)] text-white hover:opacity-90 flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+            title="Group selected pages into one continuous document (⌘G)"
+          >
+            <span>⧉ Group Pages into One</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleToggleLockSelectedImages}
+            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[var(--text-primary)] flex items-center gap-1.5 transition-all shadow-sm"
+            title="Lock / Unlock all selected (⌘L)"
+          >
+            <span>Lock / Unlock</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleDuplicateSelectedImages}
+            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-[var(--text-primary)] flex items-center gap-1.5 transition-all shadow-sm"
+            title="Duplicate all selected (⌘D)"
+          >
+            <span>Duplicate</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteSelectedImages}
+            className="px-3 py-1.5 rounded-xl text-xs font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 flex items-center gap-1.5 transition-all shadow-sm"
+            title="Delete all selected (Delete / Backspace)"
+          >
+            <span>Delete</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 });

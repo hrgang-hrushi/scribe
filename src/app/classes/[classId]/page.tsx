@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getNotesForClass, createNote, deleteNote, updateNote, getAllClasses, updateClass } from '@/lib/db';
 import type { Note, ClassItem } from '@/lib/types';
+import CreateNoteModal from '@/components/ui/CreateNoteModal';
 
 export default function ClassPage() {
   const params = useParams();
@@ -15,6 +16,8 @@ export default function ClassPage() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
 
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -46,7 +49,7 @@ export default function ClassPage() {
   }
 
   async function handleNewNote(dateOverride?: string) {
-    // If a note already exists for this date, just open it to maintain the unified canvas feel per date
+    // If a note already exists for this date, open it
     if (dateOverride) {
       const existing = notes.find(n => n.date === dateOverride);
       if (existing) {
@@ -54,8 +57,8 @@ export default function ClassPage() {
         return;
       }
     }
-    const note = await createNote(classId, undefined, dateOverride);
-    router.push(`/notes/${note.id}`);
+    setSelectedDate(dateOverride);
+    setShowCreateModal(true);
   }
 
   async function handleDeleteNote(id: string) {
@@ -99,22 +102,35 @@ export default function ClassPage() {
       {/* Left Pane - Calendar (70%) */}
       <div className="flex-1 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-12">
-          <button
-            onClick={() => router.push('/')}
-            className="w-12 h-12 rounded-full flex items-center justify-center transition-transform hover:scale-105 shadow-sm"
-            style={{ background: 'var(--bg-tertiary)' }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--text-primary)' }}>
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-          </button>
-          <div>
-            <h1 className="text-4xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-              {cls?.name || 'Loading...'}
-            </h1>
-            <p className="text-sm font-medium mt-1" style={{ color: 'var(--text-muted)' }}>Class Calendar & Notes</p>
+        <div className="flex items-center justify-between gap-4 mb-12">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/')}
+              className="w-12 h-12 rounded-full flex items-center justify-center transition-transform hover:scale-105 shadow-sm"
+              style={{ background: 'var(--bg-tertiary)' }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--text-primary)' }}>
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-4xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                {cls?.name || 'Loading...'}
+              </h1>
+              <p className="text-sm font-medium mt-1" style={{ color: 'var(--text-muted)' }}>Class Calendar & Notes</p>
+            </div>
           </div>
+
+          <button
+            onClick={() => {
+              setSelectedDate(undefined);
+              setShowCreateModal(true);
+            }}
+            className="px-5 py-3 rounded-full font-bold text-sm transition-transform hover:scale-105 shadow-md flex items-center gap-2"
+            style={{ background: 'var(--accent)', color: 'var(--bg-primary)' }}
+          >
+            <span>+ New Note</span>
+          </button>
         </div>
 
         {/* Calendar Controls */}
@@ -269,6 +285,18 @@ export default function ClassPage() {
           )}
         </div>
       </div>
+
+      {/* Create Note Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <CreateNoteModal
+            classId={classId}
+            classNameTitle={cls?.name}
+            dateOverride={selectedDate}
+            onClose={() => setShowCreateModal(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

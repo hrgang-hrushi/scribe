@@ -10,10 +10,12 @@ import { BookOpen } from 'lucide-react';
 import TagFilter from '@/components/ui/TagFilter';
 import FlashcardMode from '@/components/ui/FlashcardMode';
 import PomodoroTimer from '@/components/ui/PomodoroTimer';
+import CreateNoteModal from '@/components/ui/CreateNoteModal';
 
 export default function Home() {
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [createNoteForClass, setCreateNoteForClass] = useState<{ id: string; name: string } | null>(null);
   const [newName, setNewName] = useState('');
   const [selectedGradient, setSelectedGradient] = useState(GRADIENT_PRESETS[0]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -82,8 +84,8 @@ export default function Home() {
   }
 
   async function handleQuickNote(classId: string) {
-    const note = await createNote(classId);
-    router.push(`/notes/${note.id}`);
+    const targetCls = classes.find(c => c.id === classId);
+    setCreateNoteForClass({ id: classId, name: targetCls?.name || 'Class' });
   }
 
   return (
@@ -389,6 +391,17 @@ export default function Home() {
       <AnimatePresence>
         {showFlashcards && flashcardNoteId && (
           <FlashcardMode noteId={flashcardNoteId} onClose={() => { setShowFlashcards(false); setFlashcardNoteId(null); }} />
+        )}
+      </AnimatePresence>
+
+      {/* Create Note Modal with Custom Format & Paper Options */}
+      <AnimatePresence>
+        {createNoteForClass && (
+          <CreateNoteModal
+            classId={createNoteForClass.id}
+            classNameTitle={createNoteForClass.name}
+            onClose={() => setCreateNoteForClass(null)}
+          />
         )}
       </AnimatePresence>
     </div>

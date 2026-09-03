@@ -63,8 +63,7 @@ export default function Calculator({ onClose }: CalculatorProps) {
 
   return (
     <div
-      className="fixed bottom-24 right-6 z-50 w-56 rounded-2xl overflow-hidden shadow-2xl animate-slide-up"
-      
+      className="fixed bottom-24 right-6 z-50 w-56 rounded-2xl overflow-hidden shadow-2xl animate-slide-up glass-panel border border-black/10 dark:border-white/10"
     >
       {/* Title bar */}
       <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>

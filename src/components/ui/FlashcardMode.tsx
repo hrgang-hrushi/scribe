@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check } from 'lucide-react';
-import { getPagesForNote, db } from '@/lib/db';
-import type { Note, Page, Stroke } from '@/lib/types';
 
 interface FlashcardModeProps {
   noteId: string;
@@ -79,7 +77,7 @@ export default function FlashcardMode({ noteId, onClose }: FlashcardModeProps) {
         onClick={onClose}
       >
         <div
-          className="w-full max-w-sm rounded-2xl p-6 text-center"
+          className="w-full max-w-sm rounded-2xl p-6 text-center glass-panel shadow-2xl border border-black/10 dark:border-white/10"
           
           onClick={e => e.stopPropagation()}
         >
@@ -108,7 +106,7 @@ export default function FlashcardMode({ noteId, onClose }: FlashcardModeProps) {
         onClick={onClose}
       >
         <div
-          className="w-full max-w-sm rounded-2xl p-6"
+          className="w-full max-w-sm rounded-2xl p-6 glass-panel shadow-2xl border border-black/10 dark:border-white/10"
           
           onClick={e => e.stopPropagation()}
         >
@@ -198,8 +196,7 @@ export default function FlashcardMode({ noteId, onClose }: FlashcardModeProps) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl overflow-hidden max-h-[80vh] flex flex-col"
-        
+        className="w-full max-w-sm rounded-2xl overflow-hidden max-h-[80vh] flex flex-col glass-panel shadow-2xl border border-black/10 dark:border-white/10"
         onClick={e => e.stopPropagation()}
       >
         <div className="p-4" style={{ borderBottom: '1px solid var(--border)' }}>
