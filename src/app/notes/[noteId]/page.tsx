@@ -122,7 +122,40 @@ export default function NotePage() {
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    // Block native iOS text selection callouts and context menu popups
+    const handleContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return;
+      e.preventDefault();
+    };
+
+    const handleSelectStart = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return;
+      e.preventDefault();
+    };
+
+    const handleSelectionChange = () => {
+      const active = document.activeElement;
+      if (active?.tagName !== 'INPUT' && active?.tagName !== 'TEXTAREA' && !active?.getAttribute('contenteditable')) {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed) {
+          sel.removeAllRanges();
+        }
+      }
+    };
+
+    window.addEventListener('contextmenu', handleContextMenu, { capture: true });
+    window.addEventListener('selectstart', handleSelectStart, { capture: true });
+    document.addEventListener('selectionchange', handleSelectionChange);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('contextmenu', handleContextMenu, { capture: true });
+      window.removeEventListener('selectstart', handleSelectStart, { capture: true });
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
   }, [noteId]);
 
   async function loadData() {
@@ -534,7 +567,14 @@ export default function NotePage() {
       )}
 
       {/* Active Editor Canvas Area */}
-      <div className="flex-1 relative overflow-hidden">
+      <div
+        className="flex-1 relative overflow-hidden select-none"
+        style={{
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          WebkitTouchCallout: 'none',
+        }}
+      >
         {pages.length > 0 && (
           note?.pageType === 'infinite' ? (
             <CanvasEditor

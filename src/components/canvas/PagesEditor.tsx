@@ -93,6 +93,25 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   const [croppingImageId, setCroppingImageId] = useState<string | null>(null);
   const [, setForceRender] = useState(0);
 
+  // Apple Pencil vs Finger distinction, 1-Finger Scrolling & Palm Rejection
+  const lastPenTime = useRef(0);
+  const isPenActive = useRef(false);
+  const isFingerScrolling = useRef(false);
+  const touchStartY = useRef(0);
+  const touchStartScrollTop = useRef(0);
+  const lastTouchY = useRef(0);
+  const lastTouchTime = useRef(0);
+  const touchVelocityY = useRef(0);
+  const momentumAnimFrame = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (momentumAnimFrame.current) {
+        cancelAnimationFrame(momentumAnimFrame.current);
+      }
+    };
+  }, []);
+
   function handleUpdateImage(pageId: string, imageId: string, updates: Partial<ImageBlock>) {
     const page = pageDataMap.current.get(pageId);
     if (!page) return;
@@ -569,7 +588,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
   }));
 
-  function getPointerPosOnPage(e: React.PointerEvent, pageId: string): Point {
+  function getPointerPosOnPage(e: React.PointerEvent | PointerEvent, pageId: string): Point {
     const canvases = pageRefs.current.get(pageId);
     if (!canvases?.canvas) return { x: 0, y: 0, pressure: 0.5, t: Date.now() };
     const rect = canvases.canvas.getBoundingClientRect();
@@ -588,8 +607,41 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     setSelectedStrokes(null);
     setSelectedImage(null);
 
-    // Palm Rejection: Ignore single touches while in stylus/drawing mode
-    if (e.pointerType === 'touch' && settings.palmRejection && tool !== 'ruler') {
+    // 1. Identify Pointer Type: Pen (Apple Pencil / Stylus) vs Touch (Finger / Palm)
+    if (e.pointerType === 'pen') {
+      lastPenTime.current = Date.now();
+      isPenActive.current = true;
+      e.preventDefault();
+      try {
+        (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
+      } catch {}
+    } else if (e.pointerType === 'touch') {
+      // PALM REJECTION:
+      // Drop touch if contact area is large (> 24px) or if pencil is active / recently active
+      const isPalm = (e.width > 24 || e.height > 24) ||
+                     isPenActive.current ||
+                     (Date.now() - lastPenTime.current < 650);
+
+      if (isPalm) {
+        e.preventDefault();
+        return;
+      }
+
+      // ONE-FINGER SCROLL ON NOTEBOOK PAGES:
+      if (momentumAnimFrame.current) {
+        cancelAnimationFrame(momentumAnimFrame.current);
+        momentumAnimFrame.current = null;
+      }
+
+      isFingerScrolling.current = true;
+      touchStartY.current = e.clientY;
+      touchStartScrollTop.current = containerRef.current?.scrollTop || 0;
+      lastTouchY.current = e.clientY;
+      lastTouchTime.current = Date.now();
+      touchVelocityY.current = 0;
+      try {
+        (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
+      } catch {}
       return;
     }
 
@@ -653,6 +705,29 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   }
 
   function handlePointerMove(e: React.PointerEvent, pageId: string) {
+    if (e.pointerType === 'pen') {
+      lastPenTime.current = Date.now();
+      isPenActive.current = true;
+    }
+
+    // ONE-FINGER SCROLL MOVE:
+    if (e.pointerType === 'touch') {
+      if (isFingerScrolling.current && containerRef.current) {
+        const now = Date.now();
+        const dt = now - lastTouchTime.current;
+        const dy = e.clientY - lastTouchY.current;
+        if (dt > 0) {
+          touchVelocityY.current = dy / dt;
+        }
+        lastTouchY.current = e.clientY;
+        lastTouchTime.current = now;
+
+        const totalDy = e.clientY - touchStartY.current;
+        containerRef.current.scrollTop = touchStartScrollTop.current - totalDy;
+      }
+      return;
+    }
+
     if (!isDrawing.current && !isLassoing.current) return;
     if (e.pointerType === 'touch' && settings.palmRejection) return;
 
@@ -711,7 +786,18 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       return;
     }
 
-    currentStroke.current.push(pos);
+    // Sample high-frequency coalesced events (240Hz Apple Pencil precision)
+    const rawEvents: (React.PointerEvent | PointerEvent)[] = (e.nativeEvent as any).getCoalescedEvents
+      ? (e.nativeEvent as any).getCoalescedEvents()
+      : [e];
+
+    if (rawEvents.length > 1) {
+      for (const ev of rawEvents) {
+        currentStroke.current.push(getPointerPosOnPage(ev as React.PointerEvent, pageId));
+      }
+    } else {
+      currentStroke.current.push(pos);
+    }
 
     // Controlled Hold-to-Shape (ONLY triggers when holding stationary for 500ms!)
     if (tool === 'pen' && settings.holdToShape !== false) {
@@ -781,6 +867,39 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   }
 
   function handlePointerUp(e: React.PointerEvent, pageId: string) {
+    if (e.pointerType === 'pen') {
+      isPenActive.current = false;
+      lastPenTime.current = Date.now();
+      try {
+        (e.target as HTMLElement)?.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+
+    // COMPLETE FINGER SCROLL (MOMENTUM INERTIA)
+    if (e.pointerType === 'touch') {
+      if (isFingerScrolling.current) {
+        isFingerScrolling.current = false;
+        try {
+          (e.target as HTMLElement)?.releasePointerCapture(e.pointerId);
+        } catch {}
+
+        let velocity = touchVelocityY.current;
+        if (Math.abs(velocity) > 0.15 && containerRef.current) {
+          const step = () => {
+            if (!containerRef.current || Math.abs(velocity) < 0.01) {
+              momentumAnimFrame.current = null;
+              return;
+            }
+            containerRef.current.scrollTop -= velocity * 16;
+            velocity *= 0.93;
+            momentumAnimFrame.current = requestAnimationFrame(step);
+          };
+          momentumAnimFrame.current = requestAnimationFrame(step);
+        }
+      }
+      return;
+    }
+
     if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
 
     const overlay = pageRefs.current.get(pageId)?.overlayCanvas;
@@ -1105,13 +1224,20 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
                   el.height = PAGE_HEIGHT * dpr;
                 }
               }}
-              className="absolute inset-0 w-full h-full"
-              style={{ touchAction: 'none', zIndex: 15 }}
+              className="absolute inset-0 w-full h-full select-none"
+              style={{
+                touchAction: 'pan-y',
+                zIndex: 15,
+                WebkitUserSelect: 'none',
+                userSelect: 'none',
+                WebkitTouchCallout: 'none',
+              }}
               onPointerDown={(e) => handlePointerDown(e, page.id)}
               onPointerMove={(e) => handlePointerMove(e, page.id)}
               onPointerUp={(e) => handlePointerUp(e, page.id)}
               onPointerCancel={(e) => handlePointerUp(e, page.id)}
               onPointerLeave={(e) => handlePointerUp(e, page.id)}
+              onContextMenu={(e) => e.preventDefault()}
             />
           </div>
 

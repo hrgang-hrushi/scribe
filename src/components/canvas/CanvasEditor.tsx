@@ -81,6 +81,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   const zoomRef = useRef(1);
   const lastPinchDist = useRef(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPenTime = useRef(0);
+  const isPenActive = useRef(false);
 
   // Lasso states
   const lassoPolygon = useRef<Point[]>([]);
@@ -745,7 +747,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     ctx.restore();
   }
 
-  function getPointerPos(e: React.PointerEvent): Point {
+  function getPointerPos(e: React.PointerEvent | PointerEvent): Point {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0, pressure: 0.5, t: Date.now() };
     const rect = canvas.getBoundingClientRect();
@@ -766,13 +768,31 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     }
     setSelectedStrokes([]);
 
-    if (e.pointerType === 'touch' && settings.palmRejection && tool !== 'ruler') {
-      return;
-    }
-    if (e.pointerType === 'touch' && !settings.palmRejection && tool !== 'ruler') {
-      isPanningRef.current = true;
-      lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
-      return;
+    // 1. Identify Pointer Type: Pen (Apple Pencil) vs Touch (Finger / Palm)
+    if (e.pointerType === 'pen') {
+      lastPenTime.current = Date.now();
+      isPenActive.current = true;
+      e.preventDefault();
+      try {
+        (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
+      } catch {}
+    } else if (e.pointerType === 'touch') {
+      // PALM REJECTION:
+      const isPalm = (e.width > 24 || e.height > 24) ||
+                     isPenActive.current ||
+                     (Date.now() - lastPenTime.current < 650);
+
+      if (isPalm) {
+        e.preventDefault();
+        return;
+      }
+
+      // Single finger on infinite canvas pans the canvas
+      if (tool !== 'ruler') {
+        isPanningRef.current = true;
+        lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
+        return;
+      }
     }
     if (tool === 'select') {
       const pos = getPointerPos(e);
@@ -931,8 +951,13 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   }
 
   function handlePointerMove(e: React.PointerEvent) {
-    if (isPanningRef.current && e.pointerType === 'touch') {
-      if (lastTouchPanRef.current) {
+    if (e.pointerType === 'pen') {
+      lastPenTime.current = Date.now();
+      isPenActive.current = true;
+    }
+
+    if (e.pointerType === 'touch') {
+      if (isPanningRef.current && lastTouchPanRef.current) {
         const dx = e.clientX - lastTouchPanRef.current.x;
         const dy = e.clientY - lastTouchPanRef.current.y;
         panRef.current.x += dx;
@@ -942,6 +967,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       }
       return;
     }
+
     if (tool === 'select') {
       if (isPanningRef.current && lastTouchPanRef.current) {
         const dx = e.clientX - lastTouchPanRef.current.x;
@@ -953,8 +979,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       }
       return;
     }
+
     if (!isDrawing.current && !isLassoing.current) return;
-    if (e.pointerType === 'touch' && settings.palmRejection) return;
 
     const pos = getPointerPos(e);
     const overlay = overlayCanvasRef.current;
@@ -1030,7 +1056,18 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       return;
     }
 
-    currentStroke.current.push(pos);
+    // Sample high-frequency coalesced events (240Hz Apple Pencil precision)
+    const rawEvents: (React.PointerEvent | PointerEvent)[] = (e.nativeEvent as any).getCoalescedEvents
+      ? (e.nativeEvent as any).getCoalescedEvents()
+      : [e];
+
+    if (rawEvents.length > 1) {
+      for (const ev of rawEvents) {
+        currentStroke.current.push(getPointerPos(ev as React.PointerEvent));
+      }
+    } else {
+      currentStroke.current.push(pos);
+    }
 
     // Controlled Hold-to-shape detection timeout (ONLY triggers if held still for 500ms!)
     if (tool === 'pen' && settings.holdToShape !== false) {
@@ -1106,13 +1143,21 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   }
 
   function handlePointerUp(e: React.PointerEvent) {
-    if (tool === 'select') {
+    if (e.pointerType === 'pen') {
+      isPenActive.current = false;
+      lastPenTime.current = Date.now();
+      try {
+        (e.target as HTMLElement)?.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+
+    if (e.pointerType === 'touch') {
       isPanningRef.current = false;
       lastTouchPanRef.current = null;
       return;
     }
 
-    if (isPanningRef.current && e.pointerType === 'touch') {
+    if (tool === 'select') {
       isPanningRef.current = false;
       lastTouchPanRef.current = null;
       return;
@@ -1519,12 +1564,19 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       {/* 4. Interactive Overlay Canvas (Captures Pen, Highlighter, Eraser gestures!) */}
       <canvas
         ref={overlayCanvasRef}
-        className="absolute inset-0"
-        style={{ touchAction: 'none', zIndex: 15 }}
+        className="absolute inset-0 select-none"
+        style={{
+          touchAction: 'none',
+          zIndex: 15,
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          WebkitTouchCallout: 'none',
+        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
+        onContextMenu={(e) => e.preventDefault()}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
