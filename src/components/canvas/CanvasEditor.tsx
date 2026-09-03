@@ -134,7 +134,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
       
       if (file.type === 'application/pdf') {
         const pdfjs = await import('pdfjs-dist');
-        pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
         const page = await pdf.getPage(1);
@@ -407,7 +407,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({ page, tem
         if (file.type === 'application/pdf') {
           // Dynamic import for pdfjs to avoid SSR issues
           const pdfjs = await import('pdfjs-dist');
-          pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+          pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
           
           const arrayBuffer = await file.arrayBuffer();
           const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
