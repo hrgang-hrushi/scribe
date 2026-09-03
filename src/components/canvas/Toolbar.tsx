@@ -15,6 +15,7 @@ interface ToolbarProps {
   onToggle: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onAction?: (action: 'export-pdf' | 'export-png' | 'import' | 'clear') => void;
 }
 
 const tools: { id: Tool; icon: string; label: string; shortcut: string }[] = [
@@ -22,16 +23,16 @@ const tools: { id: Tool; icon: string; label: string; shortcut: string }[] = [
   { id: 'highlighter', icon: 'M15.5 4.5l4 4L8 20H4v-4L15.5 4.5z', label: 'Highlight', shortcut: 'H' },
   { id: 'eraser', icon: 'M20 20H7l-4-4 9-9 7 7-4 4M18 13l-6-6', label: 'Eraser', shortcut: 'E' },
   { id: 'shapes', icon: 'M3 3h18v18H3V3zm3 12l4-5 3 4 2-3 4 5', label: 'Shapes', shortcut: 'S' },
-      { id: 'image', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z', label: 'Image', shortcut: 'I' },
   ];
 
 export default function Toolbar({
   activeTool, onToolChange, toolSettings, onSettingsChange,
-  showColorPicker, onToggleColorPicker, visible, onToggle, onUndo, onRedo,
+  showColorPicker, onToggleColorPicker, visible, onToggle, onUndo, onRedo, onAction,
 }: ToolbarProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   if (!visible) {
     return (
@@ -239,10 +240,46 @@ export default function Toolbar({
           
           {showMoreMenu && (
             <div className="absolute bottom-full mb-3 right-0 w-48 flex flex-col p-2 rounded-2xl shadow-xl border animate-slide-up glass-panel z-50">
-              <button className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors">Export as PDF</button>
-              <button className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors">Export as PNG</button>
-              <div className="w-full h-px bg-gray-200 dark:bg-gray-700 my-1" />
-              <button className="text-left px-3 py-2 text-sm font-medium text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Clear Canvas</button>
+              <button 
+                onClick={() => { setShowMoreMenu(false); onAction?.('import'); }}
+                className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors flex items-center justify-between"
+              >
+                Import
+              </button>
+              
+              <div className="relative">
+                <button 
+                  onClick={() => setShowExportMenu(v => !v)}
+                  className="w-full text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors flex items-center justify-between"
+                >
+                  Export
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+                {showExportMenu && (
+                  <div className="absolute bottom-0 right-full mr-2 w-32 flex flex-col p-2 rounded-2xl shadow-xl border animate-slide-up glass-panel z-50">
+                    <button 
+                      onClick={() => { setShowMoreMenu(false); setShowExportMenu(false); onAction?.('export-pdf'); }}
+                      className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors"
+                    >
+                      As PDF
+                    </button>
+                    <button 
+                      onClick={() => { setShowMoreMenu(false); setShowExportMenu(false); onAction?.('export-png'); }}
+                      className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors"
+                    >
+                      As PNG
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              <div className="w-full h-px bg-black/10 dark:bg-white/10 my-1" />
+              <button 
+                onClick={() => { setShowMoreMenu(false); onAction?.('clear'); }}
+                className="text-left px-3 py-2 text-sm font-medium text-red-500 rounded-xl hover:bg-red-500/10 transition-colors"
+              >
+                Clear Canvas
+              </button>
             </div>
           )}
         </div>
