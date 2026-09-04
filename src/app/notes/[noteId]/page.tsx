@@ -340,14 +340,14 @@ export default function NotePage() {
                 />
               ) : (
                 <h2
-                  className="text-sm font-bold truncate max-w-[160px] md:max-w-[240px]"
+                  className="text-sm font-bold truncate max-w-[200px] sm:max-w-[280px] md:max-w-[380px]"
                   style={{ color: 'var(--text-primary)' }}
                 >
                   {note?.title || 'Untitled Note'}
                 </h2>
               )}
-              {note?.date && (
-                <span className="text-xs font-semibold opacity-40 hidden sm:inline" style={{ color: 'var(--text-primary)' }}>
+              {note?.date && !note?.title?.includes(note.date) && (
+                <span className="text-[11px] font-semibold opacity-40 whitespace-nowrap shrink-0 hidden md:inline" style={{ color: 'var(--text-primary)' }}>
                   ({note.date})
                 </span>
               )}
@@ -356,7 +356,7 @@ export default function NotePage() {
             {/* Note Format Badge (Pages vs Canvas Toggle) */}
             <button
               onClick={() => handleSwitchMode(note?.pageType === 'infinite' ? 'paginated' : 'infinite')}
-              className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all hover:scale-105"
+              className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all hover:scale-105 shrink-0"
               style={{
                 background: 'var(--bg-tertiary)',
                 color: 'var(--text-primary)',

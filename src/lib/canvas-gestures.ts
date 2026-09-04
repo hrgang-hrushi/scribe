@@ -173,11 +173,26 @@ export function detectHoldShape(points: Point[]): { type: string; path: string }
       }
     }
 
-    // Otherwise, Rectangle / Box
-    return {
-      type: 'rect',
-      path: `M ${minX} ${minY} L ${maxX} ${minY} L ${maxX} ${maxY} L ${minX} ${maxY} Z`,
-    };
+    // Verify if points actually conform to a rectangle (must be close to bounding box edges)
+    let edgeDeviations = 0;
+    for (const p of points) {
+      const distToEdge = Math.min(
+        Math.abs(p.x - minX),
+        Math.abs(p.x - maxX),
+        Math.abs(p.y - minY),
+        Math.abs(p.y - maxY)
+      );
+      edgeDeviations += distToEdge;
+    }
+    const avgEdgeDev = edgeDeviations / points.length;
+
+    // Only convert to rectangle if points genuinely trace along the 4 edges
+    if (avgEdgeDev < diagonal * 0.12 && width > 25 && height > 25) {
+      return {
+        type: 'rect',
+        path: `M ${minX} ${minY} L ${maxX} ${minY} L ${maxX} ${maxY} L ${minX} ${maxY} Z`,
+      };
+    }
   }
 
   return null;

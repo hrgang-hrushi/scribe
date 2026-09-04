@@ -342,10 +342,10 @@ export default function ImageElementOverlay({
         <div
           className={`absolute -top-9 left-2 flex items-center gap-1.5 px-3 py-1 rounded-full glass-panel shadow-lg pointer-events-auto transition-all cursor-pointer ${
             isSelected
-              ? 'border-2 border-[var(--accent)] bg-[var(--accent)] text-white shadow-xl'
+              ? 'border-2 border-[var(--accent)] bg-[var(--accent)] text-white shadow-xl opacity-100'
               : image.locked
-              ? 'bg-amber-500/90 text-white hover:bg-amber-600'
-              : 'border border-black/10 dark:border-white/10 hover:border-[var(--accent)] text-[var(--text-primary)] hover:scale-105'
+              ? 'bg-amber-500/90 text-white hover:bg-amber-600 opacity-90'
+              : 'border border-black/10 dark:border-white/10 hover:border-[var(--accent)] text-[var(--text-primary)] hover:scale-105 opacity-0 group-hover:opacity-100'
           }`}
           onPointerDown={(e) => {
             e.stopPropagation();
@@ -360,7 +360,7 @@ export default function ImageElementOverlay({
             e.stopPropagation();
             onSelect(e.shiftKey);
           }}
-          title={image.locked ? 'Document is locked. Tap to select & unlock.' : 'Drag header to move PDF. Shift+Click to multi-select.'}
+          title={image.locked ? 'Image is locked. Tap to select & unlock.' : 'Drag header to move image. Shift+Click to multi-select.'}
         >
           {image.locked ? (
             <Lock size={12} className="shrink-0" />
@@ -368,7 +368,7 @@ export default function ImageElementOverlay({
             <GripVertical size={12} className="shrink-0 opacity-70" />
           )}
           <span className="text-[11px] font-bold tracking-tight">
-            {image.locked ? 'Locked Document' : 'Document'}
+            {image.locked ? 'Locked' : 'Image'}
           </span>
         </div>
       )}
