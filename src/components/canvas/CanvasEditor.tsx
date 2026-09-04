@@ -2,8 +2,9 @@
 
 import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from 'react';
 import { getStroke } from 'perfect-freehand';
-import type { Page, Stroke, Point, TextBox, ImageBlock, Tool, ToolSettings, PaperColor } from '@/lib/types';
+import type { Page, Stroke, Point, TextBox, ImageBlock, Tool, ToolSettings, PaperColor, NoteTemplate } from '@/lib/types';
 import { PAPER_THEMES } from '@/lib/types';
+import { drawTemplateBackground } from '@/lib/templates';
 import { detectScribble, strokeIntersectsBox, detectHoldShape, isPointInPolygon } from '@/lib/canvas-gestures';
 import ImageElementOverlay from './ImageElementOverlay';
 
@@ -35,7 +36,7 @@ function getStrokeOptions(width: number, smoothing: number) {
 
 interface CanvasEditorProps {
   page: Page;
-  template?: string;
+  template?: NoteTemplate | string;
   paperColor?: PaperColor;
   tool: Tool;
   settings: ToolSettings;
@@ -616,40 +617,69 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
           bgCtx.save();
           bgCtx.translate(panRef.current.x, panRef.current.y);
           bgCtx.scale(zoomRef.current, zoomRef.current);
-          
-          const vpX = -panRef.current.x / zoomRef.current;
-          const vpY = -panRef.current.y / zoomRef.current;
-          const vpW = (bgCanvas.width / dpr) / zoomRef.current;
-          const vpH = (bgCanvas.height / dpr) / zoomRef.current;
-          
-          bgCtx.strokeStyle = activePaperTheme.lineColor;
-          bgCtx.fillStyle = activePaperTheme.dotColor;
-          bgCtx.lineWidth = 1 / zoomRef.current;
-          bgCtx.beginPath();
-          
-          const startX = Math.floor(vpX / 40) * 40;
-          const startY = Math.floor(vpY / 40) * 40;
-          
-          if (template === 'ruled' || template === 'cornell') {
-            for (let y = startY; y < vpY + vpH; y += 40) {
-              bgCtx.moveTo(vpX, y); bgCtx.lineTo(vpX + vpW, y);
-            }
-            if (template === 'cornell') {
-              bgCtx.moveTo(startX + 120, vpY); bgCtx.lineTo(startX + 120, vpY + vpH);
-            }
-            bgCtx.stroke();
-          } else if (template === 'grid') {
-            for (let y = startY; y < vpY + vpH; y += 40) { bgCtx.moveTo(vpX, y); bgCtx.lineTo(vpX + vpW, y); }
-            for (let x = startX; x < vpX + vpW; x += 40) { bgCtx.moveTo(x, vpY); bgCtx.lineTo(x, vpY + vpH); }
-            bgCtx.stroke();
-          } else if (template === 'dotted') {
-            for (let y = startY; y < vpY + vpH; y += 40) {
-              for (let x = startX; x < vpX + vpW; x += 40) {
-                bgCtx.moveTo(x, y);
-                bgCtx.arc(x, y, 1.4 / zoomRef.current, 0, Math.PI * 2);
+
+          const isDiscipline =
+            template.startsWith('med_') ||
+            template.startsWith('cs_') ||
+            template.startsWith('founder_') ||
+            template === 'engineering_quad' ||
+            template === 'circuit_logic';
+
+          if (isDiscipline) {
+            const sheetW = 960;
+            const sheetH = 1360;
+            const sheetX = 60;
+            const sheetY = 60;
+
+            // Sheet Paper Shadow & Border
+            bgCtx.save();
+            bgCtx.shadowColor = 'rgba(0, 0, 0, 0.28)';
+            bgCtx.shadowBlur = 32 / zoomRef.current;
+            bgCtx.fillStyle = activePaperTheme.bg;
+            bgCtx.fillRect(sheetX, sheetY, sheetW, sheetH);
+            bgCtx.strokeStyle = activePaperTheme.lineColor;
+            bgCtx.lineWidth = 1 / zoomRef.current;
+            bgCtx.strokeRect(sheetX, sheetY, sheetW, sheetH);
+
+            // Clip & Draw Discipline Content inside Sheet
+            bgCtx.translate(sheetX, sheetY);
+            drawTemplateBackground(bgCtx, template as NoteTemplate, sheetW, sheetH, activePaperTheme);
+            bgCtx.restore();
+          } else {
+            const vpX = -panRef.current.x / zoomRef.current;
+            const vpY = -panRef.current.y / zoomRef.current;
+            const vpW = (bgCanvas.width / dpr) / zoomRef.current;
+            const vpH = (bgCanvas.height / dpr) / zoomRef.current;
+            
+            bgCtx.strokeStyle = activePaperTheme.lineColor;
+            bgCtx.fillStyle = activePaperTheme.dotColor;
+            bgCtx.lineWidth = 1 / zoomRef.current;
+            bgCtx.beginPath();
+            
+            const startX = Math.floor(vpX / 40) * 40;
+            const startY = Math.floor(vpY / 40) * 40;
+            
+            if (template === 'ruled' || template === 'cornell') {
+              for (let y = startY; y < vpY + vpH; y += 40) {
+                bgCtx.moveTo(vpX, y); bgCtx.lineTo(vpX + vpW, y);
               }
+              if (template === 'cornell') {
+                bgCtx.moveTo(startX + 120, vpY); bgCtx.lineTo(startX + 120, vpY + vpH);
+              }
+              bgCtx.stroke();
+            } else if (template === 'grid') {
+              for (let y = startY; y < vpY + vpH; y += 40) { bgCtx.moveTo(vpX, y); bgCtx.lineTo(vpX + vpW, y); }
+              for (let x = startX; x < vpX + vpW; x += 40) { bgCtx.moveTo(x, vpY); bgCtx.lineTo(x, vpY + vpH); }
+              bgCtx.stroke();
+            } else if (template === 'dotted') {
+              for (let y = startY; y < vpY + vpH; y += 40) {
+                for (let x = startX; x < vpX + vpW; x += 40) {
+                  bgCtx.moveTo(x, y);
+                  bgCtx.arc(x, y, 1.4 / zoomRef.current, 0, Math.PI * 2);
+                }
+              }
+              bgCtx.fill();
             }
-            bgCtx.fill();
           }
           bgCtx.restore();
         }

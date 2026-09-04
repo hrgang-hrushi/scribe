@@ -101,13 +101,32 @@ export const PAPER_THEMES: Record<PaperColor, PaperColorTheme> = {
   },
 };
 
+export type NoteTemplate =
+  | 'blank'
+  | 'ruled'
+  | 'grid'
+  | 'dotted'
+  | 'cornell'
+  // Medicine
+  | 'med_soap'
+  | 'med_organ'
+  // Engineering
+  | 'engineering_quad'
+  | 'circuit_logic'
+  // Computer Science
+  | 'cs_code'
+  | 'cs_system'
+  // Founders & Product
+  | 'founder_pitch'
+  | 'founder_wireframe';
+
 export interface Note {
   id: string;
   classId: string;
   date: string;
   title: string;
   tags: string[];
-  template: 'blank' | 'ruled' | 'grid' | 'dotted' | 'cornell';
+  template: NoteTemplate;
   pageType: 'infinite' | 'paginated';
   paperColor?: PaperColor;
   audio?: AudioTrack[];
@@ -156,7 +175,7 @@ export interface ToolSettings {
 
 export interface AppSettings {
   theme: 'light' | 'dark';
-  defaultTemplate: 'blank' | 'ruled' | 'grid' | 'dotted' | 'cornell';
+  defaultTemplate: NoteTemplate;
   defaultPageType?: 'infinite' | 'paginated';
   defaultPaperColor?: PaperColor;
   palmRejection: boolean;
