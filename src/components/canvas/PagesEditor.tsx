@@ -2,8 +2,9 @@
 
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { getStroke } from 'perfect-freehand';
-import type { Page, Stroke, Point, ImageBlock, Tool, ToolSettings, PaperColor } from '@/lib/types';
+import type { Page, Stroke, Point, ImageBlock, Tool, ToolSettings, PaperColor, NoteTemplate } from '@/lib/types';
 import { PAPER_THEMES } from '@/lib/types';
+import { drawTemplateBackground } from '@/lib/templates';
 import { detectScribble, strokeIntersectsBox, detectHoldShape, isPointInPolygon } from '@/lib/canvas-gestures';
 import { Plus, Trash2, Copy } from 'lucide-react';
 import ImageElementOverlay from './ImageElementOverlay';
@@ -36,7 +37,7 @@ function getStrokeOptions(width: number, smoothing: number) {
 
 export interface PagesEditorProps {
   pages: Page[];
-  template?: string;
+  template?: NoteTemplate | string;
   paperColor?: PaperColor;
   tool: Tool;
   settings: ToolSettings;
@@ -245,47 +246,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         bgCtx.fillStyle = activeTheme.bg;
         bgCtx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
 
-        if (template !== 'blank') {
-          bgCtx.save();
-          bgCtx.strokeStyle = activeTheme.lineColor;
-          bgCtx.fillStyle = activeTheme.dotColor;
-          bgCtx.lineWidth = 1;
-          bgCtx.beginPath();
-
-          const step = 34;
-          if (template === 'ruled' || template === 'cornell') {
-            for (let y = 60; y < PAGE_HEIGHT - 40; y += step) {
-              bgCtx.moveTo(40, y);
-              bgCtx.lineTo(PAGE_WIDTH - 40, y);
-            }
-            if (template === 'cornell') {
-              bgCtx.moveTo(220, 60);
-              bgCtx.lineTo(220, PAGE_HEIGHT - 120);
-              bgCtx.moveTo(40, PAGE_HEIGHT - 120);
-              bgCtx.lineTo(PAGE_WIDTH - 40, PAGE_HEIGHT - 120);
-            }
-            bgCtx.stroke();
-          } else if (template === 'grid') {
-            for (let y = 40; y < PAGE_HEIGHT - 40; y += step) {
-              bgCtx.moveTo(40, y);
-              bgCtx.lineTo(PAGE_WIDTH - 40, y);
-            }
-            for (let x = 40; x < PAGE_WIDTH - 40; x += step) {
-              bgCtx.moveTo(x, 40);
-              bgCtx.lineTo(x, PAGE_HEIGHT - 40);
-            }
-            bgCtx.stroke();
-          } else if (template === 'dotted') {
-            for (let y = 40; y < PAGE_HEIGHT - 40; y += step) {
-              for (let x = 40; x < PAGE_WIDTH - 40; x += step) {
-                bgCtx.moveTo(x, y);
-                bgCtx.arc(x, y, 1.4, 0, Math.PI * 2);
-              }
-            }
-            bgCtx.fill();
-          }
-          bgCtx.restore();
-        }
+        drawTemplateBackground(bgCtx, (template as NoteTemplate) || 'dotted', PAGE_WIDTH, PAGE_HEIGHT, activeTheme);
       }
     }
 

@@ -1,21 +1,23 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { File, AlignJustify, Grid3X3, CircleDot, LayoutTemplate, Sun, Moon } from 'lucide-react';
-import type { AppSettings } from '@/lib/types';
+import { File, AlignJustify, Grid3X3, CircleDot, LayoutTemplate, Sun, Moon, Stethoscope, Cpu, Code2, Rocket, Layers } from 'lucide-react';
+import type { AppSettings, NoteTemplate } from '@/lib/types';
+import { TEMPLATE_METADATA, TemplateMeta } from '@/lib/templates';
 
 interface SettingsPanelProps {
   onClose: () => void;
-  currentNoteTemplate?: string;
-  onUpdateCurrentNoteTemplate?: (template: any) => void;
+  currentNoteTemplate?: NoteTemplate | string;
+  onUpdateCurrentNoteTemplate?: (template: NoteTemplate) => void;
 }
 
-const PAGE_TEMPLATES = [
-  { id: 'blank', label: 'Blank', icon: File },
-  { id: 'ruled', label: 'Ruled', icon: AlignJustify },
-  { id: 'grid', label: 'Grid', icon: Grid3X3 },
-  { id: 'dotted', label: 'Dotted', icon: CircleDot },
-  { id: 'cornell', label: 'Cornell', icon: LayoutTemplate },
+const CATEGORY_TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'general', label: 'General' },
+  { id: 'medicine', label: 'Medicine' },
+  { id: 'engineering', label: 'Engineering' },
+  { id: 'computer_science', label: 'CS & Code' },
+  { id: 'founder', label: 'Founders' },
 ] as const;
 
 export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCurrentNoteTemplate }: SettingsPanelProps) {
@@ -28,6 +30,12 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
     autosaveInterval: 1,
     showSaveStatus: true,
   });
+
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  const filteredTemplates = TEMPLATE_METADATA.filter(
+    t => selectedCategory === 'all' || t.category === selectedCategory
+  );
 
   useEffect(() => {
     const saved = localStorage.getItem('scribe-settings');
@@ -88,47 +96,68 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
             </div>
           </div>
 
-          {/* Current Note Template */}
-          {onUpdateCurrentNoteTemplate && (
-            <div className="mb-6">
-              <label className="text-sm font-medium mb-3 block text-[var(--text-primary)]">Current Note Template</label>
-              <div className="grid grid-cols-3 gap-2">
-                {PAGE_TEMPLATES.map(t => (
-                  <button
-                    key={'current-'+t.id}
-                    onClick={() => onUpdateCurrentNoteTemplate(t.id)}
-                    className="py-3 rounded-xl text-sm font-medium transition-all flex flex-col items-center gap-1 shadow-sm"
-                    style={{
-                      background: currentNoteTemplate === t.id ? 'var(--accent)' : 'var(--bg-tertiary)',
-                      color: currentNoteTemplate === t.id ? 'var(--bg-primary)' : 'var(--text-secondary)',
-                    }}
-                  >
-                    <t.icon size={18} />
-                    <span>{t.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Default Template */}
+          {/* Template Selection */}
           <div className="mb-6">
-            <label className="text-sm font-medium mb-3 block" style={{ color: 'var(--text-primary)' }}>Default Page Template</label>
-            <div className="grid grid-cols-3 gap-2">
-              {PAGE_TEMPLATES.map(t => (
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium block text-[var(--text-primary)]">
+                {onUpdateCurrentNoteTemplate ? 'Current Note Template' : 'Default Page Template'}
+              </label>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)]">
+                {filteredTemplates.length} Templates
+              </span>
+            </div>
+
+            {/* Category Filter Tabs */}
+            <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2.5 scrollbar-none">
+              {CATEGORY_TABS.map(tab => (
                 <button
-                  key={t.id}
-                  onClick={() => updateSettings({ defaultTemplate: t.id })}
-                  className="py-3 rounded-xl text-sm font-medium transition-all flex flex-col items-center gap-1"
-                  style={{
-                    background: settings.defaultTemplate === t.id ? 'var(--accent)' : 'var(--bg-tertiary)',
-                    color: settings.defaultTemplate === t.id ? 'var(--bg-primary)' : 'var(--text-secondary)',
-                  }}
+                  key={tab.id}
+                  onClick={() => setSelectedCategory(tab.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                    selectedCategory === tab.id
+                      ? 'bg-[var(--accent)] text-[var(--bg-primary)] shadow-sm'
+                      : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
                 >
-                  <t.icon size={18} />
-                  <span>{t.label}</span>
+                  {tab.label}
                 </button>
               ))}
+            </div>
+
+            {/* Template Cards Grid */}
+            <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto pr-1">
+              {filteredTemplates.map(t => {
+                const isSelected = onUpdateCurrentNoteTemplate
+                  ? currentNoteTemplate === t.id
+                  : settings.defaultTemplate === t.id;
+
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      if (onUpdateCurrentNoteTemplate) onUpdateCurrentNoteTemplate(t.id);
+                      else updateSettings({ defaultTemplate: t.id });
+                    }}
+                    className={`p-2.5 rounded-xl text-left transition-all border flex flex-col gap-1 ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500 text-[var(--text-primary)]'
+                        : 'border-[var(--border)] bg-[var(--bg-tertiary)] hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-secondary)]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs font-bold text-[var(--text-primary)]">{t.name}</span>
+                      {t.badge && (
+                        <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold shrink-0">
+                          {t.badge}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] leading-snug text-[var(--text-muted)]">
+                      {t.description}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

@@ -13,6 +13,8 @@ import Calculator from '@/components/ui/Calculator';
 import SettingsPanel from '@/components/ui/SettingsPanel';
 import FlashcardMode from '@/components/ui/FlashcardMode';
 import { exportToPdf, exportToPng } from '@/lib/pdf-export';
+import SplitLayout from '@/components/layout/SplitLayout';
+import SplitPdfViewer from '@/components/ui/SplitPdfViewer';
 import {
   Check,
   Eye,
@@ -23,7 +25,8 @@ import {
   Pause,
   Clock,
   Palette,
-  ChevronLeft
+  ChevronLeft,
+  BookOpen
 } from 'lucide-react';
 
 export default function NotePage() {
@@ -61,6 +64,7 @@ export default function NotePage() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [showToolbar, setShowToolbar] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
+  const [showSplitPdf, setShowSplitPdf] = useState(false);
   const [appSettings, setAppSettings] = useState<any>({});
   const editorRef = useRef<any>(null);
 
@@ -518,6 +522,21 @@ export default function NotePage() {
               )}
             </div>
 
+            {/* Split Screen Reference PDF Viewer */}
+            <button
+              onClick={() => setShowSplitPdf(prev => !prev)}
+              className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all hover:scale-105 ${
+                showSplitPdf
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+              }`}
+              style={!showSplitPdf ? { background: 'var(--bg-tertiary)' } : undefined}
+              title="Toggle Orientation-Aware Split Screen (PDF Reference + Notebook)"
+            >
+              <BookOpen size={14} />
+              <span className="hidden sm:inline">Reference</span>
+            </button>
+
             {/* Zen Focus Mode Button */}
             <button
               onClick={() => setFocusMode(true)}
@@ -566,50 +585,65 @@ export default function NotePage() {
         </div>
       )}
 
-      {/* Active Editor Canvas Area */}
-      <div
-        className="flex-1 relative overflow-hidden select-none"
-        style={{
-          WebkitUserSelect: 'none',
-          userSelect: 'none',
-          WebkitTouchCallout: 'none',
-        }}
-      >
-        {pages.length > 0 && (
-          note?.pageType === 'infinite' ? (
-            <CanvasEditor
-              ref={editorRef}
-              page={pages[currentPage]}
-              template={note?.template || 'dotted'}
-              paperColor={note?.paperColor || 'navy'}
-              tool={activeTool}
-              settings={toolSettings}
-              theme={theme}
-              onSave={handleSave}
-              onUndo={handleUndo}
+      {/* Active Editor Workspace with Orientation-Aware Split Screen */}
+      <div className="flex-1 relative overflow-hidden flex flex-col">
+        <SplitLayout
+          isSplit={showSplitPdf}
+          sidecar={
+            <SplitPdfViewer
+              onClose={() => setShowSplitPdf(false)}
+              onInsertToNote={(file) => {
+                editorRef.current?.importMedia(file);
+              }}
             />
-          ) : (
-            <PagesEditor
-              ref={editorRef}
-              pages={pages}
-              template={note?.template || 'dotted'}
-              paperColor={note?.paperColor || 'navy'}
-              tool={activeTool}
-              settings={toolSettings}
-              theme={theme}
-              onSavePage={handleSave}
-              onAddPage={handleNewPage}
-              onDeletePage={handleDeletePage}
-              onUndo={handleUndo}
-            />
-          )
-        )}
+          }
+          main={
+            <div
+              className="flex-1 w-full h-full relative overflow-hidden select-none"
+              style={{
+                WebkitUserSelect: 'none',
+                userSelect: 'none',
+                WebkitTouchCallout: 'none',
+              }}
+            >
+              {pages.length > 0 && (
+                note?.pageType === 'infinite' ? (
+                  <CanvasEditor
+                    ref={editorRef}
+                    page={pages[currentPage]}
+                    template={note?.template || 'dotted'}
+                    paperColor={note?.paperColor || 'navy'}
+                    tool={activeTool}
+                    settings={toolSettings}
+                    theme={theme}
+                    onSave={handleSave}
+                    onUndo={handleUndo}
+                  />
+                ) : (
+                  <PagesEditor
+                    ref={editorRef}
+                    pages={pages}
+                    template={note?.template || 'dotted'}
+                    paperColor={note?.paperColor || 'navy'}
+                    tool={activeTool}
+                    settings={toolSettings}
+                    theme={theme}
+                    onSavePage={handleSave}
+                    onAddPage={handleNewPage}
+                    onDeletePage={handleDeletePage}
+                    onUndo={handleUndo}
+                  />
+                )
+              )}
 
-        {pages.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <p style={{ color: 'var(--text-muted)' }}>Preparing notebook sheets...</p>
-          </div>
-        )}
+              {pages.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <p style={{ color: 'var(--text-muted)' }}>Preparing notebook sheets...</p>
+                </div>
+              )}
+            </div>
+          }
+        />
       </div>
 
       {/* Unified Floating Toolbar */}
