@@ -113,11 +113,11 @@ export default function ClassPage() {
                 <path d="M15 18l-6-6 6-6" />
               </svg>
             </button>
-            <div>
-              <h1 className="text-4xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>
                 {cls?.name || 'Loading...'}
               </h1>
-              <p className="text-sm font-medium mt-1" style={{ color: 'var(--text-muted)' }}>Class Calendar & Notes</p>
+              <p className="text-xs sm:text-sm font-medium mt-1" style={{ color: 'var(--text-muted)' }}>Class Calendar & Notes</p>
             </div>
           </div>
 
@@ -178,25 +178,29 @@ export default function ClassPage() {
                 whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => !isFuture && handleNewNote(dateStr)}
-                className={`aspect-square rounded-[24px] p-3 md:p-4 flex flex-col justify-between items-start text-left relative overflow-hidden transition-shadow ${hasNotes ? 'shadow-md' : 'shadow-sm'} ${isFuture ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                className={`aspect-square rounded-2xl md:rounded-[22px] p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden transition-all ${
+                  hasNotes ? 'shadow-md' : 'shadow-sm'
+                } ${isFuture ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                 style={{
                   background: hasNotes ? 'var(--accent)' : 'var(--bg-secondary)',
                   color: hasNotes ? 'var(--bg-primary)' : 'var(--text-primary)',
                   border: isToday && !hasNotes ? '2px solid var(--accent)' : '2px solid transparent'
                 }}
               >
-                <span className="text-xl md:text-2xl font-bold z-10">{day}</span>
+                <span className="text-sm sm:text-base md:text-lg font-bold leading-none z-10">{day}</span>
                 
                 {hasNotes && (
-                  <div className="w-full z-10">
-                    <div className="w-full h-1.5 rounded-full bg-white/30 mb-1"></div>
-                    <div className="w-2/3 h-1.5 rounded-full bg-white/30"></div>
+                  <div className="flex items-center gap-1 mt-1 z-10">
+                    <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
+                    {dayNotes.length > 1 && (
+                      <span className="w-1 h-1 rounded-full bg-current opacity-60" />
+                    )}
                   </div>
                 )}
                 
-                {/* Decorative background shape for notes */}
+                {/* Subtle background glow for days with notes */}
                 {hasNotes && (
-                  <div className="absolute -bottom-4 -right-4 w-16 h-16 rounded-full bg-white/10 blur-xl"></div>
+                  <div className="absolute inset-0 bg-white/10 rounded-2xl pointer-events-none" />
                 )}
               </motion.button>
             );
@@ -275,7 +279,9 @@ export default function ClassPage() {
                 </span>
                 <svg className="opacity-0 group-hover:opacity-100 transition-opacity" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </div>
-              <h4 className="text-lg font-bold truncate" style={{ color: 'var(--text-primary)' }}>{note.title || 'Untitled Note'}<span className="opacity-50 text-sm ml-1">.({note.date})</span></h4>
+              <h4 className="text-base sm:text-lg font-bold truncate" style={{ color: 'var(--text-primary)' }}>
+                {note.title || 'Untitled Note'}
+              </h4>
             </div>
           ))}
           {notes.length === 0 && (

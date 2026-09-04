@@ -759,13 +759,18 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       currentStroke.current.push(pos);
     }
 
-    // Controlled Hold-to-Shape (ONLY triggers when holding stationary for 500ms!)
+    // Controlled Hold-to-Shape (Triggers only when intentionally holding stationary for 650ms)
     if (tool === 'pen' && settings.holdToShape !== false) {
       if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
 
       holdTimeoutRef.current = setTimeout(() => {
-        if (!isDrawing.current || currentStroke.current.length < 10) return;
-        const detected = detectHoldShape(currentStroke.current);
+        const pts = currentStroke.current;
+        if (!isDrawing.current || pts.length < 15) return;
+        const lastPt = pts[pts.length - 1];
+        const prevPt = pts[pts.length - 4];
+        if (prevPt && Math.hypot(lastPt.x - prevPt.x, lastPt.y - prevPt.y) > 15) return; // Still moving
+
+        const detected = detectHoldShape(pts);
         if (detected) {
           autoShapeData.current = detected;
           if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(30);

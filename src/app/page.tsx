@@ -171,10 +171,10 @@ export default function Home() {
                 transition={{ delay: i * 0.05 }}
               >
                 <div
-                  className="rounded-[32px] p-6 flex flex-col justify-between cursor-pointer group aspect-[1.2] transition-transform hover:-translate-y-1 shadow-sm relative overflow-hidden glass-panel"
+                  className="rounded-[28px] p-5 sm:p-6 flex flex-col justify-between cursor-pointer group min-h-[140px] transition-transform hover:-translate-y-1 shadow-sm relative overflow-hidden glass-panel"
                   onClick={() => router.push(`/classes/${cls.id}`)}
                 >
-                  <div className="relative z-10 flex-1 flex justify-between items-start">
+                  <div className="relative z-10 w-full mb-3">
                     {editingId === cls.id ? (
                       <input
                         autoFocus
@@ -182,34 +182,24 @@ export default function Home() {
                         onChange={e => setEditName(e.target.value)}
                         onBlur={() => handleRename(cls.id)}
                         onKeyDown={e => e.key === 'Enter' && handleRename(cls.id)}
-                        className="bg-transparent text-[var(--text-primary)] font-medium text-2xl outline-none w-full border-b border-[var(--border)]"
+                        className="bg-transparent text-[var(--text-primary)] font-bold text-xl sm:text-2xl outline-none w-full border-b border-[var(--border)]"
                         onClick={e => e.stopPropagation()}
-                        
                       />
                     ) : (
-                      <h3 className="text-[var(--text-primary)] font-medium text-2xl line-clamp-3 leading-tight" >
+                      <h3 className="text-[var(--text-primary)] font-bold text-xl sm:text-2xl line-clamp-2 leading-tight">
                         {cls.name}
                       </h3>
                     )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleQuickNote(cls.id); }}
-                      className="w-10 h-10 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center transition-transform hover:scale-110 shrink-0 ml-4 text-[var(--text-primary)]"
-                      
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
                   </div>
-                  <div className="relative z-10 flex items-end justify-between mt-4">
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+
+                  <div className="relative z-10 flex items-center justify-between mt-auto pt-2">
+                    <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditingId(cls.id); setEditName(cls.name); }}
                         className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center transition-colors hover:bg-black/10 text-[var(--text-primary)]"
-                        
+                        title="Rename"
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                         </svg>
@@ -217,13 +207,24 @@ export default function Home() {
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(cls.id); }}
                         className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center transition-colors hover:bg-red-500/80 hover:text-white text-[var(--text-primary)]"
-                        
+                        title="Delete"
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
                         </svg>
                       </button>
                     </div>
+
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleQuickNote(cls.id); }}
+                      className="w-9 h-9 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--accent)] hover:text-[var(--bg-primary)] flex items-center justify-center transition-all hover:scale-110 shadow-sm text-[var(--text-primary)] ml-auto"
+                      title="New Note in this class"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </motion.div>
