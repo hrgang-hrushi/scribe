@@ -21,9 +21,6 @@ import {
   EyeOff,
   FileText,
   Maximize2,
-  Play,
-  Pause,
-  Clock,
   Palette,
   ChevronLeft,
   BookOpen
@@ -67,31 +64,6 @@ export default function NotePage() {
   const [showSplitPdf, setShowSplitPdf] = useState(false);
   const [appSettings, setAppSettings] = useState<any>({});
   const editorRef = useRef<any>(null);
-
-  // Study Session Timer (3-Hour Deep Work Default)
-  const [timerSeconds, setTimerSeconds] = useState(3 * 3600); // 3 hours
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [showTimerMenu, setShowTimerMenu] = useState(false);
-
-  useEffect(() => {
-    let interval: any = null;
-    if (isTimerRunning && timerSeconds > 0) {
-      interval = setInterval(() => {
-        setTimerSeconds(s => (s > 0 ? s - 1 : 0));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isTimerRunning, timerSeconds]);
-
-  function formatTime(secs: number): string {
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    if (h > 0) {
-      return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    }
-    return `${m}:${String(s).padStart(2, '0')}`;
-  }
 
   useEffect(() => {
     loadData();
@@ -374,94 +346,6 @@ export default function NotePage() {
                   <span>Pages</span>
                 </>
               )}
-            </button>
-          </div>
-
-          {/* Center: Deep Work Study Timer (for 3-hour sessions without distractions) */}
-          <div className="relative flex items-center">
-            <div
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm"
-              style={{
-                background: isTimerRunning ? 'var(--accent)' : 'var(--bg-tertiary)',
-                color: isTimerRunning ? 'var(--bg-primary)' : 'var(--text-primary)',
-              }}
-            >
-              <Clock size={13} className={isTimerRunning ? 'animate-pulse' : ''} />
-              <button
-                onClick={() => setShowTimerMenu(v => !v)}
-                className="hover:underline tracking-tight"
-                title="Change Study Timer Block"
-              >
-                {formatTime(timerSeconds)}
-              </button>
-              <button
-                onClick={() => setIsTimerRunning(v => !v)}
-                className="w-5 h-5 rounded-full flex items-center justify-center hover:opacity-80"
-                title={isTimerRunning ? 'Pause' : 'Start'}
-              >
-                {isTimerRunning ? <Pause size={12} /> : <Play size={12} />}
-              </button>
-            </div>
-
-            {/* Timer Options Dropdown */}
-            {showTimerMenu && (
-              <div
-                className="absolute top-full mt-2 left-1/2 -translate-x-1/2 p-2 rounded-2xl shadow-2xl glass-panel flex flex-col gap-1 z-50 min-w-[170px] animate-slide-up"
-              >
-                <div className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 text-[var(--text-muted)]">
-                  Deep Work Blocks
-                </div>
-                <button
-                  onClick={() => { setTimerSeconds(3 * 3600); setIsTimerRunning(true); setShowTimerMenu(false); }}
-                  className="text-left px-3 py-1.5 text-xs font-semibold rounded-xl hover:bg-black/10 dark:hover:bg-white/10"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  ⚡ 3-Hour Marathon (GoodNotes)
-                </button>
-                <button
-                  onClick={() => { setTimerSeconds(50 * 60); setIsTimerRunning(true); setShowTimerMenu(false); }}
-                  className="text-left px-3 py-1.5 text-xs font-semibold rounded-xl hover:bg-black/10 dark:hover:bg-white/10"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  ⏱️ 50-Minute Sprint
-                </button>
-                <button
-                  onClick={() => { setTimerSeconds(25 * 60); setIsTimerRunning(true); setShowTimerMenu(false); }}
-                  className="text-left px-3 py-1.5 text-xs font-semibold rounded-xl hover:bg-black/10 dark:hover:bg-white/10"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  🍅 25-Minute Pomodoro
-                </button>
-                <button
-                  onClick={() => { setTimerSeconds(0); setIsTimerRunning(false); setShowTimerMenu(false); }}
-                  className="text-left px-3 py-1.5 text-xs font-semibold text-red-500 rounded-xl hover:bg-red-500/10"
-                >
-                  Reset Timer
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Active Recall / Study Tape Control */}
-          <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-500">
-            <span className="text-[11px] font-bold flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-              Active Recall
-            </span>
-            <div className="h-3 w-px bg-amber-500/30 mx-1" />
-            <button
-              onClick={() => editorRef.current?.toggleAllTape(false)}
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded hover:bg-amber-500/20 transition-colors"
-              title="Mask all study tape to quiz yourself"
-            >
-              Hide All
-            </button>
-            <button
-              onClick={() => editorRef.current?.toggleAllTape(true)}
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded hover:bg-amber-500/20 transition-colors"
-              title="Reveal all study tape"
-            >
-              Reveal All
             </button>
           </div>
 

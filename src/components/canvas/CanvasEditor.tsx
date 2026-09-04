@@ -84,6 +84,10 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPenTime = useRef(0);
   const isPenActive = useRef(false);
+  const isStylusMode = useRef(false);
+  const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const twoFingerStartMid = useRef<{ x: number; y: number } | null>(null);
+  const twoFingerStartPan = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Lasso states
   const lassoPolygon = useRef<Point[]>([]);
@@ -798,31 +802,54 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     }
     setSelectedStrokes([]);
 
-    // 1. Identify Pointer Type: Pen (Apple Pencil) vs Touch (Finger / Palm)
+    // 1. APPLE PENCIL: 100% Top-Level Hardware Priority
     if (e.pointerType === 'pen') {
+      isStylusMode.current = true;
       lastPenTime.current = Date.now();
       isPenActive.current = true;
+      isPanningRef.current = false;
+      lastTouchPanRef.current = null;
       e.preventDefault();
       try {
         (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
       } catch {}
     } else if (e.pointerType === 'touch') {
-      // PALM REJECTION:
-      const isPalm = (e.width > 24 || e.height > 24) ||
-                     isPenActive.current ||
-                     (Date.now() - lastPenTime.current < 650);
+      activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-      if (isPalm) {
+      // Stylus session detection: if stylus is active or was used recently, ANY single touch is a resting palm!
+      const inStylusSession = isStylusMode.current || isPenActive.current || (Date.now() - lastPenTime.current < 4000);
+
+      // 2. PALM REJECTION (Single Touch in Stylus Mode):
+      if (activeTouchesRef.current.size === 1) {
+        if (inStylusSession) {
+          // Hand / palm resting on glass while writing: DROP COMPLETELY. Do NOT pan!
+          e.preventDefault();
+          return;
+        }
+
+        // Non-stylus fallback (e.g. mouse or touch-only device without pen):
+        if (tool !== 'ruler') {
+          isPanningRef.current = true;
+          lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
+          return;
+        }
+      }
+
+      // 3. TWO-FINGER PINCH & PAN GESTURE:
+      if (activeTouchesRef.current.size === 2) {
+        const pts = Array.from(activeTouchesRef.current.values());
+        twoFingerStartMid.current = {
+          x: (pts[0].x + pts[1].x) / 2,
+          y: (pts[0].y + pts[1].y) / 2,
+        };
+        twoFingerStartPan.current = { ...panRef.current };
+        lastPinchDist.current = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        isPanningRef.current = true;
         e.preventDefault();
         return;
       }
 
-      // Single finger on infinite canvas pans the canvas
-      if (tool !== 'ruler') {
-        isPanningRef.current = true;
-        lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
-        return;
-      }
+      return;
     }
     if (tool === 'select') {
       const pos = getPointerPos(e);
@@ -984,16 +1011,57 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     if (e.pointerType === 'pen') {
       lastPenTime.current = Date.now();
       isPenActive.current = true;
+      isStylusMode.current = true;
     }
 
     if (e.pointerType === 'touch') {
-      if (isPanningRef.current && lastTouchPanRef.current) {
-        const dx = e.clientX - lastTouchPanRef.current.x;
-        const dy = e.clientY - lastTouchPanRef.current.y;
-        panRef.current.x += dx;
-        panRef.current.y += dy;
-        lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
+      activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const inStylusSession = isStylusMode.current || isPenActive.current || (Date.now() - lastPenTime.current < 4000);
+
+      // TWO-FINGER PAN & PINCH ZOOM:
+      if (activeTouchesRef.current.size === 2) {
+        const pts = Array.from(activeTouchesRef.current.values());
+        const currentMid = {
+          x: (pts[0].x + pts[1].x) / 2,
+          y: (pts[0].y + pts[1].y) / 2,
+        };
+        if (twoFingerStartMid.current) {
+          const dx = currentMid.x - twoFingerStartMid.current.x;
+          const dy = currentMid.y - twoFingerStartMid.current.y;
+          panRef.current.x = twoFingerStartPan.current.x + dx;
+          panRef.current.y = twoFingerStartPan.current.y + dy;
+        }
+
+        // Pinch zoom
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (lastPinchDist.current > 0 && dist > 0) {
+          const factor = dist / lastPinchDist.current;
+          const newZoom = Math.min(3, Math.max(0.3, zoomRef.current * factor));
+          zoomRef.current = newZoom;
+          lastPinchDist.current = dist;
+        }
+
         redrawAll();
+        e.preventDefault();
+        return;
+      }
+
+      // SINGLE TOUCH:
+      if (activeTouchesRef.current.size === 1) {
+        if (inStylusSession) {
+          // Hand resting on screen: DROP!
+          e.preventDefault();
+          return;
+        }
+        if (isPanningRef.current && lastTouchPanRef.current) {
+          const dx = e.clientX - lastTouchPanRef.current.x;
+          const dy = e.clientY - lastTouchPanRef.current.y;
+          panRef.current.x += dx;
+          panRef.current.y += dy;
+          lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
+          redrawAll();
+        }
+        return;
       }
       return;
     }
@@ -1187,8 +1255,15 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     }
 
     if (e.pointerType === 'touch') {
-      isPanningRef.current = false;
-      lastTouchPanRef.current = null;
+      activeTouchesRef.current.delete(e.pointerId);
+      if (activeTouchesRef.current.size < 2) {
+        twoFingerStartMid.current = null;
+        lastPinchDist.current = 0;
+      }
+      if (activeTouchesRef.current.size === 0) {
+        isPanningRef.current = false;
+        lastTouchPanRef.current = null;
+      }
       return;
     }
 

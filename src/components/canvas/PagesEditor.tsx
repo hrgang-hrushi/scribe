@@ -94,9 +94,13 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   const [croppingImageId, setCroppingImageId] = useState<string | null>(null);
   const [, setForceRender] = useState(0);
 
-  // Apple Pencil vs Finger distinction, 1-Finger Scrolling & Palm Rejection
+  // Apple Pencil Priority, Bulletproof Palm Rejection & Two-Finger Smooth Scrolling
   const lastPenTime = useRef(0);
   const isPenActive = useRef(false);
+  const isStylusMode = useRef(false);
+  const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const twoFingerStartMidY = useRef<number>(0);
+  const twoFingerStartScrollTop = useRef<number>(0);
   const isFingerScrolling = useRef(false);
   const touchStartY = useRef(0);
   const touchStartScrollTop = useRef(0);
@@ -568,41 +572,63 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     setSelectedStrokes(null);
     setSelectedImage(null);
 
-    // 1. Identify Pointer Type: Pen (Apple Pencil / Stylus) vs Touch (Finger / Palm)
+    // 1. APPLE PENCIL: 100% Top-Level Hardware Priority
     if (e.pointerType === 'pen') {
+      isStylusMode.current = true;
       lastPenTime.current = Date.now();
       isPenActive.current = true;
-      e.preventDefault();
-      try {
-        (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
-      } catch {}
-    } else if (e.pointerType === 'touch') {
-      // PALM REJECTION:
-      // Drop touch if contact area is large (> 24px) or if pencil is active / recently active
-      const isPalm = (e.width > 24 || e.height > 24) ||
-                     isPenActive.current ||
-                     (Date.now() - lastPenTime.current < 650);
 
-      if (isPalm) {
-        e.preventDefault();
-        return;
-      }
-
-      // ONE-FINGER SCROLL ON NOTEBOOK PAGES:
+      // Instantly cancel any active scrolling / momentum inertia
+      isFingerScrolling.current = false;
       if (momentumAnimFrame.current) {
         cancelAnimationFrame(momentumAnimFrame.current);
         momentumAnimFrame.current = null;
       }
 
-      isFingerScrolling.current = true;
-      touchStartY.current = e.clientY;
-      touchStartScrollTop.current = containerRef.current?.scrollTop || 0;
-      lastTouchY.current = e.clientY;
-      lastTouchTime.current = Date.now();
-      touchVelocityY.current = 0;
+      e.preventDefault();
       try {
         (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
       } catch {}
+    } else if (e.pointerType === 'touch') {
+      activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      // Stylus session detection: if stylus is active or was used recently, ANY single touch is a resting palm!
+      const inStylusSession = isStylusMode.current || isPenActive.current || (Date.now() - lastPenTime.current < 4000);
+
+      // 2. PALM REJECTION (Single Touch in Stylus Mode):
+      if (activeTouchesRef.current.size === 1) {
+        if (inStylusSession) {
+          // Hand / palm resting on glass while writing: DROP COMPLETELY. Do NOT scroll!
+          e.preventDefault();
+          return;
+        }
+
+        // Non-stylus fallback: wait for intentional vertical drag > 20px before scrolling
+        touchStartY.current = e.clientY;
+        touchStartScrollTop.current = containerRef.current?.scrollTop || 0;
+        lastTouchY.current = e.clientY;
+        lastTouchTime.current = Date.now();
+        isFingerScrolling.current = false;
+        return;
+      }
+
+      // 3. TWO-FINGER SCROLL GESTURE (Universal tablet standard across GoodNotes & Procreate):
+      if (activeTouchesRef.current.size === 2) {
+        if (momentumAnimFrame.current) {
+          cancelAnimationFrame(momentumAnimFrame.current);
+          momentumAnimFrame.current = null;
+        }
+        const pts = Array.from(activeTouchesRef.current.values());
+        twoFingerStartMidY.current = (pts[0].y + pts[1].y) / 2;
+        twoFingerStartScrollTop.current = containerRef.current?.scrollTop || 0;
+        lastTouchY.current = twoFingerStartMidY.current;
+        lastTouchTime.current = Date.now();
+        touchVelocityY.current = 0;
+        isFingerScrolling.current = true;
+        e.preventDefault();
+        return;
+      }
+
       return;
     }
 
@@ -669,22 +695,53 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     if (e.pointerType === 'pen') {
       lastPenTime.current = Date.now();
       isPenActive.current = true;
+      isStylusMode.current = true;
     }
 
-    // ONE-FINGER SCROLL MOVE:
     if (e.pointerType === 'touch') {
-      if (isFingerScrolling.current && containerRef.current) {
+      activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const inStylusSession = isStylusMode.current || isPenActive.current || (Date.now() - lastPenTime.current < 4000);
+
+      // TWO-FINGER SCROLL:
+      if (activeTouchesRef.current.size === 2 && containerRef.current) {
+        const pts = Array.from(activeTouchesRef.current.values());
+        const currentMidY = (pts[0].y + pts[1].y) / 2;
+        const dy = currentMidY - twoFingerStartMidY.current;
+        containerRef.current.scrollTop = twoFingerStartScrollTop.current - dy;
+
         const now = Date.now();
         const dt = now - lastTouchTime.current;
-        const dy = e.clientY - lastTouchY.current;
         if (dt > 0) {
-          touchVelocityY.current = dy / dt;
+          touchVelocityY.current = (currentMidY - lastTouchY.current) / dt;
         }
-        lastTouchY.current = e.clientY;
+        lastTouchY.current = currentMidY;
         lastTouchTime.current = now;
+        e.preventDefault();
+        return;
+      }
 
+      // SINGLE TOUCH:
+      if (activeTouchesRef.current.size === 1) {
+        if (inStylusSession) {
+          // Hand resting on screen: DROP! DO NOT SCROLL!
+          e.preventDefault();
+          return;
+        }
+
+        // Non-stylus device: drag threshold > 20px
         const totalDy = e.clientY - touchStartY.current;
-        containerRef.current.scrollTop = touchStartScrollTop.current - totalDy;
+        if (Math.abs(totalDy) > 20 && containerRef.current) {
+          isFingerScrolling.current = true;
+          containerRef.current.scrollTop = touchStartScrollTop.current - totalDy;
+          const now = Date.now();
+          const dt = now - lastTouchTime.current;
+          if (dt > 0) {
+            touchVelocityY.current = (e.clientY - lastTouchY.current) / dt;
+          }
+          lastTouchY.current = e.clientY;
+          lastTouchTime.current = now;
+        }
+        return;
       }
       return;
     }
@@ -840,26 +897,29 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       } catch {}
     }
 
-    // COMPLETE FINGER SCROLL (MOMENTUM INERTIA)
     if (e.pointerType === 'touch') {
-      if (isFingerScrolling.current) {
-        isFingerScrolling.current = false;
-        try {
-          (e.target as HTMLElement)?.releasePointerCapture(e.pointerId);
-        } catch {}
+      activeTouchesRef.current.delete(e.pointerId);
 
-        let velocity = touchVelocityY.current;
-        if (Math.abs(velocity) > 0.15 && containerRef.current) {
-          const step = () => {
-            if (!containerRef.current || Math.abs(velocity) < 0.01) {
-              momentumAnimFrame.current = null;
-              return;
-            }
-            containerRef.current.scrollTop -= velocity * 16;
-            velocity *= 0.93;
+      if (activeTouchesRef.current.size === 0) {
+        if (isFingerScrolling.current) {
+          isFingerScrolling.current = false;
+          try {
+            (e.target as HTMLElement)?.releasePointerCapture(e.pointerId);
+          } catch {}
+
+          let velocity = touchVelocityY.current;
+          if (Math.abs(velocity) > 0.15 && containerRef.current) {
+            const step = () => {
+              if (!containerRef.current || Math.abs(velocity) < 0.01) {
+                momentumAnimFrame.current = null;
+                return;
+              }
+              containerRef.current.scrollTop -= velocity * 16;
+              velocity *= 0.93;
+              momentumAnimFrame.current = requestAnimationFrame(step);
+            };
             momentumAnimFrame.current = requestAnimationFrame(step);
-          };
-          momentumAnimFrame.current = requestAnimationFrame(step);
+          }
         }
       }
       return;
@@ -1191,7 +1251,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
               }}
               className="absolute inset-0 w-full h-full select-none"
               style={{
-                touchAction: 'pan-y',
+                touchAction: 'none',
                 zIndex: 15,
                 WebkitUserSelect: 'none',
                 userSelect: 'none',
