@@ -5,7 +5,7 @@ import { getStroke } from 'perfect-freehand';
 import type { Page, Stroke, Point, TextBox, ImageBlock, Tool, ToolSettings, PaperColor, NoteTemplate } from '@/lib/types';
 import { PAPER_THEMES } from '@/lib/types';
 import { drawTemplateBackground } from '@/lib/templates';
-import { detectScribble, strokeIntersectsBox, detectHoldShape, isPointInPolygon } from '@/lib/canvas-gestures';
+import { detectScribble, strokeIntersectsBox, detectHoldShape, isPointInPolygon, type BoundingBox } from '@/lib/canvas-gestures';
 import ImageElementOverlay from './ImageElementOverlay';
 
 function getSvgPathFromStroke(stroke: number[][]): string {
@@ -94,31 +94,83 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   const isLassoing = useRef(false);
   const [selectedStrokes, setSelectedStrokes] = useState<string[]>([]);
 
-  const undoStackRef = useRef<Stroke[][]>([]);
-  const redoStackRef = useRef<Stroke[][]>([]);
+  const undoStackRef = useRef<Array<{ type: 'add' | 'delete' | 'clear'; strokes: Stroke[] }>>([]);
+  const redoStackRef = useRef<Array<{ type: 'add' | 'delete' | 'clear'; strokes: Stroke[] }>>([]);
+
+  const pushCanvasUndo = useCallback((action: { type: 'add' | 'delete' | 'clear'; strokes: Stroke[] }) => {
+    undoStackRef.current.push(action);
+    redoStackRef.current = [];
+  }, []);
+
+  const playCanvasEraseEffect = useCallback((bounds: BoundingBox) => {
+    const overlay = overlayCanvasRef.current;
+    if (!overlay) return;
+    const ctx = overlay.getContext('2d');
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerY = (bounds.minY + bounds.maxY) / 2;
+    const radius = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 2;
+    const startTime = performance.now();
+    const duration = 160;
+
+    function anim(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      if (!ctx || !overlay) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
+
+      if (progress < 1) {
+        ctx.save();
+        ctx.translate(panRef.current.x, panRef.current.y);
+        ctx.scale(zoomRef.current, zoomRef.current);
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, Math.max(12, radius * (0.8 + progress * 0.4)), 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${0.45 * (1 - progress)})`;
+        ctx.lineWidth = Math.max(1, (3 / zoomRef.current) * (1 - progress));
+        ctx.setLineDash([5, 5]);
+        ctx.stroke();
+        ctx.restore();
+        requestAnimationFrame(anim);
+      }
+    }
+    requestAnimationFrame(anim);
+  }, []);
 
   useImperativeHandle(ref, () => ({
     undo: () => {
       if (undoStackRef.current.length === 0) return;
-      const lastStrokes = undoStackRef.current.pop()!;
-      redoStackRef.current.push(lastStrokes);
-      const lastIdSet = new Set(lastStrokes.map(s => s.id));
-      committedStrokes.current = committedStrokes.current.filter(s => !lastIdSet.has(s.id));
+      const action = undoStackRef.current.pop()!;
+      redoStackRef.current.push(action);
+
+      if (action.type === 'add') {
+        const idSet = new Set(action.strokes.map(s => s.id));
+        committedStrokes.current = committedStrokes.current.filter(s => !idSet.has(s.id));
+      } else if (action.type === 'delete' || action.type === 'clear') {
+        committedStrokes.current = [...committedStrokes.current, ...action.strokes];
+      }
       redrawAll();
       triggerSave();
     },
     redo: () => {
       if (redoStackRef.current.length === 0) return;
-      const strokesToRestore = redoStackRef.current.pop()!;
-      undoStackRef.current.push(strokesToRestore);
-      committedStrokes.current = [...committedStrokes.current, ...strokesToRestore];
+      const action = redoStackRef.current.pop()!;
+      undoStackRef.current.push(action);
+
+      if (action.type === 'add') {
+        committedStrokes.current = [...committedStrokes.current, ...action.strokes];
+      } else if (action.type === 'delete' || action.type === 'clear') {
+        const idSet = new Set(action.strokes.map(s => s.id));
+        committedStrokes.current = committedStrokes.current.filter(s => !idSet.has(s.id));
+      }
       redrawAll();
       triggerSave();
     },
     clear: () => {
       if (committedStrokes.current.length > 0) {
-        undoStackRef.current.push([...committedStrokes.current]);
-        redoStackRef.current = [];
+        pushCanvasUndo({ type: 'clear', strokes: [...committedStrokes.current] });
       }
       committedStrokes.current = [];
       committedTextBoxes.current = [];
@@ -1308,19 +1360,19 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
 
     // 2. Commit auto-shape (ONLY if Hold-to-Shape was intentionally triggered)
     if (autoShapeData.current && tool === 'pen') {
-      const shapeStroke: any = {
+      const shapeStroke: Stroke = {
         id: crypto.randomUUID(),
         tool: 'pen',
         color: settings.penColor,
         width: settings.penWidth,
         opacity: settings.penOpacity,
-        points: [],
+        points: currentStroke.current.length > 0 ? [...currentStroke.current] : [],
         shape: autoShapeData.current,
       };
       committedStrokes.current.push(shapeStroke);
-      undoStackRef.current.push([shapeStroke]);
-      redoStackRef.current = [];
+      pushCanvasUndo({ type: 'add', strokes: [shapeStroke] });
       autoShapeData.current = null;
+      currentStroke.current = [];
       clearOverlay();
       redrawAll();
       triggerSave();
@@ -1356,7 +1408,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         }
         
         const shape = { type, path };
-        const shapeStroke: any = {
+        const shapeStroke: Stroke = {
           id: crypto.randomUUID(),
           tool: 'pen',
           color: settings.penColor,
@@ -1365,9 +1417,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
           points: [start, pos],
           shape,
         };
-        committedStrokes.current = [...committedStrokes.current, shapeStroke as Stroke];
-        undoStackRef.current.push([shapeStroke as Stroke]);
-        redoStackRef.current = [];
+        committedStrokes.current = [...committedStrokes.current, shapeStroke];
+        pushCanvasUndo({ type: 'add', strokes: [shapeStroke] });
       }
       shapeStartRef.current = null;
       clearOverlay();
@@ -1385,24 +1436,25 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     if ((tool === 'pen' || tool === 'highlighter') && settings.scribbleToErase !== false) {
       const scribble = detectScribble(currentStroke.current);
       if (scribble) {
-        const originalCount = committedStrokes.current.length;
-        const remaining = committedStrokes.current.filter(s => !strokeIntersectsBox(s, scribble.bounds));
-        if (remaining.length < originalCount) {
-          const removed = committedStrokes.current.filter(s => strokeIntersectsBox(s, scribble.bounds));
-          committedStrokes.current = remaining;
-          if (removed.length > 0) {
-            undoStackRef.current.push(removed);
-            redoStackRef.current = [];
-          }
+        const removed = committedStrokes.current.filter(s => strokeIntersectsBox(s, scribble.bounds));
+        if (removed.length > 0) {
+          const removedIds = new Set(removed.map(s => s.id));
+          committedStrokes.current = committedStrokes.current.filter(s => !removedIds.has(s.id));
+          pushCanvasUndo({ type: 'delete', strokes: removed });
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate(35);
+            navigator.vibrate([25, 40, 20]);
           }
           currentStroke.current = [];
           clearOverlay();
+          playCanvasEraseEffect(scribble.bounds);
           redrawAll();
           triggerSave();
-          return;
+        } else {
+          // ALWAYS discard scribble strokes so no stray scratch ink is left
+          currentStroke.current = [];
+          clearOverlay();
         }
+        return;
       }
     }
 
@@ -1432,8 +1484,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     };
 
     committedStrokes.current = [...committedStrokes.current, newStroke];
-    undoStackRef.current.push([newStroke]);
-    redoStackRef.current = [];
+    pushCanvasUndo({ type: 'add', strokes: [newStroke] });
     currentStroke.current = [];
     clearOverlay();
     redrawAll();
@@ -1724,6 +1775,9 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
                 }
               });
               committedStrokes.current = [...committedStrokes.current, ...newStrokes];
+              if (newStrokes.length > 0) {
+                pushCanvasUndo({ type: 'add', strokes: newStrokes });
+              }
               setSelectedStrokes([]);
               redrawAll();
               triggerSave();
@@ -1735,7 +1789,11 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
           </button>
           <button
             onClick={() => {
+              const deleted = committedStrokes.current.filter(s => selectedStrokes.includes(s.id));
               committedStrokes.current = committedStrokes.current.filter(s => !selectedStrokes.includes(s.id));
+              if (deleted.length > 0) {
+                pushCanvasUndo({ type: 'delete', strokes: deleted });
+              }
               setSelectedStrokes([]);
               redrawAll();
               triggerSave();

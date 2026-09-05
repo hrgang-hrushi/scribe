@@ -13,6 +13,7 @@ export interface Stroke {
   opacity: number;
   points: Point[];
   isRevealed?: boolean;
+  shape?: { type: string; path: string };
 }
 
 export interface TextBox {
