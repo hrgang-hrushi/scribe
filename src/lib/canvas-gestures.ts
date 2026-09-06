@@ -98,11 +98,21 @@ export function detectScribble(points: Point[]): { isScribble: boolean; bounds: 
   const diagonal = Math.hypot(width, height) || 1;
 
   // Gesture must have intentional motion and remain localized (not scratching the whole screen)
-  if (totalLength < 35) return null;
-  if (diagonal < 10) return null;
-  if (width > 600 || height > 600) return null;
+  if (totalLength < 40) return null;
+  if (diagonal < 12) return null;
+  // A scratch-out is localized over a word or symbol to erase (not an entire diagram or page)
+  if (width > 340 || height > 240 || diagonal > 360) return null;
 
   const density = totalLength / diagonal;
+
+  // End-to-end net displacement vs total path length:
+  // In cursive handwriting and drawings, the pen travels across the page (displacementRatio > 0.40).
+  // In a scratch-out, the pen scrubs back and forth over the same spot (displacementRatio < 0.38).
+  const netDisplacement = Math.hypot(
+    points[points.length - 1].x - points[0].x,
+    points[points.length - 1].y - points[0].y
+  );
+  const displacementRatio = netDisplacement / totalLength;
 
   // Filter out micro-jitter points (< 3px apart) for robust reversal counting
   const filtered: Point[] = [points[0]];
@@ -113,7 +123,7 @@ export function detectScribble(points: Point[]): { isScribble: boolean; bounds: 
     }
   }
 
-  if (filtered.length < 4) return null;
+  if (filtered.length < 5) return null;
 
   // 1. Sharp Direction Reversals & Angular Turning
   let sharpReversals = 0;
@@ -173,8 +183,8 @@ export function detectScribble(points: Point[]): { isScribble: boolean; bounds: 
         } else if (Math.sign(ds) === Math.sign(lastDelta)) {
           accumDelta += ds;
         } else {
-          // Changed direction! Ensure previous swing was substantial (>= 6px) to avoid jitter
-          if (Math.abs(accumDelta) >= 6) {
+          // Changed direction! Ensure previous swing was substantial (>= 8px) to avoid jitter
+          if (Math.abs(accumDelta) >= 8) {
             reversals++;
             lastDelta = ds;
             accumDelta = ds;
@@ -187,13 +197,26 @@ export function detectScribble(points: Point[]): { isScribble: boolean; bounds: 
     }
   }
 
-  // Criteria for genuine scratch-out:
-  // - Zigzag scratch: at least 3 reversals (>= 3 back-and-forth passes) and density >= 1.7
-  // - High oscillation scratch: at least 4 reversals (even if density is slightly lower)
-  // - Looping/circular scratch: cumulative turning >= 3.5π and density >= 2.0 within compact area
-  const isZigzagScribble = (maxProjectedReversals >= 3 || sharpReversals >= 3) && density >= 1.7;
-  const isHighOscillation = maxProjectedReversals >= 4 || sharpReversals >= 4;
-  const isLoopingScribble = totalAngularTurn >= 3.5 * Math.PI && density >= 2.0 && diagonal <= 250;
+  // Strict physical criteria for an intentional scratch-out:
+  // 1. Zigzag scratch: At least 5 reversals (3 full back-and-forth passes), high density (>= 2.5),
+  //    and the stroke does NOT progress linearly across the paper (displacementRatio < 0.38).
+  const isZigzagScribble =
+    (maxProjectedReversals >= 5 || sharpReversals >= 5) &&
+    density >= 2.5 &&
+    displacementRatio < 0.38;
+
+  // 2. High-oscillation scratch: At least 6 rapid back-and-forth swings in place
+  const isHighOscillation =
+    (maxProjectedReversals >= 6 || sharpReversals >= 6) &&
+    density >= 2.2 &&
+    displacementRatio < 0.35;
+
+  // 3. Looping/circular scratch: Cumulative turning >= 4.5π (2.25 circles) in a compact area
+  const isLoopingScribble =
+    totalAngularTurn >= 4.5 * Math.PI &&
+    density >= 2.8 &&
+    diagonal <= 180 &&
+    displacementRatio < 0.30;
 
   if (isZigzagScribble || isHighOscillation || isLoopingScribble) {
     // Generous padding around the scratch so strokes underneath are reliably caught

@@ -1449,12 +1449,9 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
           playCanvasEraseEffect(scribble.bounds);
           redrawAll();
           triggerSave();
-        } else {
-          // ALWAYS discard scribble strokes so no stray scratch ink is left
-          currentStroke.current = [];
-          clearOverlay();
+          return;
         }
-        return;
+        // If nothing was underneath, it's NOT an erase gesture — fall through to commit as normal handwriting!
       }
     }
 

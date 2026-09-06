@@ -1124,12 +1124,9 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
           playEraseEffect(pageId, scribble.bounds);
           redrawPage(pageId);
           onSavePage(page);
-        } else {
-          // ALWAYS discard scribble strokes so no stray scratch ink is left
-          currentStroke.current = [];
-          clearOverlay();
+          return;
         }
-        return;
+        // If nothing was underneath, it's NOT an erase gesture — fall through to commit as normal handwriting!
       }
     }
 
