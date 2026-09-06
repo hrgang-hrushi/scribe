@@ -353,7 +353,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
   const playEraseEffect = useCallback((pageId: string, bounds: BoundingBox) => {
     const canvases = pageRefs.current.get(pageId);
-    const overlay = canvases?.overlay;
+    const overlay = canvases?.overlayCanvas;
     if (!overlay) return;
     const ctx = overlay.getContext('2d');
     if (!ctx) return;
