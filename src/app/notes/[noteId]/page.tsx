@@ -15,6 +15,7 @@ import FlashcardMode from '@/components/ui/FlashcardMode';
 import { exportToPdf, exportToPng } from '@/lib/pdf-export';
 import SplitLayout from '@/components/layout/SplitLayout';
 import SplitPdfViewer from '@/components/ui/SplitPdfViewer';
+import PlaygroundModal from '@/components/playground/PlaygroundModal';
 import {
   Check,
   Eye,
@@ -23,7 +24,8 @@ import {
   Maximize2,
   Palette,
   ChevronLeft,
-  BookOpen
+  BookOpen,
+  Sparkles
 } from 'lucide-react';
 
 export default function NotePage() {
@@ -62,6 +64,7 @@ export default function NotePage() {
   const [showToolbar, setShowToolbar] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
   const [showSplitPdf, setShowSplitPdf] = useState(false);
+  const [showPlayground, setShowPlayground] = useState(false);
   const [appSettings, setAppSettings] = useState<any>({});
   const editorRef = useRef<any>(null);
 
@@ -78,6 +81,7 @@ export default function NotePage() {
         if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); }
         if ((e.key === 'z' && e.shiftKey) || e.key === 'y') { e.preventDefault(); handleRedo(); }
         if (e.key === 's') { e.preventDefault(); handleManualSave(); }
+        if (e.key === 'b') { e.preventDefault(); setShowPlayground(v => !v); }
       }
       if (!e.metaKey && !e.ctrlKey) {
         const toolMap: Record<string, Tool> = {
@@ -421,6 +425,16 @@ export default function NotePage() {
               <span className="hidden sm:inline">Reference</span>
             </button>
 
+            {/* Playground Sensory Break */}
+            <button
+              onClick={() => setShowPlayground(true)}
+              className="px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all hover:scale-105 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 shadow-sm"
+              title="Take a Mindful Tactile Break (⌘B)"
+            >
+              <Sparkles size={14} className="text-amber-400" />
+              <span className="hidden sm:inline">Playground</span>
+            </button>
+
             {/* Zen Focus Mode Button */}
             <button
               onClick={() => setFocusMode(true)}
@@ -585,6 +599,13 @@ export default function NotePage() {
       {showFlashcards && (
         <FlashcardMode noteId={noteId} onClose={() => setShowFlashcards(false)} />
       )}
+
+      {/* Playground Sensory Break Modal */}
+      <PlaygroundModal
+        isOpen={showPlayground}
+        onClose={() => setShowPlayground(false)}
+        noteTitle={note?.title}
+      />
     </div>
   );
 }

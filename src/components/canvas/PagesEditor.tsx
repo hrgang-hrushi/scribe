@@ -5,7 +5,7 @@ import { getStroke } from 'perfect-freehand';
 import type { Page, Stroke, Point, ImageBlock, Tool, ToolSettings, PaperColor, NoteTemplate } from '@/lib/types';
 import { PAPER_THEMES } from '@/lib/types';
 import { drawTemplateBackground } from '@/lib/templates';
-import { detectScribble, strokeIntersectsBox, detectHoldShape, isPointInPolygon } from '@/lib/canvas-gestures';
+import { detectScribble, strokeIntersectsBox, detectHoldShape, isPointInPolygon, type BoundingBox } from '@/lib/canvas-gestures';
 import { Plus, Trash2, Copy } from 'lucide-react';
 import ImageElementOverlay from './ImageElementOverlay';
 
@@ -209,17 +209,23 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedImage]);
 
-  // Per-page local stroke caches for high-speed fluid 120fps rendering
+  // Per-page local stroke caches and history stacks for high-speed fluid 120fps rendering
   const pageDataMap = useRef<Map<string, Page>>(new Map());
-  const undoStacks = useRef<Map<string, Stroke[][]>>(new Map());
-  const redoStacks = useRef<Map<string, Stroke[][]>>(new Map());
+  const undoActions = useRef<Map<string, Array<{ type: 'add' | 'delete' | 'clear'; strokes: Stroke[] }>>>(new Map());
+  const redoActions = useRef<Map<string, Array<{ type: 'add' | 'delete' | 'clear'; strokes: Stroke[] }>>>(new Map());
+
+  const pushPageUndo = useCallback((pageId: string, action: { type: 'add' | 'delete' | 'clear'; strokes: Stroke[] }) => {
+    const uStack = undoActions.current.get(pageId) || [];
+    undoActions.current.set(pageId, [...uStack, action]);
+    redoActions.current.set(pageId, []);
+  }, []);
 
   // Initialize and sync page data
   useEffect(() => {
     pages.forEach(p => {
       pageDataMap.current.set(p.id, { ...p });
-      if (!undoStacks.current.has(p.id)) undoStacks.current.set(p.id, []);
-      if (!redoStacks.current.has(p.id)) redoStacks.current.set(p.id, []);
+      if (!undoActions.current.has(p.id)) undoActions.current.set(p.id, []);
+      if (!redoActions.current.has(p.id)) redoActions.current.set(p.id, []);
     });
     if (!activePageId && pages.length > 0) {
       setActivePageId(pages[0].id);
@@ -345,29 +351,98 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     ctx.restore();
   }
 
+  const playEraseEffect = useCallback((pageId: string, bounds: BoundingBox) => {
+    const canvases = pageRefs.current.get(pageId);
+    const overlay = canvases?.overlay;
+    if (!overlay) return;
+    const ctx = overlay.getContext('2d');
+    if (!ctx) return;
+
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerY = (bounds.minY + bounds.maxY) / 2;
+    const radius = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 2;
+    const startTime = performance.now();
+    const duration = 160;
+
+    function anim(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      if (!ctx || !overlay) return;
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+      if (progress < 1) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, Math.max(12, radius * (0.8 + progress * 0.4)), 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${0.45 * (1 - progress)})`;
+        ctx.lineWidth = Math.max(1, 3 * (1 - progress));
+        ctx.setLineDash([5, 5]);
+        ctx.stroke();
+        ctx.restore();
+        requestAnimationFrame(anim);
+      }
+    }
+    requestAnimationFrame(anim);
+  }, []);
+
   // Imperative handle for parent actions
   useImperativeHandle(ref, () => ({
     undo: () => {
       const page = pageDataMap.current.get(activePageId);
-      if (!page || page.strokes.length === 0) return;
-      const lastStroke = page.strokes[page.strokes.length - 1];
-      const rStack = redoStacks.current.get(activePageId) || [];
-      redoStacks.current.set(activePageId, [...rStack, [lastStroke]]);
+      if (!page) return;
 
-      page.strokes = page.strokes.slice(0, -1);
-      pageDataMap.current.set(activePageId, { ...page });
-      redrawPage(activePageId);
-      onSavePage(page);
+      const uStack = undoActions.current.get(activePageId) || [];
+      const rStack = redoActions.current.get(activePageId) || [];
+
+      if (uStack.length > 0) {
+        const action = uStack[uStack.length - 1];
+        undoActions.current.set(activePageId, uStack.slice(0, -1));
+        redoActions.current.set(activePageId, [...rStack, action]);
+
+        if (action.type === 'add') {
+          const addedIdSet = new Set(action.strokes.map(s => s.id));
+          page.strokes = page.strokes.filter(s => !addedIdSet.has(s.id));
+        } else if (action.type === 'delete' || action.type === 'clear') {
+          // Restore erased or cleared strokes
+          page.strokes = [...page.strokes, ...action.strokes];
+        }
+
+        pageDataMap.current.set(activePageId, { ...page });
+        redrawPage(activePageId);
+        onSavePage(page);
+        return;
+      }
+
+      // Fallback if no structured actions in history but strokes exist
+      if (page.strokes.length > 0) {
+        const lastStroke = page.strokes[page.strokes.length - 1];
+        redoActions.current.set(activePageId, [...rStack, { type: 'add', strokes: [lastStroke] }]);
+        page.strokes = page.strokes.slice(0, -1);
+        pageDataMap.current.set(activePageId, { ...page });
+        redrawPage(activePageId);
+        onSavePage(page);
+      }
     },
     redo: () => {
-      const rStack = redoStacks.current.get(activePageId) || [];
-      if (rStack.length === 0) return;
-      const restore = rStack[rStack.length - 1];
-      redoStacks.current.set(activePageId, rStack.slice(0, -1));
-
       const page = pageDataMap.current.get(activePageId);
       if (!page) return;
-      page.strokes = [...page.strokes, ...restore];
+
+      const uStack = undoActions.current.get(activePageId) || [];
+      const rStack = redoActions.current.get(activePageId) || [];
+
+      if (rStack.length === 0) return;
+
+      const action = rStack[rStack.length - 1];
+      redoActions.current.set(activePageId, rStack.slice(0, -1));
+      undoActions.current.set(activePageId, [...uStack, action]);
+
+      if (action.type === 'add') {
+        page.strokes = [...page.strokes, ...action.strokes];
+      } else if (action.type === 'delete' || action.type === 'clear') {
+        const deletedIdSet = new Set(action.strokes.map(s => s.id));
+        page.strokes = page.strokes.filter(s => !deletedIdSet.has(s.id));
+      }
+
       pageDataMap.current.set(activePageId, { ...page });
       redrawPage(activePageId);
       onSavePage(page);
@@ -376,8 +451,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       const page = pageDataMap.current.get(activePageId);
       if (!page) return;
       if (page.strokes.length > 0) {
-        const rStack = redoStacks.current.get(activePageId) || [];
-        redoStacks.current.set(activePageId, [...rStack, [...page.strokes]]);
+        pushPageUndo(activePageId, { type: 'clear', strokes: [...page.strokes] });
       }
       page.strokes = [];
       pageDataMap.current.set(activePageId, { ...page });
@@ -969,17 +1043,17 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
     // 2. Commit Auto-Shape (Only if Hold-to-Shape was triggered by holding!)
     if (autoShapeData.current && tool === 'pen') {
-      const shapeStroke: any = {
+      const shapeStroke: Stroke = {
         id: crypto.randomUUID(),
         tool: 'pen',
         color: settings.penColor,
         width: settings.penWidth,
         opacity: settings.penOpacity,
-        points: [],
+        points: currentStroke.current.length > 0 ? [...currentStroke.current] : [],
         shape: autoShapeData.current,
       };
       page.strokes = [...page.strokes, shapeStroke];
-      redoStacks.current.set(pageId, []);
+      pushPageUndo(pageId, { type: 'add', strokes: [shapeStroke] });
       pageDataMap.current.set(pageId, { ...page });
       autoShapeData.current = null;
       currentStroke.current = [];
@@ -1006,7 +1080,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         } else if (type === 'line') {
           path = `M ${start.x} ${start.y} L ${pos.x} ${pos.y}`;
         }
-        const shapeStroke: any = {
+        const shapeStroke: Stroke = {
           id: crypto.randomUUID(),
           tool: 'pen',
           color: settings.penColor,
@@ -1016,7 +1090,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
           shape: { type, path },
         };
         page.strokes = [...page.strokes, shapeStroke];
-        redoStacks.current.set(pageId, []);
+        pushPageUndo(pageId, { type: 'add', strokes: [shapeStroke] });
         pageDataMap.current.set(pageId, { ...page });
       }
       shapeStartRef.current = null;
@@ -1036,21 +1110,26 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     if ((tool === 'pen' || tool === 'highlighter') && settings.scribbleToErase !== false) {
       const scribble = detectScribble(currentStroke.current);
       if (scribble) {
-        const originalCount = page.strokes.length;
-        const remaining = page.strokes.filter(s => !strokeIntersectsBox(s, scribble.bounds));
-        if (remaining.length < originalCount) {
-          page.strokes = remaining;
-          redoStacks.current.set(pageId, []);
+        const removed = page.strokes.filter(s => strokeIntersectsBox(s, scribble.bounds));
+        if (removed.length > 0) {
+          const removedIds = new Set(removed.map(s => s.id));
+          page.strokes = page.strokes.filter(s => !removedIds.has(s.id));
+          pushPageUndo(pageId, { type: 'delete', strokes: removed });
           pageDataMap.current.set(pageId, { ...page });
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate(35);
+            navigator.vibrate([25, 40, 20]);
           }
           currentStroke.current = [];
           clearOverlay();
+          playEraseEffect(pageId, scribble.bounds);
           redrawPage(pageId);
           onSavePage(page);
-          return;
+        } else {
+          // ALWAYS discard scribble strokes so no stray scratch ink is left
+          currentStroke.current = [];
+          clearOverlay();
         }
+        return;
       }
     }
 
@@ -1080,7 +1159,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     };
 
     page.strokes = [...page.strokes, newStroke];
-    redoStacks.current.set(pageId, []);
+    pushPageUndo(pageId, { type: 'add', strokes: [newStroke] });
     pageDataMap.current.set(pageId, { ...page });
 
     currentStroke.current = [];
@@ -1094,7 +1173,11 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     if (!selectedStrokes) return;
     const page = pageDataMap.current.get(selectedStrokes.pageId);
     if (!page) return;
+    const deleted = page.strokes.filter(s => selectedStrokes.strokeIds.includes(s.id));
     page.strokes = page.strokes.filter(s => !selectedStrokes.strokeIds.includes(s.id));
+    if (deleted.length > 0) {
+      pushPageUndo(selectedStrokes.pageId, { type: 'delete', strokes: deleted });
+    }
     pageDataMap.current.set(selectedStrokes.pageId, { ...page });
     setSelectedStrokes(null);
     redrawPage(selectedStrokes.pageId);
@@ -1118,6 +1201,9 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       }
     });
     page.strokes = [...page.strokes, ...newStrokes];
+    if (newStrokes.length > 0) {
+      pushPageUndo(selectedStrokes.pageId, { type: 'add', strokes: newStrokes });
+    }
     pageDataMap.current.set(selectedStrokes.pageId, { ...page });
     setSelectedStrokes(null);
     redrawPage(selectedStrokes.pageId);

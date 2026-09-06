@@ -6,11 +6,12 @@ import { getAllClasses, createClass, deleteClass, updateClass, searchAll } from 
 import type { ClassItem } from '@/lib/types';
 import { GRADIENT_PRESETS } from '@/lib/types';
 import { useRouter } from 'next/navigation';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Sparkles } from 'lucide-react';
 import TagFilter from '@/components/ui/TagFilter';
 import FlashcardMode from '@/components/ui/FlashcardMode';
 import PomodoroTimer from '@/components/ui/PomodoroTimer';
 import CreateNoteModal from '@/components/ui/CreateNoteModal';
+import PlaygroundModal from '@/components/playground/PlaygroundModal';
 
 export default function Home() {
   const [classes, setClasses] = useState<ClassItem[]>([]);
@@ -27,6 +28,7 @@ export default function Home() {
   const [showFlashcards, setShowFlashcards] = useState(false);
   const [flashcardNoteId, setFlashcardNoteId] = useState<string | null>(null);
   const [showPomodoro, setShowPomodoro] = useState(false);
+  const [showPlayground, setShowPlayground] = useState(false);
   const router = useRouter();
 
   const [totalNotes, setTotalNotes] = useState(0);
@@ -97,16 +99,28 @@ export default function Home() {
           <h1 className="text-xl font-bold tracking-tight" style={{ color: 'var(--text-muted)' }}>
             Scribe
           </h1>
-          <button
-            onClick={() => setShowPomodoro(true)}
-            className="w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-105 shadow-sm"
-            style={{ background: 'var(--bg-secondary)' }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-primary)' }}>
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setShowPlayground(true)}
+              className="px-4 py-2 rounded-full flex items-center gap-2 transition-transform hover:scale-105 shadow-sm text-xs font-bold"
+              style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+              title="Playground: Tactile Sensory Break"
+            >
+              <Sparkles size={14} className="text-amber-400" />
+              <span>Playground</span>
+            </button>
+            <button
+              onClick={() => setShowPomodoro(true)}
+              className="w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-105 shadow-sm"
+              style={{ background: 'var(--bg-secondary)' }}
+              title="Focus Timer"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-primary)' }}>
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Hero */}
@@ -115,7 +129,7 @@ export default function Home() {
         </h2>
 
         {/* Nav Pills */}
-        <div className="flex gap-3 mb-12">
+        <div className="flex gap-3 mb-12 flex-wrap">
           <button
             className="px-6 py-3 rounded-full font-medium shadow-md transition-transform hover:scale-105"
             style={{ background: 'var(--accent)', color: 'var(--bg-primary)' }}
@@ -131,6 +145,14 @@ export default function Home() {
             style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
           >
             Search Notes
+          </button>
+          <button
+            onClick={() => setShowPlayground(true)}
+            className="px-6 py-3 rounded-full font-medium transition-transform hover:scale-105 flex items-center gap-2 border border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+            style={{ background: 'var(--bg-tertiary)' }}
+          >
+            <Sparkles size={16} />
+            <span>Playground</span>
           </button>
         </div>
 
@@ -405,6 +427,12 @@ export default function Home() {
           />
         )}
       </AnimatePresence>
+
+      {/* Playground Sensory Break Modal */}
+      <PlaygroundModal
+        isOpen={showPlayground}
+        onClose={() => setShowPlayground(false)}
+      />
     </div>
   );
 }
