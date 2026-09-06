@@ -112,6 +112,17 @@ export const TactileMatCanvas = forwardRef<ColoringCanvasRef, TactileMatCanvasPr
       setHistoryVersion(v => v + 1);
       if (soundEnabled) playGentleChime(true);
     },
+    loadReferenceColors: () => {
+      const resetFills: Record<string, string> = {};
+      design.segments.forEach(seg => {
+        resetFills[seg.id] = seg.defaultColor;
+      });
+      undoStackRef.current.push({ ...fillsRef.current });
+      redoStackRef.current = [];
+      setFills(resetFills);
+      setHistoryVersion(v => v + 1);
+      if (soundEnabled) playSiliconePop(true);
+    },
     getFilledCount: () => {
       let count = 0;
       design.segments.forEach(seg => {

@@ -18,7 +18,7 @@ export interface ColoringCanvasRef {
   canUndo: boolean;
   canRedo: boolean;
   clearCanvas: () => void;
-  loadReferenceColors: () => void;
+  loadReferenceColors?: () => void;
   getFilledCount: () => number;
   exportImage: () => string;
 }
