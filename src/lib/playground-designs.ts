@@ -2,29 +2,16 @@ import type { PlaygroundDesign, ColorPalette } from './playground-types';
 
 export const COLOR_PALETTES: ColorPalette[] = [
   {
-    id: 'picnic-warmth',
-    name: 'Picnic Warmth',
-    psychologicalEffect: 'Earthy comfort, nostalgic warmth, and dopamine stimulation (Reference Match)',
-    colors: [
-      '#4A3B32', // Chocolate Fur
-      '#9C5238', // Amber Wood
-      '#C27D38', // Warm Cinnamon
-      '#E5A93C', // Butter / Golden Bread
-      '#556B2F', // Olive Basket Green
-      '#B22222', // Rich Crimson Red
-      '#FDF5E6', // Cream Blanket White
-      '#708238', // Sage Scarf Green
-      '#DDA15E', // Warm Sand
-      '#BC6C25', // Caramel Crust
-      '#FFB703', // Sunshine Yellow
-      '#283618', // Deep Forest Pine
-    ],
-  },
-  {
     id: 'silicone-pop',
     name: 'Silicone Pop',
-    psychologicalEffect: 'Playful stimulation, sensory focus, and tactile joy',
+    psychologicalEffect: 'Playful stimulation, sensory focus, and tactile joy (Exact Reference Match)',
     colors: ['#F97316', '#06B6D4', '#FDE047', '#FFFFFF', '#14B8A6', '#A855F7', '#EC4899', '#3B82F6'],
+  },
+  {
+    id: 'neon-cyber',
+    name: 'Neon Cyber',
+    psychologicalEffect: 'High-energy visual contrast, stimulates creative flow and alertness',
+    colors: ['#FF007F', '#00F0FF', '#39FF14', '#FF6600', '#BD00FF', '#FFFFFF', '#FFE600', '#00FFFF'],
   },
   {
     id: 'matcha-zen',
@@ -53,378 +40,449 @@ export const COLOR_PALETTES: ColorPalette[] = [
 ];
 
 export const PLAYGROUND_DESIGNS: PlaygroundDesign[] = [
-  // 1. Picnic Friends (Exact recreation from user reference video)
+  // =========================================================================
+  // 1. Curli Sensory Fidget Mat (1:1 Reference Masterpiece from User Image)
+  // Deep matte petrol teal silicone base, dense maze groove trenches,
+  // and vibrant 3D curly noodles (Cyan helix, Orange corkscrew, White spiral, Yellow zig)
+  // =========================================================================
   {
-    id: 'picnic-friends',
-    title: 'Picnic Friends',
-    subtitle: 'A cozy afternoon with acoustic guitar, picnic basket & sweet treats',
-    category: 'coloring-book',
-    description: 'A comforting, heart-warming picnic scene. Coloring organic characters and picnic treats reduces cognitive cortisol and elevates dopamine through gentle, low-demand creativity.',
-    baseColor: '#FFFFFF',
-    grooveColor: '#E4E4E7',
-    viewBox: '0 0 800 1000',
-    width: 800,
-    height: 1000,
-    aspectRatio: '4/5',
-    recommendedPaletteId: 'picnic-warmth',
-    segments: [
-      // Bear Character (Left)
-      { id: 'picnic-bear-head', type: 'region', d: 'M 190 200 C 130 200 120 280 120 330 C 120 400 180 430 260 430 C 330 430 380 390 380 320 C 380 250 340 200 280 200 Z', defaultColor: '#FDFBF7', label: 'Bear Head' },
-      { id: 'picnic-bear-ear-l-out', type: 'region', d: 'M 140 220 C 100 180 110 120 160 120 C 190 120 190 170 170 210 Z', defaultColor: '#FDFBF7', label: 'Bear Left Ear Outer' },
-      { id: 'picnic-bear-ear-l-in', type: 'region', d: 'M 145 195 C 125 170 130 140 160 140 C 175 140 175 170 165 195 Z', defaultColor: '#FDFBF7', label: 'Bear Left Ear Inner' },
-      { id: 'picnic-bear-ear-r-out', type: 'region', d: 'M 290 210 C 320 170 360 140 390 160 C 420 180 390 230 350 240 Z', defaultColor: '#FDFBF7', label: 'Bear Right Ear Outer' },
-      { id: 'picnic-bear-ear-r-in', type: 'region', d: 'M 310 215 C 330 185 360 165 380 180 C 395 195 375 225 345 235 Z', defaultColor: '#FDFBF7', label: 'Bear Right Ear Inner' },
-      { id: 'picnic-bear-snout', type: 'region', d: 'M 210 320 C 200 280 300 280 300 320 C 300 360 210 360 210 320 Z', defaultColor: '#FDFBF7', label: 'Bear Snout' },
-      { id: 'picnic-bear-arm-l', type: 'region', d: 'M 170 380 C 120 410 130 500 190 530 C 230 540 240 480 220 430 Z', defaultColor: '#FDFBF7', label: 'Bear Left Arm' },
-      { id: 'picnic-bear-arm-r', type: 'region', d: 'M 280 380 C 350 380 440 370 510 350 C 530 330 490 310 440 320 L 340 340 Z', defaultColor: '#FDFBF7', label: 'Bear Right Arm' },
-      { id: 'picnic-bear-shirt', type: 'region', d: 'M 180 380 C 210 370 280 370 320 380 L 330 450 C 270 460 220 450 180 440 Z', defaultColor: '#FDFBF7', label: 'Bear Shirt' },
-
-      // Acoustic Guitar
-      { id: 'picnic-guitar-body', type: 'region', d: 'M 190 470 C 170 410 230 370 290 370 C 360 370 410 420 400 480 C 390 530 340 570 260 570 C 190 570 160 520 190 470 Z', defaultColor: '#FDFBF7', label: 'Guitar Body' },
-      { id: 'picnic-guitar-pickguard', type: 'region', d: 'M 280 430 C 300 395 350 400 370 435 C 380 475 350 515 305 515 C 275 515 270 465 280 430 Z', defaultColor: '#FDFBF7', label: 'Guitar Pickguard' },
-      { id: 'picnic-guitar-soundhole', type: 'region', d: 'M 280 445 C 300 445 315 460 315 480 C 315 500 300 515 280 515 C 260 515 245 500 245 480 C 245 460 260 445 280 445 Z', defaultColor: '#FDFBF7', label: 'Guitar Soundhole' },
-      { id: 'picnic-guitar-neck', type: 'region', d: 'M 380 420 L 540 310 L 555 330 L 395 440 Z', defaultColor: '#FDFBF7', label: 'Guitar Fretboard' },
-      { id: 'picnic-guitar-head', type: 'region', d: 'M 540 310 L 610 260 L 635 295 L 555 330 Z', defaultColor: '#FDFBF7', label: 'Guitar Headstock' },
-
-      // Bunny Character (Right)
-      { id: 'picnic-bunny-head', type: 'region', d: 'M 490 280 C 430 280 410 340 410 390 C 410 440 450 480 530 480 C 600 480 640 430 640 370 C 640 310 570 280 490 280 Z', defaultColor: '#FDFBF7', label: 'Bunny Head' },
-      { id: 'picnic-bunny-ear-l', type: 'region', d: 'M 470 280 C 450 180 480 120 520 120 C 550 120 540 200 500 280 Z', defaultColor: '#FDFBF7', label: 'Bunny Left Ear' },
-      { id: 'picnic-bunny-ear-r', type: 'region', d: 'M 530 280 C 550 190 600 130 640 140 C 670 150 630 230 580 280 Z', defaultColor: '#FDFBF7', label: 'Bunny Right Ear' },
-      { id: 'picnic-bunny-bow', type: 'region', d: 'M 500 270 C 480 250 510 230 525 250 C 545 230 570 250 550 270 Z', defaultColor: '#FDFBF7', label: 'Bunny Bow' },
-      { id: 'picnic-bunny-scarf', type: 'region', d: 'M 440 420 C 420 460 490 500 550 490 C 600 480 620 440 590 410 C 550 435 490 435 440 420 Z', defaultColor: '#FDFBF7', label: 'Bunny Cozy Scarf' },
-      { id: 'picnic-bunny-sweater', type: 'region', d: 'M 445 465 L 430 545 C 500 570 580 565 620 530 L 595 460 Z', defaultColor: '#FDFBF7', label: 'Bunny Sweater' },
-      { id: 'picnic-bunny-sandwich', type: 'region', d: 'M 480 390 C 480 370 535 370 535 390 L 525 425 L 490 425 Z', defaultColor: '#FDFBF7', label: 'Bunny Treat' },
-
-      // Picnic Spread
-      { id: 'picnic-basket-body', type: 'region', d: 'M 220 660 L 250 830 C 340 850 510 850 600 820 L 615 660 C 490 650 350 650 220 660 Z', defaultColor: '#FDFBF7', label: 'Picnic Basket' },
-      { id: 'picnic-basket-handle', type: 'region', d: 'M 250 670 C 250 490 580 490 580 670 C 550 670 550 530 415 530 C 280 530 280 670 250 670 Z', defaultColor: '#FDFBF7', label: 'Basket Curved Handle' },
-      { id: 'picnic-bread', type: 'region', d: 'M 480 650 L 610 560 C 630 545 655 570 640 595 L 535 685 Z', defaultColor: '#FDFBF7', label: 'Baguette Loaf' },
-      { id: 'picnic-bottle', type: 'region', d: 'M 410 680 L 485 570 C 495 555 520 570 515 590 L 450 700 Z', defaultColor: '#FDFBF7', label: 'Cider Bottle' },
-      { id: 'picnic-pitcher', type: 'region', d: 'M 95 560 C 75 560 65 605 75 670 C 85 725 140 745 175 735 C 210 725 220 670 210 615 C 195 560 140 560 95 560 Z', defaultColor: '#FDFBF7', label: 'Heart Pitcher' },
-      { id: 'picnic-cup', type: 'region', d: 'M 160 665 C 140 665 140 710 175 720 C 210 720 220 690 200 665 Z', defaultColor: '#FDFBF7', label: 'Teacup' },
-      { id: 'picnic-cake', type: 'region', d: 'M 565 625 L 650 600 L 685 655 L 590 670 Z', defaultColor: '#FDFBF7', label: 'Cake Slice' },
-      { id: 'picnic-box', type: 'region', d: 'M 625 680 L 730 665 L 720 760 L 615 760 Z', defaultColor: '#FDFBF7', label: 'Treat Box' },
-      { id: 'picnic-blanket', type: 'region', d: 'M 40 540 L 760 540 L 790 890 L 15 890 Z', defaultColor: '#FDFBF7', label: 'Picnic Blanket' },
-      { id: 'picnic-grass-base', type: 'region', d: 'M 0 520 C 240 480 560 480 800 520 L 800 1000 L 0 1000 Z', defaultColor: '#FDFBF7', label: 'Grassy Meadow' },
-      { id: 'picnic-cloud-l', type: 'region', d: 'M 70 190 C 60 145 110 125 145 145 C 175 115 230 135 230 170 C 265 170 265 215 230 225 L 80 225 Z', defaultColor: '#FDFBF7', label: 'Left Cloud' },
-      { id: 'picnic-cloud-r', type: 'region', d: 'M 620 130 C 605 90 660 75 680 100 C 710 75 755 100 745 130 C 775 145 765 185 735 185 L 630 185 Z', defaultColor: '#FDFBF7', label: 'Right Cloud' },
-      { id: 'picnic-heart', type: 'region', d: 'M 580 90 C 560 60 520 80 540 110 L 580 150 L 620 110 C 640 80 600 60 580 90 Z', defaultColor: '#FDFBF7', label: 'Sky Floating Heart' },
-    ],
-    lineArtPaths: [
-      // Detailed crisp black contours
-      { d: 'M 190 200 C 130 200 120 280 120 330 C 120 400 180 430 260 430 C 330 430 380 390 380 320 C 380 250 340 200 280 200 Z', strokeWidth: 3.5 },
-      { d: 'M 140 220 C 100 180 110 120 160 120 C 190 120 190 170 170 210', strokeWidth: 3.5 },
-      { d: 'M 145 195 C 125 170 130 140 160 140 C 175 140 175 170 165 195', strokeWidth: 2.5 },
-      { d: 'M 290 210 C 320 170 360 140 390 160 C 420 180 390 230 350 240', strokeWidth: 3.5 },
-      { d: 'M 310 215 C 330 185 360 165 380 180 C 395 195 375 225 345 235', strokeWidth: 2.5 },
-      { d: 'M 210 320 C 200 280 300 280 300 320 C 300 360 210 360 210 320 Z', strokeWidth: 3 },
-      { d: 'M 245 295 A 6 6 0 1 1 245 307 A 6 6 0 1 1 245 295', strokeWidth: 3, fill: '#18181B' },
-      { d: 'M 265 295 A 6 6 0 1 1 265 307 A 6 6 0 1 1 265 295', strokeWidth: 3, fill: '#18181B' },
-      { d: 'M 255 315 L 255 330', strokeWidth: 2.5 },
-      { d: 'M 190 470 C 170 410 230 370 290 370 C 360 370 410 420 400 480 C 390 530 340 570 260 570 C 190 570 160 520 190 470 Z', strokeWidth: 3.5 },
-      { d: 'M 280 430 C 300 395 350 400 370 435 C 380 475 350 515 305 515 C 275 515 270 465 280 430 Z', strokeWidth: 3 },
-      { d: 'M 280 445 C 300 445 315 460 315 480 C 315 500 300 515 280 515 C 260 515 245 500 245 480 C 245 460 260 445 280 445 Z', strokeWidth: 3 },
-      { d: 'M 380 420 L 540 310 L 555 330 L 395 440 Z', strokeWidth: 3 },
-      { d: 'M 540 310 L 610 260 L 635 295 L 555 330 Z', strokeWidth: 3 },
-      { d: 'M 490 280 C 430 280 410 340 410 390 C 410 440 450 480 530 480 C 600 480 640 430 640 370 C 640 310 570 280 490 280 Z', strokeWidth: 3.5 },
-      { d: 'M 470 280 C 450 180 480 120 520 120 C 550 120 540 200 500 280', strokeWidth: 3.5 },
-      { d: 'M 530 280 C 550 190 600 130 640 140 C 670 150 630 230 580 280', strokeWidth: 3.5 },
-      { d: 'M 440 420 C 420 460 490 500 550 490 C 600 480 620 440 590 410 C 550 435 490 435 440 420 Z', strokeWidth: 3 },
-      { d: 'M 250 670 C 250 490 580 490 580 670 C 550 670 550 530 415 530 C 280 530 280 670 250 670 Z', strokeWidth: 3.5 },
-      { d: 'M 220 660 L 250 830 C 340 850 510 850 600 820 L 615 660 C 490 650 350 650 220 660 Z', strokeWidth: 3.5 },
-      { d: 'M 480 650 L 610 560 C 630 545 655 570 640 595 L 535 685 Z', strokeWidth: 3 },
-      { d: 'M 410 680 L 485 570 C 495 555 520 570 515 590 L 450 700 Z', strokeWidth: 3 },
-      { d: 'M 95 560 C 75 560 65 605 75 670 C 85 725 140 745 175 735 C 210 725 220 670 210 615 C 195 560 140 560 95 560 Z', strokeWidth: 3 },
-      { d: 'M 160 665 C 140 665 140 710 175 720 C 210 720 220 690 200 665 Z', strokeWidth: 3 },
-      { d: 'M 565 625 L 650 600 L 685 655 L 590 670 Z', strokeWidth: 3 },
-      { d: 'M 625 680 L 730 665 L 720 760 L 615 760 Z', strokeWidth: 3 },
-      { d: 'M 40 540 L 760 540 L 790 890 L 15 890 Z', strokeWidth: 3 },
-      { d: 'M 70 190 C 60 145 110 125 145 145 C 175 115 230 135 230 170 C 265 170 265 215 230 225 L 80 225 Z', strokeWidth: 2.5 },
-      { d: 'M 620 130 C 605 90 660 75 680 100 C 710 75 755 100 745 130 C 775 145 765 185 735 185 L 630 185 Z', strokeWidth: 2.5 },
-      { d: 'M 580 90 C 560 60 520 80 540 110 L 580 150 L 620 110 C 640 80 600 60 580 90 Z', strokeWidth: 2.5 },
-      // Grass blades & daisies
-      { d: 'M 130 900 L 135 870 L 142 900', strokeWidth: 2.5 },
-      { d: 'M 210 930 L 215 895 L 225 930', strokeWidth: 2.5 },
-      { d: 'M 680 890 L 685 860 L 695 890', strokeWidth: 2.5 },
-      { d: 'M 740 920 L 745 885 L 755 920', strokeWidth: 2.5 },
-    ],
-  },
-
-  // 2. Curli Sensory Fidget Mat (Homage to prompt 3 with bounded curly loops)
-  {
-    id: 'curli-mat',
+    id: 'curli-original',
     title: 'Curli Sensory Mat',
     subtitle: 'Tactile silicone maze pad with weaving 3D rubber noodles',
     category: 'sensory-mat',
     description: 'Inspired by sensory tactile fidget pads used to relieve anxiety and restore executive focus through curvilinear path exploration.',
-    baseColor: '#0A343D',
-    grooveColor: '#052229',
-    viewBox: '0 0 1000 620',
+    baseColor: '#09333D',
+    grooveColor: '#041A20',
+    viewBox: '0 0 1000 625',
     width: 1000,
-    height: 620,
+    height: 625,
     aspectRatio: '16/10',
     recommendedPaletteId: 'silicone-pop',
     segments: [
-      // Base Maze Channels & Fingerprint Grooves (recidivist paths cut into distinct segments)
-      // Top-Left Arches
-      { id: 'groove-tl-1', type: 'groove', d: 'M 30 110 A 80 80 0 0 1 110 30', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-tl-2', type: 'groove', d: 'M 30 150 A 120 120 0 0 1 150 30', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-tl-3', type: 'groove', d: 'M 30 190 A 160 160 0 0 1 190 30', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-tl-4', type: 'groove', d: 'M 30 230 C 130 230 210 170 230 30', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-tl-5', type: 'groove', d: 'M 30 270 C 160 270 240 180 270 30', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-tl-loop-1', type: 'groove', d: 'M 30 70 L 70 70 A 40 40 0 0 1 30 110', defaultColor: '#052229', strokeWidth: 14 },
+      // -----------------------------------------------------------------------
+      // GROOVES IN BETWEEN: Discrete segmented recessed paths
+      // -----------------------------------------------------------------------
+      // Top-Left Concentric Arches
+      { id: 'groove-tl-1', type: 'groove', d: 'M 35 110 A 75 75 0 0 1 110 35', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tl-2', type: 'groove', d: 'M 35 150 A 115 115 0 0 1 150 35', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tl-3', type: 'groove', d: 'M 35 190 A 155 155 0 0 1 190 35', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tl-4', type: 'groove', d: 'M 35 230 C 130 230 210 170 230 35', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tl-5', type: 'groove', d: 'M 35 270 C 160 270 240 180 270 35', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tl-hairpin', type: 'groove', d: 'M 35 70 L 75 70 A 35 35 0 0 1 35 105', defaultColor: '#041A20', strokeWidth: 14 },
 
-      // Top Center Wavy Channels
-      { id: 'groove-tc-1', type: 'groove', d: 'M 310 30 C 330 150 420 150 490 60 C 530 10 610 10 670 40', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-tc-2', type: 'groove', d: 'M 350 30 C 370 180 440 180 520 90 C 560 40 640 40 710 60', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-tc-3', type: 'groove', d: 'M 400 30 C 420 220 480 210 560 120 C 600 70 690 70 760 90', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-tc-rings', type: 'groove', d: 'M 520 60 A 80 80 0 0 1 680 60', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-tc-rings-inner', type: 'groove', d: 'M 560 60 A 40 40 0 0 1 640 60', defaultColor: '#052229', strokeWidth: 14 },
+      // Top-Center Ripple Waves
+      { id: 'groove-tc-1', type: 'groove', d: 'M 310 35 C 330 150 420 150 490 60 C 530 15 610 15 670 45', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tc-2', type: 'groove', d: 'M 350 35 C 370 180 440 180 520 90 C 560 45 640 45 710 65', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tc-3', type: 'groove', d: 'M 400 35 C 420 220 480 210 560 120 C 600 75 690 75 760 95', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tc-concentric-1', type: 'groove', d: 'M 520 65 A 80 80 0 0 1 680 65', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tc-concentric-2', type: 'groove', d: 'M 560 65 A 40 40 0 0 1 640 65', defaultColor: '#041A20', strokeWidth: 14 },
 
-      // Center Undulating Ribbons
-      { id: 'groove-mid-1', type: 'groove', d: 'M 30 330 C 140 330 190 270 280 270 C 370 270 420 340 500 340 C 610 340 690 260 780 260 C 850 260 920 300 970 300', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-mid-2', type: 'groove', d: 'M 30 370 C 130 370 170 310 260 310 C 350 310 400 380 480 380 C 590 380 670 300 760 300 C 840 300 900 340 970 340', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-mid-3', type: 'groove', d: 'M 170 410 C 240 350 320 350 370 410 L 370 590', defaultColor: '#052229', strokeWidth: 14 },
+      // Middle Diagonal Flow Valleys
+      { id: 'groove-mid-1', type: 'groove', d: 'M 35 330 C 140 330 190 270 280 270 C 370 270 420 340 500 340 C 610 340 690 260 780 260 C 850 260 920 300 965 300', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-mid-2', type: 'groove', d: 'M 35 370 C 130 370 170 310 260 310 C 350 310 400 380 480 380 C 590 380 670 300 760 300 C 840 300 900 340 965 340', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-mid-3', type: 'groove', d: 'M 170 410 C 240 350 320 350 370 410 L 370 595', defaultColor: '#041A20', strokeWidth: 14 },
 
-      // Bottom Center Huge Vertical Fingerprint Arch
-      { id: 'groove-arch-outer', type: 'groove', d: 'M 490 590 L 490 440 C 490 350 630 350 630 440 L 630 590', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-arch-mid', type: 'groove', d: 'M 525 590 L 525 450 C 525 385 595 385 595 450 L 595 590', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-arch-inner', type: 'groove', d: 'M 560 590 L 560 460', defaultColor: '#052229', strokeWidth: 14 },
+      // Bottom-Center Tall Fingerprint Arch (Nested U-loops)
+      { id: 'groove-arch-outer', type: 'groove', d: 'M 490 595 L 490 430 C 490 350 630 350 630 430 L 630 595', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-arch-mid', type: 'groove', d: 'M 525 595 L 525 440 C 525 380 595 380 595 440 L 595 595', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-arch-inner', type: 'groove', d: 'M 560 595 L 560 455 C 560 435 580 435 580 455 L 580 595', defaultColor: '#041A20', strokeWidth: 14 },
 
-      // Bottom-Left Radiating Concentric Fans
-      { id: 'groove-bl-1', type: 'groove', d: 'M 30 460 A 130 130 0 0 1 160 590', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-bl-2', type: 'groove', d: 'M 30 500 A 90 90 0 0 1 120 590', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-bl-3', type: 'groove', d: 'M 30 540 A 50 50 0 0 1 80 590', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-bl-loop', type: 'groove', d: 'M 180 470 C 220 510 240 550 240 590', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-bl-loop-2', type: 'groove', d: 'M 220 440 C 270 490 280 540 280 590', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-bl-loop-3', type: 'groove', d: 'M 260 410 C 310 460 320 520 320 590', defaultColor: '#052229', strokeWidth: 14 },
+      // Bottom Vertical Comb Teeth (Satisfying tactile grooves)
+      { id: 'groove-tooth-1', type: 'groove', d: 'M 210 520 L 210 595', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tooth-2', type: 'groove', d: 'M 240 480 L 240 595', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tooth-3', type: 'groove', d: 'M 270 460 L 270 595', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tooth-4', type: 'groove', d: 'M 300 440 L 300 595', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tooth-5', type: 'groove', d: 'M 330 430 L 330 595', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tooth-6', type: 'groove', d: 'M 450 470 L 450 595', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tooth-7', type: 'groove', d: 'M 655 460 L 655 595', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-tooth-8', type: 'groove', d: 'M 685 480 L 685 595', defaultColor: '#041A20', strokeWidth: 14 },
 
-      // Right Side Teardrop & Horizontal Waves
-      { id: 'groove-rt-1', type: 'groove', d: 'M 740 30 C 800 60 880 70 970 70', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-rt-2', type: 'groove', d: 'M 780 70 C 830 110 890 120 970 120', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-rt-3', type: 'groove', d: 'M 730 160 C 810 160 870 180 970 180', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-rt-4', type: 'groove', d: 'M 680 210 C 760 210 830 230 970 230', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-rt-tear-outer', type: 'groove', d: 'M 740 440 C 700 480 670 540 700 570 C 730 590 770 560 820 480', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-rt-tear-inner', type: 'groove', d: 'M 730 480 C 710 505 705 535 720 550 C 735 560 755 540 780 500', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-br-loop-1', type: 'groove', d: 'M 880 430 C 920 430 960 450 970 480', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-br-loop-2', type: 'groove', d: 'M 870 480 C 920 480 960 510 970 540', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-br-corner-arch', type: 'groove', d: 'M 890 590 A 80 80 0 0 0 970 510', defaultColor: '#052229', strokeWidth: 14 },
-      { id: 'groove-br-corner-inner', type: 'groove', d: 'M 930 590 A 40 40 0 0 0 970 550', defaultColor: '#052229', strokeWidth: 14 },
+      // Bottom-Left Concentric Fan Arches
+      { id: 'groove-bl-1', type: 'groove', d: 'M 35 460 A 130 130 0 0 1 160 595', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-bl-2', type: 'groove', d: 'M 35 500 A 90 90 0 0 1 120 595', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-bl-3', type: 'groove', d: 'M 35 540 A 50 50 0 0 1 80 595', defaultColor: '#041A20', strokeWidth: 14 },
 
-      // =========================================================================
-      // 3D TACTILE SILICONE NOODLES / CORDS (Precisely segmented at loops & crossings)
-      // =========================================================================
+      // Right-Side Wave Channels & Teardrops
+      { id: 'groove-rt-1', type: 'groove', d: 'M 740 35 C 800 65 880 75 965 75', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-rt-2', type: 'groove', d: 'M 780 75 C 830 115 890 125 965 125', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-rt-3', type: 'groove', d: 'M 730 165 C 810 165 870 185 965 185', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-rt-4', type: 'groove', d: 'M 680 215 C 760 215 830 235 965 235', defaultColor: '#041A20', strokeWidth: 14 },
+
+      // Bottom-Right Corner Waves & Loops
+      { id: 'groove-br-loop-1', type: 'groove', d: 'M 870 430 C 910 430 955 450 965 480', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-br-loop-2', type: 'groove', d: 'M 860 480 C 910 480 955 510 965 540', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-br-arch-1', type: 'groove', d: 'M 890 595 A 80 80 0 0 0 965 510', defaultColor: '#041A20', strokeWidth: 14 },
+      { id: 'groove-br-arch-2', type: 'groove', d: 'M 925 595 A 45 45 0 0 0 965 550', defaultColor: '#041A20', strokeWidth: 14 },
+
+      // -----------------------------------------------------------------------
+      // 3D CURLY SILICONE NOODLES: Clean path cut-offs at loops & crossings
+      // -----------------------------------------------------------------------
       
-      // --- CORD A: CYAN NOODLE (Top Left Spiral to Top Center Horizon) ---
+      // --- CORD 1: ELECTRIC CYAN 3D HELIX (Top Left) ---
       {
-        id: 'cord-cyan-segment-1',
+        id: 'cord-cyan-helix-entry',
         type: 'cord',
-        d: 'M 10 240 C 60 240 120 230 160 190 C 180 170 190 140 185 105',
-        defaultColor: '#06B6D4',
-        strokeWidth: 20,
-        zIndex: 5,
-      },
-      {
-        id: 'cord-cyan-twist-loop',
-        type: 'cord',
-        d: 'M 185 105 C 180 60 215 50 230 85 C 245 120 220 165 195 190',
+        d: 'M 20 240 C 65 240 120 230 160 190',
         defaultColor: '#06B6D4',
         strokeWidth: 22,
-        zIndex: 10, // Rises above the channel
-      },
-      {
-        id: 'cord-cyan-segment-2',
-        type: 'cord',
-        d: 'M 195 190 C 230 230 310 220 380 150 C 440 90 510 10 570 30',
-        defaultColor: '#06B6D4',
-        strokeWidth: 20,
         zIndex: 6,
+        label: 'Cyan Noodle Entry',
       },
       {
-        id: 'cord-cyan-tail-horizontal',
+        id: 'cord-cyan-helix-rise',
         type: 'cord',
-        d: 'M 390 190 C 470 230 570 240 690 220',
+        d: 'M 160 190 C 180 170 190 135 180 100',
         defaultColor: '#06B6D4',
-        strokeWidth: 20,
+        strokeWidth: 22,
+        zIndex: 8,
+        label: 'Cyan Helix Rising Arm',
+      },
+      {
+        id: 'cord-cyan-helix-knot',
+        type: 'cord',
+        d: 'M 180 100 C 170 55 215 45 235 80 C 250 115 220 160 195 185',
+        defaultColor: '#06B6D4',
+        strokeWidth: 24,
+        zIndex: 14, // Overhead standing 3D loop
+        label: 'Cyan 3D Spiral Loop',
+      },
+      {
+        id: 'cord-cyan-helix-descent',
+        type: 'cord',
+        d: 'M 195 185 C 225 215 260 210 290 190',
+        defaultColor: '#06B6D4',
+        strokeWidth: 22,
         zIndex: 7,
+        label: 'Cyan Noodle Descent',
       },
 
-      // --- CORD B: TANGERINE ORANGE NOODLE (Top to Center Loop to Bottom Right) ---
+      // --- CORD 2: ELECTRIC CYAN SWOOPING WAVE (Top-Center to Mid-Right) ---
       {
-        id: 'cord-orange-top-plunge',
+        id: 'cord-cyan-swoop-start',
         type: 'cord',
-        d: 'M 290 10 C 295 70 315 130 330 180',
+        d: 'M 385 10 C 390 70 405 130 435 165',
+        defaultColor: '#06B6D4',
+        strokeWidth: 22,
+        zIndex: 7,
+        label: 'Cyan Wave Plunge',
+      },
+      {
+        id: 'cord-cyan-swoop-mid',
+        type: 'cord',
+        d: 'M 435 165 C 475 215 540 230 600 230',
+        defaultColor: '#06B6D4',
+        strokeWidth: 22,
+        zIndex: 7,
+        label: 'Cyan Wave Belly',
+      },
+      {
+        id: 'cord-cyan-swoop-tail',
+        type: 'cord',
+        d: 'M 600 230 C 640 230 675 225 700 220',
+        defaultColor: '#06B6D4',
+        strokeWidth: 22,
+        zIndex: 7,
+        label: 'Cyan Wave Tail',
+      },
+
+      // --- CORD 3: TANGERINE ORANGE CORKSCREW (Top to Center) ---
+      {
+        id: 'cord-orange-corkscrew-stem',
+        type: 'cord',
+        d: 'M 295 10 C 300 70 315 125 330 165',
         defaultColor: '#F97316',
         strokeWidth: 22,
         zIndex: 8,
+        label: 'Orange Corkscrew Plunge',
       },
       {
-        id: 'cord-orange-3d-knot',
+        id: 'cord-orange-corkscrew-3d-loop',
         type: 'cord',
-        d: 'M 330 180 C 350 120 375 130 365 195 C 360 220 395 240 445 230',
+        d: 'M 330 165 C 345 110 380 120 370 180 C 365 205 385 225 415 225',
         defaultColor: '#F97316',
         strokeWidth: 24,
-        zIndex: 12, // Prominent standing 3D silicone loop
+        zIndex: 15, // Standing 3D knot
+        label: 'Orange 3D Corkscrew Knot',
       },
       {
-        id: 'cord-orange-bottom-arch',
+        id: 'cord-orange-corkscrew-tail',
         type: 'cord',
-        d: 'M 720 590 C 730 500 780 430 860 370 C 910 330 960 335 990 335',
+        d: 'M 415 225 C 430 225 445 235 455 240',
         defaultColor: '#F97316',
         strokeWidth: 22,
         zIndex: 8,
+        label: 'Orange Corkscrew Tail',
       },
 
-      // --- CORD C: WHITE SILICONE NOODLE (Center-Left Twist & Right Loop) ---
+      // --- CORD 4: MILK WHITE SPIRAL RIBBON (Center-Bottom to Mid-Left) ---
       {
-        id: 'cord-white-left-segment',
+        id: 'cord-white-spiral-stem',
         type: 'cord',
-        d: 'M 350 325 C 380 390 410 440 420 490',
-        defaultColor: '#FFFFFF',
-        strokeWidth: 20,
-        zIndex: 8,
-      },
-      {
-        id: 'cord-white-twist-curl',
-        type: 'cord',
-        d: 'M 420 490 C 430 520 390 515 375 480 C 360 450 395 440 425 470 L 420 590',
+        d: 'M 420 610 L 420 530 C 420 495 405 480 395 470',
         defaultColor: '#FFFFFF',
         strokeWidth: 22,
-        zIndex: 11,
+        zIndex: 8,
+        label: 'White Spiral Stem',
       },
       {
-        id: 'cord-white-right-u-turn',
+        id: 'cord-white-spiral-3d-knot',
         type: 'cord',
-        d: 'M 990 230 C 870 270 780 340 700 400 C 685 410 690 435 715 425 C 750 410 800 350 835 315',
+        d: 'M 395 470 C 375 445 405 425 435 450 C 455 470 435 505 410 500',
         defaultColor: '#FFFFFF',
-        strokeWidth: 20,
+        strokeWidth: 24,
+        zIndex: 15, // Standing twist knot
+        label: 'White 3D Twist Knot',
+      },
+      {
+        id: 'cord-white-spiral-reach',
+        type: 'cord',
+        d: 'M 410 500 C 390 485 365 410 345 350',
+        defaultColor: '#FFFFFF',
+        strokeWidth: 22,
         zIndex: 9,
+        label: 'White Ribbon Crest',
       },
 
-      // --- CORD D: LEMON CHIFFON YELLOW NOODLE (Top Right Lightning & Bottom Left Arc) ---
+      // --- CORD 5: LEMON CHIFFON YELLOW ZIGZAG (Top-Right) ---
       {
-        id: 'cord-yellow-lightning-start',
+        id: 'cord-yellow-zig-base',
         type: 'cord',
-        d: 'M 605 170 C 640 170 720 160 760 120',
-        defaultColor: '#FDE047',
-        strokeWidth: 20,
-        zIndex: 8,
-      },
-      {
-        id: 'cord-yellow-lightning-zig',
-        type: 'cord',
-        d: 'M 760 120 C 780 90 840 90 805 140 C 780 180 850 140 930 110',
+        d: 'M 605 170 C 640 170 690 155 730 135',
         defaultColor: '#FDE047',
         strokeWidth: 22,
-        zIndex: 11,
+        zIndex: 8,
+        label: 'Yellow Zig Base',
       },
       {
-        id: 'cord-yellow-bottom-left-sweep',
+        id: 'cord-yellow-zig-apex',
         type: 'cord',
-        d: 'M 10 420 C 60 420 130 460 165 520 C 185 550 180 580 185 590',
+        d: 'M 730 135 C 765 115 825 105 795 155 C 780 180 815 170 855 145',
         defaultColor: '#FDE047',
-        strokeWidth: 20,
+        strokeWidth: 24,
+        zIndex: 14, // Standing zigzag fold
+        label: 'Yellow 3D Zigzag Fold',
+      },
+      {
+        id: 'cord-yellow-zig-tail',
+        type: 'cord',
+        d: 'M 855 145 C 885 130 920 115 940 110',
+        defaultColor: '#FDE047',
+        strokeWidth: 22,
         zIndex: 8,
+        label: 'Yellow Zig Tail',
+      },
+
+      // --- CORD 6: MILK WHITE HAIRPIN U-TURN (Right-Center) ---
+      {
+        id: 'cord-white-hairpin-top',
+        type: 'cord',
+        d: 'M 840 340 C 790 375 750 395 725 415',
+        defaultColor: '#FFFFFF',
+        strokeWidth: 22,
+        zIndex: 9,
+        label: 'White Hairpin Upper Arm',
+      },
+      {
+        id: 'cord-white-hairpin-loop',
+        type: 'cord',
+        d: 'M 725 415 C 695 435 700 465 730 460',
+        defaultColor: '#FFFFFF',
+        strokeWidth: 22,
+        zIndex: 9,
+        label: 'White Hairpin U-Turn Loop',
+      },
+      {
+        id: 'cord-white-hairpin-bottom',
+        type: 'cord',
+        d: 'M 730 460 C 760 455 800 420 840 380',
+        defaultColor: '#FFFFFF',
+        strokeWidth: 22,
+        zIndex: 9,
+        label: 'White Hairpin Return Arm',
+      },
+
+      // --- CORD 7: TANGERINE ORANGE SWEEP (Bottom-Right) ---
+      {
+        id: 'cord-orange-bottom-stem',
+        type: 'cord',
+        d: 'M 725 610 C 735 540 765 485 810 440',
+        defaultColor: '#F97316',
+        strokeWidth: 22,
+        zIndex: 8,
+        label: 'Orange Bottom Arc Base',
+      },
+      {
+        id: 'cord-orange-bottom-sweep',
+        type: 'cord',
+        d: 'M 810 440 C 860 395 925 360 990 345',
+        defaultColor: '#F97316',
+        strokeWidth: 22,
+        zIndex: 8,
+        label: 'Orange Sweeping Exit Arc',
+      },
+
+      // --- CORD 8: LEMON CHIFFON YELLOW SWEEP (Bottom-Left) ---
+      {
+        id: 'cord-yellow-bottom-stem',
+        type: 'cord',
+        d: 'M 180 610 C 175 550 150 490 110 450',
+        defaultColor: '#FDE047',
+        strokeWidth: 22,
+        zIndex: 8,
+        label: 'Yellow Bottom Sweep Base',
+      },
+      {
+        id: 'cord-yellow-bottom-sweep',
+        type: 'cord',
+        d: 'M 110 450 C 70 415 35 415 10 415',
+        defaultColor: '#FDE047',
+        strokeWidth: 22,
+        zIndex: 8,
+        label: 'Yellow Sweeping Exit Arc',
       },
     ],
   },
 
-  // 2. Zen Japanese Gravel Wave Garden
+  // =========================================================================
+  // 2. Neon Cyber Fidget Pad (Matte Onyx with High-Voltage Neon Curli Helixes)
+  // =========================================================================
   {
-    id: 'zen-garden',
-    title: 'Zen Pebble Waves',
-    subtitle: 'Raked gravel water ripples and smooth meditation stepping stones',
-    category: 'zen-waves',
-    description: 'Based on the mindfulness technique of Japanese dry rock gardens (Karesansui). Tracing concentric ripple lines activates slow theta-wave brain rhythms.',
-    baseColor: '#1A232A',
-    grooveColor: '#0E1419',
-    viewBox: '0 0 1000 620',
+    id: 'curli-neon',
+    title: 'Neon Cyber Pad',
+    subtitle: 'Dark obsidian silicone base with glowing neon noodle loops',
+    category: 'sensory-mat',
+    description: 'High-contrast luminescent silicone pad. Tracing electric neon paths against deep obsidian activates visual dopamine receptors and sharpens reaction alertness.',
+    baseColor: '#0F111A',
+    grooveColor: '#05070A',
+    viewBox: '0 0 1000 625',
     width: 1000,
-    height: 620,
+    height: 625,
+    aspectRatio: '16/10',
+    recommendedPaletteId: 'neon-cyber',
+    segments: [
+      // Concentric Grooves
+      { id: 'neon-g-1', type: 'groove', d: 'M 35 120 A 90 90 0 0 1 125 35', defaultColor: '#05070A', strokeWidth: 14 },
+      { id: 'neon-g-2', type: 'groove', d: 'M 35 170 A 140 140 0 0 1 175 35', defaultColor: '#05070A', strokeWidth: 14 },
+      { id: 'neon-g-3', type: 'groove', d: 'M 35 220 A 190 190 0 0 1 225 35', defaultColor: '#05070A', strokeWidth: 14 },
+      { id: 'neon-g-waves', type: 'groove', d: 'M 35 340 C 240 340 360 260 520 260 C 680 260 800 340 965 340', defaultColor: '#05070A', strokeWidth: 14 },
+      { id: 'neon-g-arch', type: 'groove', d: 'M 480 595 L 480 430 C 480 340 620 340 620 430 L 620 595', defaultColor: '#05070A', strokeWidth: 14 },
+      { id: 'neon-g-arch-in', type: 'groove', d: 'M 520 595 L 520 440 C 520 380 580 380 580 440 L 580 595', defaultColor: '#05070A', strokeWidth: 14 },
+      { id: 'neon-g-bl', type: 'groove', d: 'M 35 480 A 120 120 0 0 1 155 595', defaultColor: '#05070A', strokeWidth: 14 },
+      { id: 'neon-g-br', type: 'groove', d: 'M 880 595 A 90 90 0 0 0 965 510', defaultColor: '#05070A', strokeWidth: 14 },
+
+      // Neon Cords with Cut-offs
+      { id: 'cord-neon-pink-1', type: 'cord', d: 'M 20 220 C 70 220 130 200 170 160', defaultColor: '#FF007F', strokeWidth: 22, zIndex: 6 },
+      { id: 'cord-neon-pink-loop', type: 'cord', d: 'M 170 160 C 185 110 230 100 240 140 C 250 180 210 210 180 210', defaultColor: '#FF007F', strokeWidth: 24, zIndex: 12 },
+      { id: 'cord-neon-pink-tail', type: 'cord', d: 'M 180 210 C 220 240 310 230 380 170', defaultColor: '#FF007F', strokeWidth: 22, zIndex: 7 },
+      { id: 'cord-neon-cyan-plunge', type: 'cord', d: 'M 310 10 C 320 90 350 140 370 180', defaultColor: '#00F0FF', strokeWidth: 22, zIndex: 8 },
+      { id: 'cord-neon-cyan-twist', type: 'cord', d: 'M 370 180 C 385 120 420 125 410 185 C 400 220 440 240 480 230', defaultColor: '#00F0FF', strokeWidth: 24, zIndex: 14 },
+      { id: 'cord-neon-lime-zig-1', type: 'cord', d: 'M 590 160 C 640 160 700 140 740 110', defaultColor: '#39FF14', strokeWidth: 22, zIndex: 8 },
+      { id: 'cord-neon-lime-zig-apex', type: 'cord', d: 'M 740 110 C 765 80 820 80 790 135 C 770 170 820 150 880 120', defaultColor: '#39FF14', strokeWidth: 24, zIndex: 12 },
+      { id: 'cord-neon-orange-sweep', type: 'cord', d: 'M 710 610 C 730 520 780 440 860 380 C 910 340 960 340 990 340', defaultColor: '#FF6600', strokeWidth: 22, zIndex: 8 },
+      { id: 'cord-neon-white-spiral', type: 'cord', d: 'M 420 610 C 420 530 400 480 380 460 C 355 435 390 410 420 435 C 440 455 425 490 395 490', defaultColor: '#FFFFFF', strokeWidth: 22, zIndex: 10 },
+    ],
+  },
+
+  // =========================================================================
+  // 3. Matcha Zen Pebble Mat (Earthy Sage Base with Bamboo & River Stone Curli)
+  // =========================================================================
+  {
+    id: 'curli-zen',
+    title: 'Matcha Bamboo Waves',
+    subtitle: 'Sage green silicone pad with flowing stream cords & pebbles',
+    category: 'zen-waves',
+    description: 'Based on the mindfulness principle of Japanese pebble gardens. Tracing gentle organic noodle curves induces alpha brainwave relaxation and eases tension.',
+    baseColor: '#2D3B36',
+    grooveColor: '#192420',
+    viewBox: '0 0 1000 625',
+    width: 1000,
+    height: 625,
     aspectRatio: '16/10',
     recommendedPaletteId: 'matcha-zen',
     segments: [
-      // Concentric Zen Ripples Left
-      { id: 'zen-ripple-l1', type: 'groove', d: 'M 250 190 A 90 90 0 1 0 250 370 A 90 90 0 1 0 250 190', defaultColor: '#0E1419', strokeWidth: 16 },
-      { id: 'zen-ripple-l2', type: 'groove', d: 'M 250 140 A 140 140 0 1 0 250 420 A 140 140 0 1 0 250 140', defaultColor: '#0E1419', strokeWidth: 16 },
-      { id: 'zen-ripple-l3', type: 'groove', d: 'M 250 90 A 190 190 0 1 0 250 470 A 190 190 0 1 0 250 90', defaultColor: '#0E1419', strokeWidth: 16 },
-      { id: 'zen-ripple-l4', type: 'groove', d: 'M 250 40 A 240 240 0 1 0 250 520 A 240 240 0 1 0 250 40', defaultColor: '#0E1419', strokeWidth: 16 },
+      // Concentric Zen Pebble Grooves Left
+      { id: 'zen-g-l1', type: 'groove', d: 'M 250 190 A 90 90 0 1 0 250 370 A 90 90 0 1 0 250 190', defaultColor: '#192420', strokeWidth: 15 },
+      { id: 'zen-g-l2', type: 'groove', d: 'M 250 140 A 140 140 0 1 0 250 420 A 140 140 0 1 0 250 140', defaultColor: '#192420', strokeWidth: 15 },
+      { id: 'zen-g-l3', type: 'groove', d: 'M 250 90 A 190 190 0 1 0 250 470 A 190 190 0 1 0 250 90', defaultColor: '#192420', strokeWidth: 15 },
 
-      // Concentric Zen Ripples Right
-      { id: 'zen-ripple-r1', type: 'groove', d: 'M 720 220 A 80 80 0 1 0 720 380 A 80 80 0 1 0 720 220', defaultColor: '#0E1419', strokeWidth: 16 },
-      { id: 'zen-ripple-r2', type: 'groove', d: 'M 720 170 A 130 130 0 1 0 720 430 A 130 130 0 1 0 720 170', defaultColor: '#0E1419', strokeWidth: 16 },
-      { id: 'zen-ripple-r3', type: 'groove', d: 'M 720 120 A 180 180 0 1 0 720 480 A 180 180 0 1 0 720 120', defaultColor: '#0E1419', strokeWidth: 16 },
+      // Concentric Zen Pebble Grooves Right
+      { id: 'zen-g-r1', type: 'groove', d: 'M 720 220 A 80 80 0 1 0 720 380 A 80 80 0 1 0 720 220', defaultColor: '#192420', strokeWidth: 15 },
+      { id: 'zen-g-r2', type: 'groove', d: 'M 720 170 A 130 130 0 1 0 720 430 A 130 130 0 1 0 720 170', defaultColor: '#192420', strokeWidth: 15 },
 
-      // Flowing Meandering Water Stream Ribbons
-      { id: 'zen-stream-1', type: 'cord', d: 'M 40 70 C 260 20 420 140 500 280 C 560 410 650 560 960 550', defaultColor: '#52796F', strokeWidth: 22, zIndex: 6 },
-      { id: 'zen-stream-2', type: 'cord', d: 'M 40 120 C 240 70 410 200 480 320 C 540 450 640 590 960 590', defaultColor: '#84A98C', strokeWidth: 22, zIndex: 6 },
-      { id: 'zen-stream-3', type: 'cord', d: 'M 40 550 C 250 580 430 460 500 360 C 560 260 670 90 960 70', defaultColor: '#CAD2C5', strokeWidth: 22, zIndex: 6 },
-
-      // Smooth River Pebbles (Zen focal touchstones)
-      { id: 'zen-stone-left', type: 'ridge', d: 'M 250 240 A 40 40 0 1 0 250 320 A 40 40 0 1 0 250 240', defaultColor: '#354F52', strokeWidth: 28, zIndex: 10 },
-      { id: 'zen-stone-right', type: 'ridge', d: 'M 720 270 A 30 30 0 1 0 720 330 A 30 30 0 1 0 720 270', defaultColor: '#354F52', strokeWidth: 28, zIndex: 10 },
+      // Flowing Stream Cords
+      { id: 'cord-zen-bamboo-1', type: 'cord', d: 'M 35 80 C 240 30 410 150 490 290', defaultColor: '#E9D8A6', strokeWidth: 22, zIndex: 6 },
+      { id: 'cord-zen-bamboo-2', type: 'cord', d: 'M 490 290 C 550 420 640 560 965 550', defaultColor: '#E9D8A6', strokeWidth: 22, zIndex: 6 },
+      { id: 'cord-zen-moss-stream', type: 'cord', d: 'M 35 130 C 220 80 390 210 470 330 C 530 460 630 590 965 590', defaultColor: '#52796F', strokeWidth: 22, zIndex: 7 },
+      { id: 'cord-zen-sage-crest', type: 'cord', d: 'M 35 550 C 240 580 420 460 490 360 C 550 260 660 90 965 70', defaultColor: '#84A98C', strokeWidth: 22, zIndex: 8 },
+      { id: 'cord-zen-pebble-left', type: 'ridge', d: 'M 250 240 A 40 40 0 1 0 250 320 A 40 40 0 1 0 250 240', defaultColor: '#354F52', strokeWidth: 26, zIndex: 12 },
+      { id: 'cord-zen-pebble-right', type: 'ridge', d: 'M 720 270 A 30 30 0 1 0 720 330 A 30 30 0 1 0 720 270', defaultColor: '#354F52', strokeWidth: 26, zIndex: 12 },
     ],
   },
 
-  // 3. Topographic Canyon Waves
+  // =========================================================================
+  // 4. Terracotta Sunset Waves (Warm Clay Pad with Peach, Honey & Lilac Curls)
+  // =========================================================================
   {
-    id: 'topographic-canyon',
-    title: 'Topographic Canyon',
-    subtitle: 'Smooth elevation contour ribbons flowing across organic landscape layers',
+    id: 'curli-sunset',
+    title: 'Terracotta Sunset',
+    subtitle: 'Warm clay silicone mat with soothing dusk ribbon waves',
     category: 'topographic',
-    description: 'Contour lines mimic the peaceful natural geometry of geological canyon strata, reducing visual stress through smooth, parallel gradient flow.',
-    baseColor: '#181E29',
-    grooveColor: '#0D1117',
-    viewBox: '0 0 1000 620',
+    description: 'Warm earth tones elevate mood and foster emotional security. Tracing rhythmic canyon ripples settles nervous energy before an exam or study block.',
+    baseColor: '#381F1A',
+    grooveColor: '#1F0F0C',
+    viewBox: '0 0 1000 625',
     width: 1000,
-    height: 620,
+    height: 625,
     aspectRatio: '16/10',
     recommendedPaletteId: 'sunset-glow',
     segments: [
-      { id: 'topo-contour-1', type: 'cord', d: 'M 0 60 C 250 180 450 20 700 120 C 850 180 920 60 1000 70', defaultColor: '#FB7185', strokeWidth: 20 },
-      { id: 'topo-contour-2', type: 'cord', d: 'M 0 130 C 270 250 480 90 710 190 C 860 250 930 130 1000 140', defaultColor: '#FB923C', strokeWidth: 20 },
-      { id: 'topo-contour-3', type: 'cord', d: 'M 0 200 C 290 320 510 160 720 260 C 870 320 940 200 1000 210', defaultColor: '#FBBF24', strokeWidth: 20 },
-      { id: 'topo-contour-4', type: 'cord', d: 'M 0 270 C 310 390 540 230 730 330 C 880 390 950 270 1000 280', defaultColor: '#F472B6', strokeWidth: 20 },
-      { id: 'topo-contour-5', type: 'cord', d: 'M 0 340 C 330 460 570 300 740 400 C 890 460 960 340 1000 350', defaultColor: '#C084FC', strokeWidth: 20 },
-      { id: 'topo-contour-6', type: 'cord', d: 'M 0 410 C 350 530 600 370 750 470 C 900 530 970 410 1000 420', defaultColor: '#FDA4AF', strokeWidth: 20 },
-      { id: 'topo-contour-7', type: 'cord', d: 'M 0 480 C 370 600 630 440 760 540 C 910 600 980 480 1000 490', defaultColor: '#F43F5E', strokeWidth: 20 },
-      { id: 'topo-contour-8', type: 'cord', d: 'M 0 550 C 390 670 660 510 770 610 L 1000 560', defaultColor: '#FB923C', strokeWidth: 20 },
+      // Canyon Elevation Grooves
+      { id: 'sunset-g-1', type: 'groove', d: 'M 0 50 C 240 160 430 10 680 110 C 830 170 900 50 1000 60', defaultColor: '#1F0F0C', strokeWidth: 16 },
+      { id: 'sunset-g-2', type: 'groove', d: 'M 0 120 C 260 230 460 80 690 180 C 840 240 910 120 1000 130', defaultColor: '#1F0F0C', strokeWidth: 16 },
+      { id: 'sunset-g-3', type: 'groove', d: 'M 0 190 C 280 300 490 150 700 250 C 850 310 920 190 1000 200', defaultColor: '#1F0F0C', strokeWidth: 16 },
+      { id: 'sunset-g-4', type: 'groove', d: 'M 0 260 C 300 370 520 220 710 320 C 860 380 930 260 1000 270', defaultColor: '#1F0F0C', strokeWidth: 16 },
+
+      // Sunset Cords with Cut-offs
+      { id: 'cord-sunset-rose-1', type: 'cord', d: 'M 0 70 C 250 190 450 30 700 130', defaultColor: '#FB7185', strokeWidth: 22, zIndex: 6 },
+      { id: 'cord-sunset-rose-2', type: 'cord', d: 'M 700 130 C 850 190 920 70 1000 80', defaultColor: '#FB7185', strokeWidth: 22, zIndex: 6 },
+      { id: 'cord-sunset-peach-1', type: 'cord', d: 'M 0 210 C 290 330 510 170 720 270', defaultColor: '#FB923C', strokeWidth: 22, zIndex: 7 },
+      { id: 'cord-sunset-peach-2', type: 'cord', d: 'M 720 270 C 870 330 940 210 1000 220', defaultColor: '#FB923C', strokeWidth: 22, zIndex: 7 },
+      { id: 'cord-sunset-honey-knot', type: 'cord', d: 'M 350 320 C 380 260 440 260 430 340 C 420 400 480 430 540 400', defaultColor: '#FBBF24', strokeWidth: 24, zIndex: 12 },
+      { id: 'cord-sunset-lilac-wave', type: 'cord', d: 'M 0 420 C 350 540 600 380 750 480 C 900 540 970 420 1000 430', defaultColor: '#C084FC', strokeWidth: 22, zIndex: 8 },
     ],
   },
 
-  // 4. Flora Labyrinth Mandala
+  // =========================================================================
+  // 5. Pastel Dream Swirl Mat (Lavender Base with Candy Swirl Noodle Loops)
+  // =========================================================================
   {
-    id: 'flora-mandala',
-    title: 'Flora Lotus Mandala',
-    subtitle: 'Calming sacred geometry with interlocking petal spirals',
-    category: 'flora-mandala',
-    description: 'Mandala tracing has been proven in clinical psychological trials to reduce situational anxiety by focusing repetitive motor actions on harmonious center-balanced symmetry.',
-    baseColor: '#1F1A24',
-    grooveColor: '#120F16',
-    viewBox: '0 0 1000 620',
+    id: 'curli-candy',
+    title: 'Pastel Candy Swirl',
+    subtitle: 'Soft lilac silicone pad with sweet marshmallow noodle loops',
+    category: 'sensory-mat',
+    description: 'Gentle low-contrast pastel silicone mat. Designed to prevent eye strain and sensory overwhelm while providing pleasant repetitive tactile feedback.',
+    baseColor: '#252030',
+    grooveColor: '#14111C',
+    viewBox: '0 0 1000 625',
     width: 1000,
-    height: 620,
+    height: 625,
     aspectRatio: '16/10',
-    recommendedPaletteId: 'ocean-abyss',
+    recommendedPaletteId: 'pastel-candy',
     segments: [
-      // Central Bloom
-      { id: 'mandala-center', type: 'ridge', d: 'M 500 270 A 40 40 0 1 0 500 350 A 40 40 0 1 0 500 270', defaultColor: '#38BDF8', strokeWidth: 22, zIndex: 10 },
+      // Concentric Grooves
+      { id: 'candy-g-1', type: 'groove', d: 'M 35 110 A 75 75 0 0 1 110 35', defaultColor: '#14111C', strokeWidth: 14 },
+      { id: 'candy-g-2', type: 'groove', d: 'M 35 160 A 125 125 0 0 1 160 35', defaultColor: '#14111C', strokeWidth: 14 },
+      { id: 'candy-g-waves', type: 'groove', d: 'M 35 340 C 240 340 360 260 520 260 C 680 260 800 340 965 340', defaultColor: '#14111C', strokeWidth: 14 },
+      { id: 'candy-g-arch', type: 'groove', d: 'M 490 595 L 490 430 C 490 350 630 350 630 430 L 630 595', defaultColor: '#14111C', strokeWidth: 14 },
 
-      // Cardinal Petals
-      { id: 'petal-north', type: 'cord', d: 'M 470 270 C 420 180 500 90 500 90 C 500 90 580 180 530 270', defaultColor: '#0284C7', strokeWidth: 20, zIndex: 6 },
-      { id: 'petal-south', type: 'cord', d: 'M 470 350 C 420 440 500 530 500 530 C 500 530 580 440 530 350', defaultColor: '#0284C7', strokeWidth: 20, zIndex: 6 },
-      { id: 'petal-west', type: 'cord', d: 'M 460 280 C 370 230 280 310 280 310 C 280 310 370 390 460 340', defaultColor: '#0EA5E9', strokeWidth: 20, zIndex: 6 },
-      { id: 'petal-east', type: 'cord', d: 'M 540 280 C 630 230 720 310 720 310 C 720 310 630 390 540 340', defaultColor: '#0EA5E9', strokeWidth: 20, zIndex: 6 },
-
-      // Diagonal Interlocking Loops
-      { id: 'petal-nw', type: 'cord', d: 'M 450 250 C 360 170 320 220 380 280', defaultColor: '#67E8F9', strokeWidth: 20, zIndex: 7 },
-      { id: 'petal-ne', type: 'cord', d: 'M 550 250 C 640 170 680 220 620 280', defaultColor: '#67E8F9', strokeWidth: 20, zIndex: 7 },
-      { id: 'petal-sw', type: 'cord', d: 'M 450 370 C 360 450 320 400 380 340', defaultColor: '#99F6E4', strokeWidth: 20, zIndex: 7 },
-      { id: 'petal-se', type: 'cord', d: 'M 550 370 C 640 450 680 400 620 340', defaultColor: '#99F6E4', strokeWidth: 20, zIndex: 7 },
-
-      // Outer Harmonic Ring
-      { id: 'mandala-ring-inner', type: 'groove', d: 'M 500 130 A 180 180 0 1 0 500 490 A 180 180 0 1 0 500 130', defaultColor: '#120F16', strokeWidth: 16 },
-      { id: 'mandala-ring-outer', type: 'groove', d: 'M 500 60 A 250 250 0 1 0 500 560 A 250 250 0 1 0 500 60', defaultColor: '#120F16', strokeWidth: 16 },
+      // Pastel Cords with Cut-offs
+      { id: 'cord-candy-pink-1', type: 'cord', d: 'M 20 230 C 65 230 120 220 160 180', defaultColor: '#FECDD3', strokeWidth: 22, zIndex: 6 },
+      { id: 'cord-candy-pink-loop', type: 'cord', d: 'M 160 180 C 175 130 220 120 230 160 C 240 200 200 230 170 230', defaultColor: '#FECDD3', strokeWidth: 24, zIndex: 12 },
+      { id: 'cord-candy-blue-plunge', type: 'cord', d: 'M 300 10 C 310 80 335 130 355 170', defaultColor: '#BAE6FD', strokeWidth: 22, zIndex: 8 },
+      { id: 'cord-candy-blue-loop', type: 'cord', d: 'M 355 170 C 370 115 410 125 395 185 C 385 220 425 240 465 230', defaultColor: '#BAE6FD', strokeWidth: 24, zIndex: 14 },
+      { id: 'cord-candy-mint-sweep', type: 'cord', d: 'M 420 610 C 420 530 400 480 380 460 C 355 435 390 410 420 435 L 400 490', defaultColor: '#BBF7D0', strokeWidth: 22, zIndex: 9 },
+      { id: 'cord-candy-butter-zig', type: 'cord', d: 'M 605 160 C 650 160 710 145 750 125 C 775 95 830 95 800 150 C 780 185 830 165 890 135', defaultColor: '#FEF08A', strokeWidth: 22, zIndex: 10 },
+      { id: 'cord-candy-lavender-arc', type: 'cord', d: 'M 720 610 C 730 530 780 450 860 390 C 910 350 960 350 990 350', defaultColor: '#E9D5FF', strokeWidth: 22, zIndex: 8 },
     ],
   },
 ];

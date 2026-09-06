@@ -58,6 +58,7 @@ interface ColoringToolbarProps {
   onToggleSound: () => void;
   hapticsEnabled: boolean;
   onToggleHaptics: () => void;
+  onLoadReference?: () => void;
 }
 
 export default function ColoringToolbar({
@@ -89,6 +90,7 @@ export default function ColoringToolbar({
   onToggleSound,
   hapticsEnabled,
   onToggleHaptics,
+  onLoadReference,
 }: ColoringToolbarProps) {
   // Left or right side dock for left-handed / right-handed ergonomics
   const [dockSide, setDockSide] = useState<'left' | 'right'>('left');
@@ -242,16 +244,31 @@ export default function ColoringToolbar({
                   </button>
                 </div>
 
-                {/* Reset Artwork */}
-                <button
-                  onClick={() => {
-                    setShowMenu(false);
-                    onReset();
-                  }}
-                  className="mt-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-semibold transition-colors"
-                >
-                  <RotateCcw size={13} /> Reset Sheet
-                </button>
+                {/* Template & Color Actions */}
+                <div className="flex flex-col gap-1 pt-1 border-t border-white/10">
+                  {onLoadReference && (
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        onLoadReference();
+                      }}
+                      className="flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 font-semibold transition-colors"
+                      title="Fill noodles with original reference photo colors"
+                    >
+                      <Sparkles size={13} /> Load Reference Colors
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      onReset();
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 font-semibold transition-colors"
+                    title="Clear paint to blank silicone template"
+                  >
+                    <RotateCcw size={13} /> Blank Silicone Sheet
+                  </button>
+                </div>
               </div>
             )}
           </div>

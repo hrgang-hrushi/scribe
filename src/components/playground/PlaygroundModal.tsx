@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PLAYGROUND_DESIGNS, COLOR_PALETTES } from '@/lib/playground-designs';
 import { playMeditationBell } from '@/lib/playground-sound';
 import type { ColoringTool, EyedropperState } from '@/lib/playground-types';
-import ColoringCanvas, { ColoringCanvasRef } from './ColoringCanvas';
+import ColoringCanvas, { type ColoringCanvasRef } from './ColoringCanvas';
 import ColoringToolbar from './ColoringToolbar';
 import BreakLockModal from './BreakLockModal';
 
@@ -19,13 +19,13 @@ export default function PlaygroundModal({
   onClose,
   noteTitle,
 }: PlaygroundModalProps) {
-  // Active design (Default: Picnic Friends from video)
-  const [activeDesignId, setActiveDesignId] = useState<string>('picnic-friends');
+  // Active design (Default: 3D Curly Silicone Fidget Mat from user reference image)
+  const [activeDesignId, setActiveDesignId] = useState<string>('curli-original');
   const activeDesign = PLAYGROUND_DESIGNS.find(d => d.id === activeDesignId) || PLAYGROUND_DESIGNS[0];
 
-  // Palette & Active Color (Default: Picnic Warmth)
-  const [activePaletteId, setActivePaletteId] = useState<string>(activeDesign.recommendedPaletteId || 'picnic-warmth');
-  const [activeColor, setActiveColor] = useState<string>('#9C5238'); // Warm guitar amber
+  // Palette & Active Color (Default: Silicone Pop Electric Cyan)
+  const [activePaletteId, setActivePaletteId] = useState<string>(activeDesign.recommendedPaletteId || 'silicone-pop');
+  const [activeColor, setActiveColor] = useState<string>('#06B6D4'); // Electric cyan
 
   // Tool & Brush Settings
   const [activeTool, setActiveTool] = useState<ColoringTool>('brush');
@@ -149,7 +149,7 @@ export default function PlaygroundModal({
         style={{ background: activeColor }}
       />
 
-      {/* Main Interactive Coloring Canvas */}
+      {/* Main Interactive Tactile Silicone Mat Real Drawing Canvas */}
       <main className="flex-1 w-full h-full relative z-10 overflow-hidden">
         <ColoringCanvas
           ref={canvasRef}
@@ -195,6 +195,7 @@ export default function PlaygroundModal({
         canRedo={canvasRef.current?.canRedo ?? false}
         onClose={onClose}
         onReset={() => canvasRef.current?.clearCanvas()}
+        onLoadReference={() => canvasRef.current?.loadReferenceColors()}
         secondsLeft={secondsLeft}
         isTimerRunning={isTimerRunning}
         onToggleTimer={() => setIsTimerRunning(!isTimerRunning)}
