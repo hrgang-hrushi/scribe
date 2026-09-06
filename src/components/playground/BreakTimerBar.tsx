@@ -37,8 +37,6 @@ export default function BreakTimerBar({
   const seconds = secondsLeft % 60;
   const progress = Math.max(0, Math.min(1, 1 - secondsLeft / Math.max(1, totalDurationSeconds)));
 
-  const activeDesign = PLAYGROUND_DESIGNS.find(d => d.id === activeDesignId) || PLAYGROUND_DESIGNS[0];
-
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-2xl glass-panel shadow-2xl backdrop-blur-xl border border-white/10 dark:border-white/5 select-none">
       {/* Left: Back to Study & Design Switcher */}

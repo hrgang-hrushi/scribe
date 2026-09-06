@@ -10,6 +10,7 @@ interface BreakLockModalProps {
   onReturnToWork: () => void;
   onSnoozeOneMinute: () => void;
   onExportArt?: () => void;
+  noteTitle?: string;
 }
 
 export default function BreakLockModal({
@@ -19,6 +20,7 @@ export default function BreakLockModal({
   onReturnToWork,
   onSnoozeOneMinute,
   onExportArt,
+  noteTitle,
 }: BreakLockModalProps) {
   const percentComplete = Math.round((segmentsColored / Math.max(1, totalSegments)) * 100);
 
@@ -65,7 +67,7 @@ export default function BreakLockModal({
           onClick={onReturnToWork}
           className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-zinc-950 font-black text-sm tracking-wide shadow-xl shadow-amber-500/20 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 mb-3"
         >
-          <span>Get Back to Work</span>
+          <span>{noteTitle ? `Return to "${noteTitle}"` : 'Get Back to Work'}</span>
           <ArrowRight size={16} />
         </button>
 

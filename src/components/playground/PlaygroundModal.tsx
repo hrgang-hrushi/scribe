@@ -225,6 +225,7 @@ export default function PlaygroundModal({
           totalSegments={totalSegments}
           onReturnToWork={handleReturnToWork}
           onSnoozeOneMinute={handleSnooze}
+          noteTitle={noteTitle}
         />
       )}
     </div>

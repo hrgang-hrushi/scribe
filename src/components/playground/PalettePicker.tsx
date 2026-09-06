@@ -140,7 +140,7 @@ export default function PalettePicker({
 
           <button
             onClick={() => {
-              if (coloredCount > 0 && confirm('Clear the board to start fresh?')) {
+              if (coloredCount > 0 && typeof window !== 'undefined' && window.confirm('Clear the board to start fresh?')) {
                 onResetBoard();
               }
             }}
