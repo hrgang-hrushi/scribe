@@ -2,39 +2,155 @@ import type { PlaygroundDesign, ColorPalette } from './playground-types';
 
 export const COLOR_PALETTES: ColorPalette[] = [
   {
+    id: 'picnic-warmth',
+    name: 'Picnic Warmth',
+    psychologicalEffect: 'Earthy comfort, nostalgic warmth, and dopamine stimulation (Reference Match)',
+    colors: [
+      '#4A3B32', // Chocolate Fur
+      '#9C5238', // Amber Wood
+      '#C27D38', // Warm Cinnamon
+      '#E5A93C', // Butter / Golden Bread
+      '#556B2F', // Olive Basket Green
+      '#B22222', // Rich Crimson Red
+      '#FDF5E6', // Cream Blanket White
+      '#708238', // Sage Scarf Green
+      '#DDA15E', // Warm Sand
+      '#BC6C25', // Caramel Crust
+      '#FFB703', // Sunshine Yellow
+      '#283618', // Deep Forest Pine
+    ],
+  },
+  {
     id: 'silicone-pop',
     name: 'Silicone Pop',
-    psychologicalEffect: 'Playful stimulation, sensory focus, and tactile joy (Reference Match)',
-    colors: ['#F97316', '#06B6D4', '#FDE047', '#FFFFFF', '#14B8A6', '#A855F7'],
+    psychologicalEffect: 'Playful stimulation, sensory focus, and tactile joy',
+    colors: ['#F97316', '#06B6D4', '#FDE047', '#FFFFFF', '#14B8A6', '#A855F7', '#EC4899', '#3B82F6'],
   },
   {
     id: 'matcha-zen',
     name: 'Matcha & Moss',
     psychologicalEffect: 'Vagus nerve calming, lowers blood pressure, grounding biophilic tones',
-    colors: ['#84A98C', '#52796F', '#354F52', '#CAD2C5', '#E9D8A6', '#D4A373'],
+    colors: ['#84A98C', '#52796F', '#354F52', '#CAD2C5', '#E9D8A6', '#D4A373', '#A3B18A', '#588157'],
   },
   {
     id: 'sunset-glow',
     name: 'Warm Sunset',
     psychologicalEffect: 'Serotonin boost, cozy comfort, relieves academic fatigue',
-    colors: ['#FB7185', '#FB923C', '#FBBF24', '#F472B6', '#C084FC', '#FDA4AF'],
+    colors: ['#FB7185', '#FB923C', '#FBBF24', '#F472B6', '#C084FC', '#FDA4AF', '#F43F5E', '#FFE4E6'],
   },
   {
     id: 'ocean-abyss',
     name: 'Deep Ocean',
     psychologicalEffect: 'Heart rate deceleration, mental clarity, cooling tension release',
-    colors: ['#38BDF8', '#0284C7', '#0EA5E9', '#67E8F9', '#99F6E4', '#F0FDFA'],
+    colors: ['#38BDF8', '#0284C7', '#0EA5E9', '#67E8F9', '#99F6E4', '#F0FDFA', '#0369A1', '#E0F2FE'],
   },
   {
     id: 'pastel-candy',
     name: 'Pastel Dream',
     psychologicalEffect: 'Gentle low-contrast aesthetic, soft eyes, non-overwhelming rest',
-    colors: ['#FECDD3', '#FED7AA', '#FEF08A', '#BBF7D0', '#BAE6FD', '#E9D5FF'],
+    colors: ['#FECDD3', '#FED7AA', '#FEF08A', '#BBF7D0', '#BAE6FD', '#E9D5FF', '#FBCFE8', '#F5D0FE'],
   },
 ];
 
 export const PLAYGROUND_DESIGNS: PlaygroundDesign[] = [
-  // 1. Curli Sensory Fidget Mat (Direct homage to the reference image)
+  // 1. Picnic Friends (Exact recreation from user reference video)
+  {
+    id: 'picnic-friends',
+    title: 'Picnic Friends',
+    subtitle: 'A cozy afternoon with acoustic guitar, picnic basket & sweet treats',
+    category: 'coloring-book',
+    description: 'A comforting, heart-warming picnic scene. Coloring organic characters and picnic treats reduces cognitive cortisol and elevates dopamine through gentle, low-demand creativity.',
+    baseColor: '#FFFFFF',
+    grooveColor: '#E4E4E7',
+    viewBox: '0 0 800 1000',
+    width: 800,
+    height: 1000,
+    aspectRatio: '4/5',
+    recommendedPaletteId: 'picnic-warmth',
+    segments: [
+      // Bear Character (Left)
+      { id: 'picnic-bear-head', type: 'region', d: 'M 190 200 C 130 200 120 280 120 330 C 120 400 180 430 260 430 C 330 430 380 390 380 320 C 380 250 340 200 280 200 Z', defaultColor: '#FDFBF7', label: 'Bear Head' },
+      { id: 'picnic-bear-ear-l-out', type: 'region', d: 'M 140 220 C 100 180 110 120 160 120 C 190 120 190 170 170 210 Z', defaultColor: '#FDFBF7', label: 'Bear Left Ear Outer' },
+      { id: 'picnic-bear-ear-l-in', type: 'region', d: 'M 145 195 C 125 170 130 140 160 140 C 175 140 175 170 165 195 Z', defaultColor: '#FDFBF7', label: 'Bear Left Ear Inner' },
+      { id: 'picnic-bear-ear-r-out', type: 'region', d: 'M 290 210 C 320 170 360 140 390 160 C 420 180 390 230 350 240 Z', defaultColor: '#FDFBF7', label: 'Bear Right Ear Outer' },
+      { id: 'picnic-bear-ear-r-in', type: 'region', d: 'M 310 215 C 330 185 360 165 380 180 C 395 195 375 225 345 235 Z', defaultColor: '#FDFBF7', label: 'Bear Right Ear Inner' },
+      { id: 'picnic-bear-snout', type: 'region', d: 'M 210 320 C 200 280 300 280 300 320 C 300 360 210 360 210 320 Z', defaultColor: '#FDFBF7', label: 'Bear Snout' },
+      { id: 'picnic-bear-arm-l', type: 'region', d: 'M 170 380 C 120 410 130 500 190 530 C 230 540 240 480 220 430 Z', defaultColor: '#FDFBF7', label: 'Bear Left Arm' },
+      { id: 'picnic-bear-arm-r', type: 'region', d: 'M 280 380 C 350 380 440 370 510 350 C 530 330 490 310 440 320 L 340 340 Z', defaultColor: '#FDFBF7', label: 'Bear Right Arm' },
+      { id: 'picnic-bear-shirt', type: 'region', d: 'M 180 380 C 210 370 280 370 320 380 L 330 450 C 270 460 220 450 180 440 Z', defaultColor: '#FDFBF7', label: 'Bear Shirt' },
+
+      // Acoustic Guitar
+      { id: 'picnic-guitar-body', type: 'region', d: 'M 190 470 C 170 410 230 370 290 370 C 360 370 410 420 400 480 C 390 530 340 570 260 570 C 190 570 160 520 190 470 Z', defaultColor: '#FDFBF7', label: 'Guitar Body' },
+      { id: 'picnic-guitar-pickguard', type: 'region', d: 'M 280 430 C 300 395 350 400 370 435 C 380 475 350 515 305 515 C 275 515 270 465 280 430 Z', defaultColor: '#FDFBF7', label: 'Guitar Pickguard' },
+      { id: 'picnic-guitar-soundhole', type: 'region', d: 'M 280 445 C 300 445 315 460 315 480 C 315 500 300 515 280 515 C 260 515 245 500 245 480 C 245 460 260 445 280 445 Z', defaultColor: '#FDFBF7', label: 'Guitar Soundhole' },
+      { id: 'picnic-guitar-neck', type: 'region', d: 'M 380 420 L 540 310 L 555 330 L 395 440 Z', defaultColor: '#FDFBF7', label: 'Guitar Fretboard' },
+      { id: 'picnic-guitar-head', type: 'region', d: 'M 540 310 L 610 260 L 635 295 L 555 330 Z', defaultColor: '#FDFBF7', label: 'Guitar Headstock' },
+
+      // Bunny Character (Right)
+      { id: 'picnic-bunny-head', type: 'region', d: 'M 490 280 C 430 280 410 340 410 390 C 410 440 450 480 530 480 C 600 480 640 430 640 370 C 640 310 570 280 490 280 Z', defaultColor: '#FDFBF7', label: 'Bunny Head' },
+      { id: 'picnic-bunny-ear-l', type: 'region', d: 'M 470 280 C 450 180 480 120 520 120 C 550 120 540 200 500 280 Z', defaultColor: '#FDFBF7', label: 'Bunny Left Ear' },
+      { id: 'picnic-bunny-ear-r', type: 'region', d: 'M 530 280 C 550 190 600 130 640 140 C 670 150 630 230 580 280 Z', defaultColor: '#FDFBF7', label: 'Bunny Right Ear' },
+      { id: 'picnic-bunny-bow', type: 'region', d: 'M 500 270 C 480 250 510 230 525 250 C 545 230 570 250 550 270 Z', defaultColor: '#FDFBF7', label: 'Bunny Bow' },
+      { id: 'picnic-bunny-scarf', type: 'region', d: 'M 440 420 C 420 460 490 500 550 490 C 600 480 620 440 590 410 C 550 435 490 435 440 420 Z', defaultColor: '#FDFBF7', label: 'Bunny Cozy Scarf' },
+      { id: 'picnic-bunny-sweater', type: 'region', d: 'M 445 465 L 430 545 C 500 570 580 565 620 530 L 595 460 Z', defaultColor: '#FDFBF7', label: 'Bunny Sweater' },
+      { id: 'picnic-bunny-sandwich', type: 'region', d: 'M 480 390 C 480 370 535 370 535 390 L 525 425 L 490 425 Z', defaultColor: '#FDFBF7', label: 'Bunny Treat' },
+
+      // Picnic Spread
+      { id: 'picnic-basket-body', type: 'region', d: 'M 220 660 L 250 830 C 340 850 510 850 600 820 L 615 660 C 490 650 350 650 220 660 Z', defaultColor: '#FDFBF7', label: 'Picnic Basket' },
+      { id: 'picnic-basket-handle', type: 'region', d: 'M 250 670 C 250 490 580 490 580 670 C 550 670 550 530 415 530 C 280 530 280 670 250 670 Z', defaultColor: '#FDFBF7', label: 'Basket Curved Handle' },
+      { id: 'picnic-bread', type: 'region', d: 'M 480 650 L 610 560 C 630 545 655 570 640 595 L 535 685 Z', defaultColor: '#FDFBF7', label: 'Baguette Loaf' },
+      { id: 'picnic-bottle', type: 'region', d: 'M 410 680 L 485 570 C 495 555 520 570 515 590 L 450 700 Z', defaultColor: '#FDFBF7', label: 'Cider Bottle' },
+      { id: 'picnic-pitcher', type: 'region', d: 'M 95 560 C 75 560 65 605 75 670 C 85 725 140 745 175 735 C 210 725 220 670 210 615 C 195 560 140 560 95 560 Z', defaultColor: '#FDFBF7', label: 'Heart Pitcher' },
+      { id: 'picnic-cup', type: 'region', d: 'M 160 665 C 140 665 140 710 175 720 C 210 720 220 690 200 665 Z', defaultColor: '#FDFBF7', label: 'Teacup' },
+      { id: 'picnic-cake', type: 'region', d: 'M 565 625 L 650 600 L 685 655 L 590 670 Z', defaultColor: '#FDFBF7', label: 'Cake Slice' },
+      { id: 'picnic-box', type: 'region', d: 'M 625 680 L 730 665 L 720 760 L 615 760 Z', defaultColor: '#FDFBF7', label: 'Treat Box' },
+      { id: 'picnic-blanket', type: 'region', d: 'M 40 540 L 760 540 L 790 890 L 15 890 Z', defaultColor: '#FDFBF7', label: 'Picnic Blanket' },
+      { id: 'picnic-grass-base', type: 'region', d: 'M 0 520 C 240 480 560 480 800 520 L 800 1000 L 0 1000 Z', defaultColor: '#FDFBF7', label: 'Grassy Meadow' },
+      { id: 'picnic-cloud-l', type: 'region', d: 'M 70 190 C 60 145 110 125 145 145 C 175 115 230 135 230 170 C 265 170 265 215 230 225 L 80 225 Z', defaultColor: '#FDFBF7', label: 'Left Cloud' },
+      { id: 'picnic-cloud-r', type: 'region', d: 'M 620 130 C 605 90 660 75 680 100 C 710 75 755 100 745 130 C 775 145 765 185 735 185 L 630 185 Z', defaultColor: '#FDFBF7', label: 'Right Cloud' },
+      { id: 'picnic-heart', type: 'region', d: 'M 580 90 C 560 60 520 80 540 110 L 580 150 L 620 110 C 640 80 600 60 580 90 Z', defaultColor: '#FDFBF7', label: 'Sky Floating Heart' },
+    ],
+    lineArtPaths: [
+      // Detailed crisp black contours
+      { d: 'M 190 200 C 130 200 120 280 120 330 C 120 400 180 430 260 430 C 330 430 380 390 380 320 C 380 250 340 200 280 200 Z', strokeWidth: 3.5 },
+      { d: 'M 140 220 C 100 180 110 120 160 120 C 190 120 190 170 170 210', strokeWidth: 3.5 },
+      { d: 'M 145 195 C 125 170 130 140 160 140 C 175 140 175 170 165 195', strokeWidth: 2.5 },
+      { d: 'M 290 210 C 320 170 360 140 390 160 C 420 180 390 230 350 240', strokeWidth: 3.5 },
+      { d: 'M 310 215 C 330 185 360 165 380 180 C 395 195 375 225 345 235', strokeWidth: 2.5 },
+      { d: 'M 210 320 C 200 280 300 280 300 320 C 300 360 210 360 210 320 Z', strokeWidth: 3 },
+      { d: 'M 245 295 A 6 6 0 1 1 245 307 A 6 6 0 1 1 245 295', strokeWidth: 3, fill: '#18181B' },
+      { d: 'M 265 295 A 6 6 0 1 1 265 307 A 6 6 0 1 1 265 295', strokeWidth: 3, fill: '#18181B' },
+      { d: 'M 255 315 L 255 330', strokeWidth: 2.5 },
+      { d: 'M 190 470 C 170 410 230 370 290 370 C 360 370 410 420 400 480 C 390 530 340 570 260 570 C 190 570 160 520 190 470 Z', strokeWidth: 3.5 },
+      { d: 'M 280 430 C 300 395 350 400 370 435 C 380 475 350 515 305 515 C 275 515 270 465 280 430 Z', strokeWidth: 3 },
+      { d: 'M 280 445 C 300 445 315 460 315 480 C 315 500 300 515 280 515 C 260 515 245 500 245 480 C 245 460 260 445 280 445 Z', strokeWidth: 3 },
+      { d: 'M 380 420 L 540 310 L 555 330 L 395 440 Z', strokeWidth: 3 },
+      { d: 'M 540 310 L 610 260 L 635 295 L 555 330 Z', strokeWidth: 3 },
+      { d: 'M 490 280 C 430 280 410 340 410 390 C 410 440 450 480 530 480 C 600 480 640 430 640 370 C 640 310 570 280 490 280 Z', strokeWidth: 3.5 },
+      { d: 'M 470 280 C 450 180 480 120 520 120 C 550 120 540 200 500 280', strokeWidth: 3.5 },
+      { d: 'M 530 280 C 550 190 600 130 640 140 C 670 150 630 230 580 280', strokeWidth: 3.5 },
+      { d: 'M 440 420 C 420 460 490 500 550 490 C 600 480 620 440 590 410 C 550 435 490 435 440 420 Z', strokeWidth: 3 },
+      { d: 'M 250 670 C 250 490 580 490 580 670 C 550 670 550 530 415 530 C 280 530 280 670 250 670 Z', strokeWidth: 3.5 },
+      { d: 'M 220 660 L 250 830 C 340 850 510 850 600 820 L 615 660 C 490 650 350 650 220 660 Z', strokeWidth: 3.5 },
+      { d: 'M 480 650 L 610 560 C 630 545 655 570 640 595 L 535 685 Z', strokeWidth: 3 },
+      { d: 'M 410 680 L 485 570 C 495 555 520 570 515 590 L 450 700 Z', strokeWidth: 3 },
+      { d: 'M 95 560 C 75 560 65 605 75 670 C 85 725 140 745 175 735 C 210 725 220 670 210 615 C 195 560 140 560 95 560 Z', strokeWidth: 3 },
+      { d: 'M 160 665 C 140 665 140 710 175 720 C 210 720 220 690 200 665 Z', strokeWidth: 3 },
+      { d: 'M 565 625 L 650 600 L 685 655 L 590 670 Z', strokeWidth: 3 },
+      { d: 'M 625 680 L 730 665 L 720 760 L 615 760 Z', strokeWidth: 3 },
+      { d: 'M 40 540 L 760 540 L 790 890 L 15 890 Z', strokeWidth: 3 },
+      { d: 'M 70 190 C 60 145 110 125 145 145 C 175 115 230 135 230 170 C 265 170 265 215 230 225 L 80 225 Z', strokeWidth: 2.5 },
+      { d: 'M 620 130 C 605 90 660 75 680 100 C 710 75 755 100 745 130 C 775 145 765 185 735 185 L 630 185 Z', strokeWidth: 2.5 },
+      { d: 'M 580 90 C 560 60 520 80 540 110 L 580 150 L 620 110 C 640 80 600 60 580 90 Z', strokeWidth: 2.5 },
+      // Grass blades & daisies
+      { d: 'M 130 900 L 135 870 L 142 900', strokeWidth: 2.5 },
+      { d: 'M 210 930 L 215 895 L 225 930', strokeWidth: 2.5 },
+      { d: 'M 680 890 L 685 860 L 695 890', strokeWidth: 2.5 },
+      { d: 'M 740 920 L 745 885 L 755 920', strokeWidth: 2.5 },
+    ],
+  },
+
+  // 2. Curli Sensory Fidget Mat (Homage to prompt 3 with bounded curly loops)
   {
     id: 'curli-mat',
     title: 'Curli Sensory Mat',
@@ -44,6 +160,8 @@ export const PLAYGROUND_DESIGNS: PlaygroundDesign[] = [
     baseColor: '#0A343D',
     grooveColor: '#052229',
     viewBox: '0 0 1000 620',
+    width: 1000,
+    height: 620,
     aspectRatio: '16/10',
     recommendedPaletteId: 'silicone-pop',
     segments: [
@@ -221,6 +339,8 @@ export const PLAYGROUND_DESIGNS: PlaygroundDesign[] = [
     baseColor: '#1A232A',
     grooveColor: '#0E1419',
     viewBox: '0 0 1000 620',
+    width: 1000,
+    height: 620,
     aspectRatio: '16/10',
     recommendedPaletteId: 'matcha-zen',
     segments: [
@@ -256,6 +376,8 @@ export const PLAYGROUND_DESIGNS: PlaygroundDesign[] = [
     baseColor: '#181E29',
     grooveColor: '#0D1117',
     viewBox: '0 0 1000 620',
+    width: 1000,
+    height: 620,
     aspectRatio: '16/10',
     recommendedPaletteId: 'sunset-glow',
     segments: [
@@ -280,6 +402,8 @@ export const PLAYGROUND_DESIGNS: PlaygroundDesign[] = [
     baseColor: '#1F1A24',
     grooveColor: '#120F16',
     viewBox: '0 0 1000 620',
+    width: 1000,
+    height: 620,
     aspectRatio: '16/10',
     recommendedPaletteId: 'ocean-abyss',
     segments: [

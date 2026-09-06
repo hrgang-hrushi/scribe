@@ -125,3 +125,45 @@ export function playMeditationBell(enabled = true) {
     });
   } catch {}
 }
+
+/**
+ * Plays a subtle, soft ASMR whisper stroke sound (like pencil or soft marker on textured paper).
+ */
+let lastStrokeSoundTime = 0;
+export function playBrushStroke(enabled = true) {
+  if (!enabled) return;
+  const nowMs = Date.now();
+  if (nowMs - lastStrokeSoundTime < 80) return; // Throttle to avoid audio stutter
+  lastStrokeSoundTime = nowMs;
+
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const bufferSize = ctx.sampleRate * 0.04;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.08;
+    }
+
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1400 + Math.random() * 400, now);
+    filter.Q.setValueAtTime(1.8, now);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.04, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    noise.start(now);
+  } catch {}
+}
