@@ -149,8 +149,8 @@ export default function SplitPdfViewer({ onClose, onInsertToNote }: SplitPdfView
 
       {/* Top Header Controls Bar */}
       <div
-        className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] gap-2 flex-wrap"
-        style={{ background: 'var(--bg-secondary)' }}
+        className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] gap-2 flex-wrap shadow-sm"
+        style={{ background: 'var(--toolbar-bg)', color: 'var(--text-primary)' }}
       >
         <div className="flex items-center gap-2 min-w-0">
           <BookOpen size={16} className="text-blue-500 shrink-0" />
@@ -165,43 +165,45 @@ export default function SplitPdfViewer({ onClose, onInsertToNote }: SplitPdfView
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage <= 1}
-              className="p-1 rounded hover:bg-[var(--bg-tertiary)] disabled:opacity-30"
+              className="p-1 rounded-md bg-[var(--bg-tertiary)] border border-[var(--border)] hover:opacity-80 text-[var(--text-primary)] disabled:opacity-30 transition-colors"
               title="Previous Page"
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={15} />
             </button>
-            <span className="text-xs font-mono px-1">
+            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--text-primary)]">
               {currentPage} / {numPages}
             </span>
             <button
               onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
               disabled={currentPage >= numPages}
-              className="p-1 rounded hover:bg-[var(--bg-tertiary)] disabled:opacity-30"
+              className="p-1 rounded-md bg-[var(--bg-tertiary)] border border-[var(--border)] hover:opacity-80 text-[var(--text-primary)] disabled:opacity-30 transition-colors"
               title="Next Page"
             >
-              <ChevronRight size={16} />
+              <ChevronRight size={15} />
             </button>
 
             <div className="w-[1px] h-4 bg-[var(--border)] mx-1" />
 
             <button
               onClick={() => setZoom((z) => Math.max(0.4, Math.round((z - 0.15) * 100) / 100))}
-              className="p-1 rounded hover:bg-[var(--bg-tertiary)]"
+              className="p-1 rounded-md bg-[var(--bg-tertiary)] border border-[var(--border)] hover:opacity-80 text-[var(--text-primary)] transition-colors"
               title="Zoom Out"
             >
-              <ZoomOut size={15} />
+              <ZoomOut size={14} />
             </button>
-            <span className="text-[11px] font-mono px-0.5">{Math.round(zoom * 100)}%</span>
+            <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--text-primary)]">
+              {Math.round(zoom * 100)}%
+            </span>
             <button
               onClick={() => setZoom((z) => Math.min(2.5, Math.round((z + 0.15) * 100) / 100))}
-              className="p-1 rounded hover:bg-[var(--bg-tertiary)]"
+              className="p-1 rounded-md bg-[var(--bg-tertiary)] border border-[var(--border)] hover:opacity-80 text-[var(--text-primary)] transition-colors"
               title="Zoom In"
             >
-              <ZoomIn size={15} />
+              <ZoomIn size={14} />
             </button>
             <button
               onClick={() => setZoom(1.0)}
-              className="p-1 rounded hover:bg-[var(--bg-tertiary)]"
+              className="p-1 rounded-md bg-[var(--bg-tertiary)] border border-[var(--border)] hover:opacity-80 text-[var(--text-primary)] transition-colors"
               title="Reset 100%"
             >
               <Maximize2 size={13} />
@@ -225,7 +227,7 @@ export default function SplitPdfViewer({ onClose, onInsertToNote }: SplitPdfView
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border border-[var(--border)] bg-[var(--bg-tertiary)] text-[var(--text-primary)] hover:opacity-80 transition-colors shadow-sm"
             title="Open another PDF document"
           >
             <FileUp size={13} />
@@ -234,7 +236,7 @@ export default function SplitPdfViewer({ onClose, onInsertToNote }: SplitPdfView
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)] text-neutral-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border)] hover:opacity-80 text-[var(--text-primary)] transition-colors shadow-sm"
             title="Close Split View"
           >
             <X size={15} />

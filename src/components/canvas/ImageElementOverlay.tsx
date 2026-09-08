@@ -340,12 +340,12 @@ export default function ImageElementOverlay({
       {/* 2. Top Header Grip / Selection Pill */}
       {!isCropping && (
         <div
-          className={`absolute -top-9 left-2 flex items-center gap-1.5 px-3 py-1 rounded-full glass-panel shadow-lg pointer-events-auto transition-all cursor-pointer ${
+          className={`absolute -top-9 left-2 flex items-center gap-1.5 px-3 py-1 rounded-full shadow-lg pointer-events-auto transition-all cursor-pointer ${
             isSelected
               ? 'border-2 border-[var(--accent)] bg-[var(--accent)] text-white shadow-xl opacity-100'
               : image.locked
-              ? 'bg-amber-500/90 text-white hover:bg-amber-600 opacity-90'
-              : 'border border-black/10 dark:border-white/10 hover:border-[var(--accent)] text-[var(--text-primary)] hover:scale-105 opacity-0 group-hover:opacity-100'
+              ? 'bg-amber-500 text-white hover:bg-amber-600 opacity-90'
+              : 'border border-[var(--border)] bg-[var(--toolbar-bg)] hover:border-[var(--accent)] text-[var(--text-primary)] hover:scale-105 opacity-0 group-hover:opacity-100'
           }`}
           onPointerDown={(e) => {
             e.stopPropagation();
@@ -565,7 +565,8 @@ export default function ImageElementOverlay({
       {/* 5. Floating Action Bar (When selected and single bar mode active) */}
       {isSelected && showSingleBar && (
         <div
-          className="absolute -top-14 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1.5 rounded-2xl glass-panel shadow-2xl z-50 pointer-events-auto border border-black/10 dark:border-white/10 animate-fade-in whitespace-nowrap"
+          className="absolute -top-14 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1.5 rounded-2xl shadow-2xl z-50 pointer-events-auto border border-[var(--border)] animate-fade-in whitespace-nowrap"
+          style={{ background: 'var(--toolbar-bg)' }}
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}

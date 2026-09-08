@@ -195,7 +195,7 @@ export default function PlaygroundModal({
         canRedo={canvasRef.current?.canRedo ?? false}
         onClose={onClose}
         onReset={() => canvasRef.current?.clearCanvas()}
-        onLoadReference={() => canvasRef.current?.loadReferenceColors()}
+        onLoadReference={() => canvasRef.current?.loadReferenceColors?.()}
         secondsLeft={secondsLeft}
         isTimerRunning={isTimerRunning}
         onToggleTimer={() => setIsTimerRunning(!isTimerRunning)}

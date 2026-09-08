@@ -274,26 +274,26 @@ export default function NotePage() {
   return (
     <div
       className="h-full flex flex-col overflow-hidden relative font-sans"
-      style={{ background: activePaperTheme.bg }}
+      style={{ background: 'var(--bg-primary)' }}
     >
       {/* Top Bar (Distraction-Free Zen Mode Support) */}
       {!focusMode && (
         <div
-          className="safe-top flex items-center justify-between px-3 md:px-5 py-2 z-20 transition-all duration-300 glass-panel"
+          className="safe-top flex items-center justify-between px-3 md:px-5 py-2.5 z-20 transition-all duration-300 border-b border-[var(--border)] shadow-sm"
           style={{
             background: 'var(--toolbar-bg)',
-            borderBottom: '1px solid var(--border)',
+            color: 'var(--text-primary)',
           }}
         >
           {/* Left: Back & Title */}
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => router.back()}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-105"
-              style={{ background: 'var(--bg-tertiary)' }}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-105 border border-[var(--border)] shadow-sm"
+              style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
               title="Back"
             >
-              <ChevronLeft size={18} style={{ color: 'var(--text-primary)' }} />
+              <ChevronLeft size={18} />
             </button>
 
             <div
@@ -323,7 +323,7 @@ export default function NotePage() {
                 </h2>
               )}
               {note?.date && !note?.title?.includes(note.date) && (
-                <span className="text-[11px] font-semibold opacity-40 whitespace-nowrap shrink-0 hidden md:inline" style={{ color: 'var(--text-primary)' }}>
+                <span className="text-[11px] font-semibold opacity-50 whitespace-nowrap shrink-0 hidden md:inline" style={{ color: 'var(--text-primary)' }}>
                   ({note.date})
                 </span>
               )}
@@ -332,7 +332,7 @@ export default function NotePage() {
             {/* Note Format Badge (Pages vs Canvas Toggle) */}
             <button
               onClick={() => handleSwitchMode(note?.pageType === 'infinite' ? 'paginated' : 'infinite')}
-              className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all hover:scale-105 shrink-0"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold transition-all hover:scale-105 shrink-0 border border-[var(--border)] shadow-sm"
               style={{
                 background: 'var(--bg-tertiary)',
                 color: 'var(--text-primary)',
@@ -357,7 +357,7 @@ export default function NotePage() {
           <div className="flex items-center gap-1.5 md:gap-2">
             {/* Save indicator */}
             <span
-              className="text-xs px-2 py-1 rounded-md font-medium"
+              className="text-xs px-2.5 py-1 rounded-md font-medium"
               style={{
                 color:
                   saveStatus === 'saved'
@@ -383,14 +383,17 @@ export default function NotePage() {
             <div className="relative">
               <button
                 onClick={() => setShowPaperMenu(v => !v)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:scale-105"
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:scale-105 border border-[var(--border)] shadow-sm"
                 style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
                 title="Paper Themes"
               >
                 <Palette size={16} />
               </button>
               {showPaperMenu && (
-                <div className="absolute top-full right-0 mt-2 p-2 rounded-2xl shadow-2xl glass-panel flex flex-col gap-1 z-50 min-w-[190px] animate-slide-up">
+                <div
+                  className="absolute top-full right-0 mt-2 p-2 rounded-2xl shadow-2xl flex flex-col gap-1 z-50 min-w-[190px] animate-slide-up border border-[var(--border)]"
+                  style={{ background: 'var(--toolbar-bg)' }}
+                >
                   <div className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 text-[var(--text-muted)]">
                     Paper Themes
                   </div>
@@ -398,7 +401,7 @@ export default function NotePage() {
                     <button
                       key={c}
                       onClick={() => handleSwitchPaperColor(c)}
-                      className={`text-left px-3 py-2 text-xs font-semibold rounded-xl flex items-center justify-between ${
+                      className={`text-left px-3 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors ${
                         note?.paperColor === c ? 'bg-[var(--accent)] text-[var(--bg-primary)]' : 'hover:bg-black/10 dark:hover:bg-white/10 text-[var(--text-primary)]'
                       }`}
                     >
@@ -413,12 +416,12 @@ export default function NotePage() {
             {/* Split Screen Reference PDF Viewer */}
             <button
               onClick={() => setShowSplitPdf(prev => !prev)}
-              className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all hover:scale-105 ${
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all hover:scale-105 border border-[var(--border)] shadow-sm ${
                 showSplitPdf
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                  ? 'bg-blue-600 text-white shadow-md border-blue-500'
+                  : 'hover:opacity-90'
               }`}
-              style={!showSplitPdf ? { background: 'var(--bg-tertiary)' } : undefined}
+              style={!showSplitPdf ? { background: 'var(--bg-tertiary)', color: 'var(--text-primary)' } : undefined}
               title="Toggle Orientation-Aware Split Screen (PDF Reference + Notebook)"
             >
               <BookOpen size={14} />
@@ -428,17 +431,17 @@ export default function NotePage() {
             {/* Playground Sensory Break */}
             <button
               onClick={() => setShowPlayground(true)}
-              className="px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all hover:scale-105 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 shadow-sm"
-              title="Take a Mindful Tactile Break (⌘B)"
+              className="px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all hover:scale-105 bg-amber-500/15 text-amber-500 hover:bg-amber-500/25 border border-amber-500/30 shadow-sm"
+              title="Take a Mindful Break"
             >
-              <Sparkles size={14} className="text-amber-400" />
+              <Sparkles size={14} className="text-amber-500" />
               <span className="hidden sm:inline">Playground</span>
             </button>
 
             {/* Zen Focus Mode Button */}
             <button
               onClick={() => setFocusMode(true)}
-              className="px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all hover:scale-105"
+              className="px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all hover:scale-105 border border-[var(--border)] shadow-sm"
               style={{
                 background: 'var(--bg-tertiary)',
                 color: 'var(--text-primary)',
@@ -452,7 +455,7 @@ export default function NotePage() {
             {/* Settings */}
             <button
               onClick={() => setShowSettings(true)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors border border-[var(--border)] shadow-sm"
               style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
               title="Settings"
             >

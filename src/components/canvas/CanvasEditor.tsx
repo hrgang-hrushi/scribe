@@ -1753,7 +1753,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       {/* Floating Lasso Actions */}
       {selectedStrokes.length > 0 && (
         <div
-          className="absolute top-6 right-6 z-30 flex items-center gap-2 p-1.5 rounded-2xl glass-panel shadow-2xl animate-fade-in pointer-events-auto"
+          className="absolute top-6 right-6 z-30 flex items-center gap-2 p-1.5 rounded-2xl shadow-2xl animate-fade-in pointer-events-auto border border-[var(--border)]"
+          style={{ background: 'var(--toolbar-bg)' }}
           onClick={e => e.stopPropagation()}
         >
           <span className="text-xs font-semibold px-2 py-1" style={{ color: 'var(--text-muted)' }}>
@@ -1812,7 +1813,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       {/* Floating Multi-Selection Action Bar for Images / PDF Pages */}
       {selectedImageIds.length > 1 && (
         <div
-          className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 p-1.5 rounded-2xl glass-panel shadow-2xl animate-fade-in pointer-events-auto border border-black/10 dark:border-white/10"
+          className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 p-1.5 rounded-2xl shadow-2xl animate-fade-in pointer-events-auto border border-[var(--border)]"
+          style={{ background: 'var(--toolbar-bg)' }}
           onClick={e => e.stopPropagation()}
         >
           <span className="text-xs font-bold px-2 py-1 text-[var(--text-muted)]">
