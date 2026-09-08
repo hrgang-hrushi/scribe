@@ -113,7 +113,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     const centerY = (bounds.minY + bounds.maxY) / 2;
     const radius = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 2;
     const startTime = performance.now();
-    const duration = 160;
+    const duration = 280;
 
     function anim(now: number) {
       const elapsed = now - startTime;
@@ -126,12 +126,35 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         ctx.save();
         ctx.translate(panRef.current.x, panRef.current.y);
         ctx.scale(zoomRef.current, zoomRef.current);
+
+        // Inner flash ring
+        const flashRadius = Math.max(14, radius * (0.6 + progress * 0.6));
         ctx.beginPath();
-        ctx.arc(centerX, centerY, Math.max(12, radius * (0.8 + progress * 0.4)), 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(239, 68, 68, ${0.45 * (1 - progress)})`;
-        ctx.lineWidth = Math.max(1, (3 / zoomRef.current) * (1 - progress));
-        ctx.setLineDash([5, 5]);
+        ctx.arc(centerX, centerY, flashRadius, 0, Math.PI * 2);
+        const flashAlpha = 0.5 * (1 - progress);
+        ctx.fillStyle = `rgba(239, 68, 68, ${flashAlpha * 0.3})`;
+        ctx.fill();
+
+        // Outer dashed ring expanding outward
+        const ringRadius = Math.max(16, radius * (0.8 + progress * 0.5));
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${0.6 * (1 - progress)})`;
+        ctx.lineWidth = Math.max(2, (3.5 / zoomRef.current) * (1 - progress));
+        ctx.setLineDash([6, 4]);
         ctx.stroke();
+
+        // Subtle radial wipe hint
+        if (progress < 0.5) {
+          const wipeRadius = radius * 1.5 * (progress * 2);
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, wipeRadius, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${0.15 * (1 - progress * 2)})`;
+          ctx.lineWidth = 1 / zoomRef.current;
+          ctx.setLineDash([]);
+          ctx.stroke();
+        }
+
         ctx.restore();
         requestAnimationFrame(anim);
       }
@@ -550,6 +573,14 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       console.error('Error grouping PDF pages:', err);
     }
   }
+
+  // Clear image selection when switching away from select/image/lasso tools
+  useEffect(() => {
+    if (tool !== 'select' && tool !== 'image' && tool !== 'lasso') {
+      setSelectedImageIds([]);
+      setCroppingImageId(null);
+    }
+  }, [tool]);
 
   // Keyboard Shortcuts for Selected Objects (Delete, Cmd+D, Shift+C, Cmd+L, Cmd+G)
   useEffect(() => {
@@ -1442,7 +1473,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
           committedStrokes.current = committedStrokes.current.filter(s => !removedIds.has(s.id));
           pushCanvasUndo({ type: 'delete', strokes: removed });
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate([25, 40, 20]);
+            navigator.vibrate([15, 30, 25, 20, 15]);
           }
           currentStroke.current = [];
           clearOverlay();
