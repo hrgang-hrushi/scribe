@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { getStroke } from 'perfect-freehand';
-import type { Page, Stroke, Point, ImageBlock, Tool, ToolSettings, PaperColor, NoteTemplate } from '@/lib/types';
+import type { Page, Stroke, Point, ImageBlock, Tool, ToolSettings, PaperColor, NoteTemplate, ToolbarPosition } from '@/lib/types';
 import { PAPER_THEMES } from '@/lib/types';
 import { drawTemplateBackground } from '@/lib/templates';
 import {
@@ -46,6 +46,8 @@ export interface PagesEditorProps {
   onAddPage: () => void;
   onDeletePage?: (pageId: string) => void;
   onUndo?: () => void;
+  toolbarPosition?: ToolbarPosition;
+  focusMode?: boolean;
 }
 
 export interface PagesEditorRef {
@@ -72,6 +74,8 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   onSavePage,
   onAddPage,
   onDeletePage,
+  toolbarPosition = 'bottom',
+  focusMode = false,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<string, {
@@ -98,6 +102,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   const [zoom, setZoom] = useState<number>(1.0);
   const zoomRef = useRef<number>(1.0);
   zoomRef.current = zoom;
+  const hasUserZoomedRef = useRef(false);
 
   // Apple Pencil Priority & Palm Rejection
   const lastPenTime = useRef(0);
@@ -110,23 +115,26 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   // Touch Start Reference for Tap-to-Reveal Detection
   const touchStartClient = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Auto-fit calculation (responsive page fit to screen width)
+  // Auto-fit calculation (responsive page fit to screen with comfortable breathing room)
   const calculateFitZoom = useCallback(() => {
     if (!containerRef.current) return 1.0;
     const availableWidth = containerRef.current.clientWidth;
     if (!availableWidth) return 1.0;
-    const padding = availableWidth < 640 ? 24 : 48;
-    const targetWidth = availableWidth - padding;
+    const sidePillOffset = (toolbarPosition === 'left' || toolbarPosition === 'right') ? 96 : 0;
+    const basePadding = availableWidth < 640 ? 32 : availableWidth < 1024 ? 64 : 96;
+    const targetWidth = availableWidth - basePadding - sidePillOffset;
     const fit = targetWidth / PAGE_WIDTH;
     return Math.min(1.0, Math.max(0.35, Math.round(fit * 100) / 100));
-  }, []);
+  }, [toolbarPosition]);
 
-  // Initial auto-fit on mount
+  // Initial and dynamic auto-fit when layout / toolbar position shifts
   useEffect(() => {
-    const initialFit = calculateFitZoom();
-    setZoom(initialFit);
-    zoomRef.current = initialFit;
-  }, [calculateFitZoom]);
+    if (!hasUserZoomedRef.current) {
+      const initialFit = calculateFitZoom();
+      setZoom(initialFit);
+      zoomRef.current = initialFit;
+    }
+  }, [calculateFitZoom, toolbarPosition]);
 
   // Two-Finger Pinch-to-Zoom & Pan Gesture Engine (Native, Zero UI Dependency)
   useEffect(() => {
@@ -179,6 +187,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         const scale = currentDist / pinchStartDist;
         const newZoom = Math.min(2.5, Math.max(0.35, Math.round(pinchStartZoom * scale * 100) / 100));
 
+        hasUserZoomedRef.current = true;
         setZoom(newZoom);
         zoomRef.current = newZoom;
 
@@ -1631,14 +1640,26 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="w-full h-full overflow-y-auto overflow-x-auto p-4 md:p-8 flex flex-col items-center gap-8 no-scrollbar select-none"
+        className="w-full h-full overflow-y-auto overflow-x-auto flex flex-col items-center no-scrollbar select-none"
         style={{
           background: 'var(--canvas-bg)',
           touchAction: 'pan-x pan-y',
           WebkitOverflowScrolling: 'touch',
         }}
       >
-        <div className="flex flex-col items-center gap-8 w-fit min-w-full py-2">
+        <div
+          className={`flex flex-col items-center gap-8 md:gap-10 w-fit min-w-full transition-all duration-300 ${
+            toolbarPosition === 'top'
+              ? focusMode
+                ? 'pt-16 md:pt-20 pb-20 px-4 md:px-8'
+                : 'pt-24 md:pt-28 pb-20 px-4 md:px-8'
+              : toolbarPosition === 'left'
+              ? 'pt-8 md:pt-10 pb-28 pl-24 md:pl-28 pr-6 md:pr-8'
+              : toolbarPosition === 'right'
+              ? 'pt-8 md:pt-10 pb-28 pr-24 md:pr-28 pl-6 md:pl-8'
+              : 'pt-8 md:pt-10 pb-36 md:pb-44 px-4 md:px-8'
+          }`}
+        >
           {pages.map((page, index) => {
             const displayWidth = Math.round(PAGE_WIDTH * zoom);
             const displayHeight = Math.round(PAGE_HEIGHT * zoom);

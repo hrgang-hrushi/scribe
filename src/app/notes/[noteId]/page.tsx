@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AnimatePresence } from 'framer-motion';
 import { getPagesForNote, updatePage, updateNote, db, addPage } from '@/lib/db';
-import type { Note, Page, Tool, ToolSettings, PaperColor } from '@/lib/types';
+import type { Note, Page, Tool, ToolSettings, PaperColor, ToolbarPosition } from '@/lib/types';
 import { INK_COLORS, PAPER_THEMES } from '@/lib/types';
 import CanvasEditor from '@/components/canvas/CanvasEditor';
 import PagesEditor from '@/components/canvas/PagesEditor';
@@ -64,6 +64,7 @@ export default function NotePage() {
   const [editTitle, setEditTitle] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [showToolbar, setShowToolbar] = useState(true);
+  const [toolbarPosition, setToolbarPosition] = useState<ToolbarPosition>('bottom');
   const [focusMode, setFocusMode] = useState(false);
   const [showSplitPdf, setShowSplitPdf] = useState(false);
   const [splitPosition, setSplitPosition] = useState<'left' | 'right'>('left');
@@ -81,6 +82,10 @@ export default function NotePage() {
     const savedSplitPosition = localStorage.getItem('scribe-split-position');
     if (savedSplitPosition === 'left' || savedSplitPosition === 'right') {
       setSplitPosition(savedSplitPosition);
+    }
+    const savedToolbarPosition = localStorage.getItem('scribe-toolbar-position') as ToolbarPosition | null;
+    if (savedToolbarPosition && ['top', 'bottom', 'left', 'right'].includes(savedToolbarPosition)) {
+      setToolbarPosition(savedToolbarPosition);
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -285,6 +290,13 @@ export default function NotePage() {
       } catch {}
       return next;
     });
+  };
+
+  const handleToolbarPositionChange = (pos: ToolbarPosition) => {
+    setToolbarPosition(pos);
+    try {
+      localStorage.setItem('scribe-toolbar-position', pos);
+    } catch {}
   };
 
   const activePaperTheme = PAPER_THEMES[note?.paperColor || 'navy'] || PAPER_THEMES.navy;
@@ -569,6 +581,8 @@ export default function NotePage() {
                     onAddPage={handleNewPage}
                     onDeletePage={handleDeletePage}
                     onUndo={handleUndo}
+                    toolbarPosition={toolbarPosition}
+                    focusMode={focusMode}
                   />
                 )
               )}
@@ -598,6 +612,9 @@ export default function NotePage() {
         onAction={handleToolbarAction}
         theme={theme}
         paperColor={note?.paperColor}
+        position={toolbarPosition}
+        onPositionChange={handleToolbarPositionChange}
+        focusMode={focusMode}
       />
 
       {/* Full Color Picker Dialog */}

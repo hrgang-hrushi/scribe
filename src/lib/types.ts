@@ -177,6 +177,8 @@ export interface ToolSettings {
   quickColors?: string[];
 }
 
+export type ToolbarPosition = 'top' | 'bottom' | 'left' | 'right';
+
 export interface AppSettings {
   theme: 'light' | 'dark';
   defaultTemplate: NoteTemplate;
@@ -188,7 +190,7 @@ export interface AppSettings {
   autosaveInterval: number;
   showSaveStatus: boolean;
   showCalculator?: boolean;
-  toolbarPosition?: 'top' | 'bottom';
+  toolbarPosition?: ToolbarPosition;
 }
 
 export const GRADIENT_PRESETS = [

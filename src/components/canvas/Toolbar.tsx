@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import type { Tool, ToolSettings } from '@/lib/types';
+import type { Tool, ToolSettings, ToolbarPosition } from '@/lib/types';
 import { TAPE_COLORS } from '@/lib/types';
 
 interface ToolbarProps {
@@ -19,6 +19,9 @@ interface ToolbarProps {
   onAction?: (action: 'export-pdf' | 'export-png' | 'import' | 'clear') => void;
   theme?: 'light' | 'dark';
   paperColor?: string;
+  position?: ToolbarPosition;
+  onPositionChange?: (position: ToolbarPosition) => void;
+  focusMode?: boolean;
 }
 
 export type ToolbarOrientation = 'horizontal' | 'vertical-left' | 'vertical-right';
@@ -38,8 +41,13 @@ export default function Toolbar({
   activeTool, onToolChange, toolSettings, onSettingsChange,
   showColorPicker, onToggleColorPicker, visible, onToggle, onUndo, onRedo, onAction,
   theme = 'dark', paperColor = 'navy',
+  position = 'bottom', onPositionChange, focusMode = false,
 }: ToolbarProps) {
-  const [orientation, setOrientation] = useState<ToolbarOrientation>('horizontal');
+  const currentPos = position || 'bottom';
+  const isVertical = currentPos === 'left' || currentPos === 'right';
+  const isLeft = currentPos === 'left';
+  const isTop = currentPos === 'top';
+
   const [showSettings, setShowSettings] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -59,41 +67,56 @@ export default function Toolbar({
     return c;
   });
 
-  const isVertical = orientation === 'vertical-left' || orientation === 'vertical-right';
-  const isLeft = orientation === 'vertical-left';
-
   // Dynamic orientation detection on drag
   const handleDrag = (_: any, info: { point: { x: number; y: number } }) => {
     if (typeof window === 'undefined') return;
     const screenW = window.innerWidth;
-    const x = info.point.x;
+    const screenH = window.innerHeight;
+    const { x, y } = info.point;
 
-    // Left side of screen (< 25% of viewport width) -> Vertical left
-    if (x < screenW * 0.25) {
-      if (orientation !== 'vertical-left') {
-        setOrientation('vertical-left');
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          navigator.vibrate(20);
-        }
+    let nextPos: ToolbarPosition = 'bottom';
+    if (y < screenH * 0.32) {
+      nextPos = 'top';
+    } else if (y > screenH * 0.68) {
+      nextPos = 'bottom';
+    } else if (x < screenW * 0.28) {
+      nextPos = 'left';
+    } else if (x > screenW * 0.72) {
+      nextPos = 'right';
+    } else {
+      nextPos = y < screenH * 0.5 ? 'top' : 'bottom';
+    }
+
+    if (nextPos !== currentPos && onPositionChange) {
+      onPositionChange(nextPos);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(15);
       }
     }
-    // Right side of screen (> 75% of viewport width) -> Vertical right
-    else if (x > screenW * 0.75) {
-      if (orientation !== 'vertical-right') {
-        setOrientation('vertical-right');
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          navigator.vibrate(20);
-        }
-      }
+  };
+
+  const handleDragEnd = (_: any, info: { point: { x: number; y: number } }) => {
+    if (typeof window === 'undefined') return;
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight;
+    const { x, y } = info.point;
+
+    let nextPos: ToolbarPosition = 'bottom';
+    if (y < screenH * 0.32) {
+      nextPos = 'top';
+    } else if (y > screenH * 0.68) {
+      nextPos = 'bottom';
+    } else if (x < screenW * 0.28) {
+      nextPos = 'left';
+    } else if (x > screenW * 0.72) {
+      nextPos = 'right';
+    } else {
+      nextPos = y < screenH * 0.5 ? 'top' : 'bottom';
     }
-    // Middle / Bottom area -> Horizontal
-    else {
-      if (orientation !== 'horizontal') {
-        setOrientation('horizontal');
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          navigator.vibrate(20);
-        }
-      }
+
+    onPositionChange?.(nextPos);
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(25);
     }
   };
 
@@ -112,25 +135,39 @@ export default function Toolbar({
     );
   }
 
+  const containerClasses = isVertical
+    ? isLeft
+      ? 'fixed left-4 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center pointer-events-none'
+      : 'fixed right-4 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center pointer-events-none'
+    : isTop
+    ? focusMode
+      ? 'fixed top-3 left-0 right-0 z-40 flex justify-center pointer-events-none safe-top'
+      : 'fixed top-14 md:top-16 left-0 right-0 z-40 flex justify-center pointer-events-none safe-top'
+    : 'fixed bottom-6 left-0 right-0 z-40 flex justify-center pointer-events-none safe-bottom';
+
   return (
-    <div className="fixed bottom-6 left-0 right-0 z-40 flex justify-center pointer-events-none safe-bottom">
+    <div className={containerClasses}>
       <motion.div
+        key={currentPos}
         layout
         transition={{ type: 'spring', stiffness: 450, damping: 35 }}
         drag
         dragMomentum={false}
+        dragElastic={0.06}
         onDrag={handleDrag}
-        dragConstraints={{ left: -1000, right: 1000, top: -1000, bottom: 50 }}
+        onDragEnd={handleDragEnd}
+        dragConstraints={{ left: -1000, right: 1000, top: -1000, bottom: 1000 }}
         style={{ touchAction: 'none' }}
         className="relative flex flex-col items-center gap-2 cursor-grab active:cursor-grabbing pointer-events-auto"
-        dragElastic={0}
       >
         {/* Settings Slider Panel */}
         {showSettings && (
           <div
             className={`rounded-2xl p-4 shadow-2xl z-50 min-w-[250px] border border-[var(--border)] ${
               !isVertical
-                ? 'mb-2 animate-slide-up'
+                ? isTop
+                  ? 'mt-2 animate-slide-down'
+                  : 'mb-2 animate-slide-up'
                 : isLeft
                 ? 'absolute left-full ml-3 top-0 animate-fade-in'
                 : 'absolute right-full mr-3 top-0 animate-fade-in'
@@ -139,6 +176,7 @@ export default function Toolbar({
               background: 'var(--toolbar-bg)',
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
+              order: isTop ? 2 : 0,
             }}
           >
             <div className="flex flex-col gap-3">
@@ -307,10 +345,16 @@ export default function Toolbar({
         >
           {/* Subtle Drag Grip Indicator */}
           <div
-            className={`flex items-center justify-center opacity-30 hover:opacity-70 transition-opacity cursor-grab active:cursor-grabbing ${
-              isVertical ? 'w-full h-2 my-0.5' : 'h-full w-2 mx-0.5'
+            onClick={(e) => {
+              e.stopPropagation();
+              // Tap drag handle to flip between top and bottom
+              const next = currentPos === 'top' ? 'bottom' : 'top';
+              onPositionChange?.(next);
+            }}
+            className={`flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${
+              isVertical ? 'w-full h-2.5 my-0.5' : 'h-full w-2.5 mx-0.5'
             }`}
-            title="Drag to reposition toolbar"
+            title={`Drag to reposition, or tap to flip to ${currentPos === 'top' ? 'bottom' : 'top'}`}
           >
             <div
               className={`rounded-full bg-current ${
@@ -377,7 +421,9 @@ export default function Toolbar({
                   <div
                     className={`flex items-center gap-1 p-1 rounded-xl shadow-xl border border-[var(--border)] z-50 ${
                       !isVertical
-                        ? 'absolute bottom-full mb-3 left-1/2 -translate-x-1/2 animate-slide-up flex-row'
+                        ? isTop
+                          ? 'absolute top-full mt-3 left-1/2 -translate-x-1/2 animate-slide-down flex-row'
+                          : 'absolute bottom-full mb-3 left-1/2 -translate-x-1/2 animate-slide-up flex-row'
                         : isLeft
                         ? 'absolute left-full ml-3 top-1/2 -translate-y-1/2 animate-fade-in flex-col'
                         : 'absolute right-full mr-3 top-1/2 -translate-y-1/2 animate-fade-in flex-col'
@@ -555,9 +601,11 @@ export default function Toolbar({
               
               {showMoreMenu && (
                 <div
-                  className={`w-48 flex flex-col p-2 rounded-2xl shadow-xl border border-[var(--border)] z-50 ${
+                  className={`w-52 flex flex-col p-2 rounded-2xl shadow-xl border border-[var(--border)] z-50 ${
                     !isVertical
-                      ? 'absolute bottom-full mb-3 right-0 animate-slide-up'
+                      ? isTop
+                        ? 'absolute top-full mt-3 right-0 animate-slide-down'
+                        : 'absolute bottom-full mb-3 right-0 animate-slide-up'
                       : isLeft
                       ? 'absolute left-full ml-3 bottom-0 animate-fade-in'
                       : 'absolute right-full mr-3 bottom-0 animate-fade-in'
@@ -602,6 +650,32 @@ export default function Toolbar({
                         </button>
                       </div>
                     )}
+                  </div>
+
+                  {/* Dock Toolbar Pill Options */}
+                  <div className="pt-2 mt-1 border-t border-black/5 dark:border-white/5">
+                    <div className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 text-[var(--text-muted)]">
+                      Dock Toolbar Pill
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 p-1">
+                      {(['top', 'bottom', 'left', 'right'] as const).map(p => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => {
+                            setShowMoreMenu(false);
+                            onPositionChange?.(p);
+                          }}
+                          className={`text-xs py-1 px-2 rounded-lg font-semibold capitalize text-center transition-colors ${
+                            currentPos === p
+                              ? 'bg-[var(--accent)] text-[var(--bg-primary)]'
+                              : 'hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-primary)]'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   
                   <div className="w-full h-px bg-black/10 dark:bg-white/10 my-1" />
