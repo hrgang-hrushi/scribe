@@ -11,6 +11,7 @@ import React, {
 import type { PlaygroundDesign, ColoringTool, EyedropperState } from '@/lib/playground-types';
 import { playBrushStroke, playSiliconePop, playGentleChime } from '@/lib/playground-sound';
 import { ZoomIn, ZoomOut, Maximize2, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { isPalmTouch, calibratePressure } from '@/lib/canvas-gestures';
 
 export interface ColoringCanvasRef {
   undo: () => void;
@@ -73,6 +74,9 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
   const panStartMidRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const panStartTransformRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const isPinchingRef = useRef(false);
+  const lastPenTime = useRef(0);
+  const isPenActive = useRef(false);
+  const hasStylusDevice = useRef(false);
 
   // Drawing state
   const isDrawingRef = useRef(false);
@@ -546,23 +550,57 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
 
   // Pointer Down (Start drawing / Eyedropper / Bucket fill)
   const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'pen') {
+      lastPenTime.current = Date.now();
+      isPenActive.current = true;
+      hasStylusDevice.current = true;
+    }
+
     // Multi-touch gestures (Pinch zoom & pan)
     if (e.pointerType === 'touch') {
       activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
+      const inStylusSession =
+        hasStylusDevice.current ||
+        isPenActive.current ||
+        Date.now() - lastPenTime.current < 4500;
+
+      // Multi-layer palm rejection:
+      if (isPalmTouch(e, inStylusSession)) {
+        e.preventDefault();
+        return;
+      }
+
+      // Clustered 3+ touch slap rejection
+      if (activeTouchesRef.current.size >= 3) {
+        e.preventDefault();
+        return;
+      }
+
       if (activeTouchesRef.current.size === 2) {
+        const pts = Array.from(activeTouchesRef.current.values());
+        const touchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (touchDist < 45) {
+          e.preventDefault();
+          return;
+        }
+
         isPinchingRef.current = true;
         isDrawingRef.current = false;
         lastPointRef.current = null;
 
-        const pts = Array.from(activeTouchesRef.current.values());
-        pinchStartDistRef.current = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        pinchStartDistRef.current = touchDist;
         pinchStartScaleRef.current = transformRef.current.scale;
         panStartMidRef.current = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
         panStartTransformRef.current = { x: transformRef.current.x, y: transformRef.current.y };
         return;
       }
-      if (activeTouchesRef.current.size > 2) return;
+
+      // In stylus session, single touches from palm or resting fingers should NEVER draw or fill paint
+      if (inStylusSession) {
+        e.preventDefault();
+        return;
+      }
     }
 
     if (isPinchingRef.current) return;
@@ -635,8 +673,13 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
     isDrawingRef.current = true;
     lastPointRef.current = pt;
 
+    // Organic Apple Pencil pressure calibration
+    const pressureFactor = calibratePressure(e.pressure, e.pointerType);
+    const effectiveSize = brushSize * (0.75 + pressureFactor * 0.45);
+    const effectiveOpacity = Math.min(1, brushOpacity * (0.8 + pressureFactor * 0.35));
+
     // Draw initial dab under pen
-    drawBrushStroke(pt, pt, activeTool, activeColor, brushSize, brushOpacity, hitSegId);
+    drawBrushStroke(pt, pt, activeTool, activeColor, effectiveSize, effectiveOpacity, hitSegId);
 
     try {
       (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
@@ -645,28 +688,51 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
 
   // Pointer Move (Drawing ink strokes / Eyedropper drag)
   const handlePointerMove = (e: React.PointerEvent) => {
-    // Two-finger pinch zoom & pan
-    if (e.pointerType === 'touch' && activeTouchesRef.current.has(e.pointerId)) {
-      activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (e.pointerType === 'pen') {
+      lastPenTime.current = Date.now();
+      isPenActive.current = true;
+      hasStylusDevice.current = true;
+    }
 
-      if (activeTouchesRef.current.size === 2 && isPinchingRef.current) {
-        const pts = Array.from(activeTouchesRef.current.values());
-        const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        const currentMid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+    if (e.pointerType === 'touch') {
+      const inStylusSession =
+        hasStylusDevice.current ||
+        isPenActive.current ||
+        Date.now() - lastPenTime.current < 4500;
 
-        if (pinchStartDistRef.current > 0) {
-          const scaleDelta = currentDist / pinchStartDistRef.current;
-          const newScale = Math.min(4.0, Math.max(0.75, pinchStartScaleRef.current * scaleDelta));
+      if (isPalmTouch(e, inStylusSession)) {
+        e.preventDefault();
+        return;
+      }
 
-          const panDx = currentMid.x - panStartMidRef.current.x;
-          const panDy = currentMid.y - panStartMidRef.current.y;
+      // Two-finger pinch zoom & pan
+      if (activeTouchesRef.current.has(e.pointerId)) {
+        activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-          setTransform({
-            scale: newScale,
-            x: panStartTransformRef.current.x + panDx,
-            y: panStartTransformRef.current.y + panDy,
-          });
+        if (activeTouchesRef.current.size === 2 && isPinchingRef.current) {
+          const pts = Array.from(activeTouchesRef.current.values());
+          const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+          const currentMid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+
+          if (pinchStartDistRef.current > 0) {
+            const scaleDelta = currentDist / pinchStartDistRef.current;
+            const newScale = Math.min(4.0, Math.max(0.75, pinchStartScaleRef.current * scaleDelta));
+
+            const panDx = currentMid.x - panStartMidRef.current.x;
+            const panDy = currentMid.y - panStartMidRef.current.y;
+
+            setTransform({
+              scale: newScale,
+              x: panStartTransformRef.current.x + panDx,
+              y: panStartTransformRef.current.y + panDy,
+            });
+          }
+          return;
         }
+      }
+
+      if (inStylusSession && activeTouchesRef.current.size === 1) {
+        e.preventDefault();
         return;
       }
     }
@@ -695,13 +761,17 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
     }
 
     // DRAW STROKE: Deposits smooth paint clipped to the active noodle/groove!
+    const pressureFactor = calibratePressure(e.pressure, e.pointerType);
+    const effectiveSize = brushSize * (0.75 + pressureFactor * 0.45);
+    const effectiveOpacity = Math.min(1, brushOpacity * (0.8 + pressureFactor * 0.35));
+
     drawBrushStroke(
       lastPointRef.current,
       currentPt,
       activeTool,
       activeColor,
-      brushSize,
-      brushOpacity,
+      effectiveSize,
+      effectiveOpacity,
       activeSegmentIdRef.current
     );
 
@@ -710,6 +780,14 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
 
   // Pointer Up (Commit stroke to undo history)
   const handlePointerUp = (e: React.PointerEvent) => {
+    if (e.pointerType === 'pen') {
+      isPenActive.current = false;
+      lastPenTime.current = Date.now();
+      try {
+        (e.target as HTMLElement)?.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+
     if (e.pointerType === 'touch') {
       activeTouchesRef.current.delete(e.pointerId);
       if (activeTouchesRef.current.size < 2) {

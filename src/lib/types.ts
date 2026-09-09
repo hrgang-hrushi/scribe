@@ -163,6 +163,9 @@ export interface ToolSettings {
   highlighterColor: string;
   eraserWidth: number;
   eraserMode: 'stroke' | 'pixel';
+  eraseHighlighterOnly?: boolean;
+  penWidthPresets?: number[];
+  rulerMode?: boolean;
   tapeColor?: string;
   tapeWidth?: number;
   studyMode?: boolean;

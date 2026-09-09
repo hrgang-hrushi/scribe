@@ -98,6 +98,7 @@ export default function NotePage() {
           h: 'highlighter',
           k: 'tape',
           e: 'eraser',
+          r: 'ruler',
           s: 'shapes',
           l: 'lasso',
           t: 'text',
@@ -595,6 +596,8 @@ export default function NotePage() {
         onUndo={handleUndo}
         onRedo={handleRedo}
         onAction={handleToolbarAction}
+        theme={theme}
+        paperColor={note?.paperColor}
       />
 
       {/* Full Color Picker Dialog */}

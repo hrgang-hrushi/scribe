@@ -8,6 +8,7 @@ import { drawTemplateBackground } from '@/lib/templates';
 import {
   detectScribble,
   strokeIntersectsBox,
+  strokeIntersectsEraser,
   findStrokesCoveredByScribble,
   detectHoldShape,
   isPointInPolygon,
@@ -84,6 +85,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   const isPenActive = useRef(false);
   const isStylusMode = useRef(false);
   const hasStylusDevice = useRef(false);
+  const erasedStrokesThisDrag = useRef<Stroke[]>([]);
+  const holdStartPos = useRef<Point | null>(null);
   const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const twoFingerStartMid = useRef<{ x: number; y: number } | null>(null);
   const twoFingerStartPan = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -1076,14 +1079,40 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       input.click();
       return;
     }
+    const pos = getPointerPos(e);
+
     if (tool === 'shapes') {
-      shapeStartRef.current = getPointerPos(e);
+      shapeStartRef.current = pos;
       isDrawing.current = true;
       return;
     }
-    if (tool === 'ruler') return;
 
-    const pos = getPointerPos(e);
+    if (tool === 'ruler') {
+      isDrawing.current = true;
+      holdStartPos.current = pos;
+      currentStroke.current = [pos];
+      return;
+    }
+
+    if (tool === 'eraser') {
+      isDrawing.current = true;
+      erasedStrokesThisDrag.current = [];
+      if (settings.eraserMode !== 'pixel') {
+        const eraserRadius = (settings.eraserWidth || 24) / 2;
+        const hitStrokes = committedStrokes.current.filter(s => {
+          if (settings.eraseHighlighterOnly && s.tool !== 'highlighter') return false;
+          return strokeIntersectsEraser(s, pos, eraserRadius);
+        });
+        if (hitStrokes.length > 0) {
+          const hitIds = new Set(hitStrokes.map(s => s.id));
+          committedStrokes.current = committedStrokes.current.filter(s => !hitIds.has(s.id));
+          erasedStrokesThisDrag.current.push(...hitStrokes);
+          if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+          redrawAll();
+        }
+        return;
+      }
+    }
 
     // If tool is 'tape', check if user tapped on an existing tape stroke to peel/reveal it!
     if (tool === 'tape') {
@@ -1326,6 +1355,56 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       }, 500);
     }
 
+    // Stroke Eraser Engine: Cleanly deletes touched strokes in real-time
+    if (tool === 'eraser' && settings.eraserMode !== 'pixel') {
+      const eraserRadius = (settings.eraserWidth || 24) / 2;
+      const hitStrokes = committedStrokes.current.filter(s => {
+        if (settings.eraseHighlighterOnly && s.tool !== 'highlighter') return false;
+        return strokeIntersectsEraser(s, pos, eraserRadius);
+      });
+      if (hitStrokes.length > 0) {
+        const hitIds = new Set(hitStrokes.map(s => s.id));
+        committedStrokes.current = committedStrokes.current.filter(s => !hitIds.has(s.id));
+        erasedStrokesThisDrag.current.push(...hitStrokes);
+        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+        redrawAll();
+      }
+
+      // Draw smooth eraser indicator ring on overlay canvas
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
+      ctx.save();
+      ctx.translate(panRef.current.x, panRef.current.y);
+      ctx.scale(zoomRef.current, zoomRef.current);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, (settings.eraserWidth || 24) / 2, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
+      ctx.lineWidth = 1.5 / zoomRef.current;
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    // Ruler straight line preview
+    if (tool === 'ruler' && holdStartPos.current) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
+      ctx.save();
+      ctx.translate(panRef.current.x, panRef.current.y);
+      ctx.scale(zoomRef.current, zoomRef.current);
+      ctx.strokeStyle = settings.penColor;
+      ctx.lineWidth = settings.penWidth;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(holdStartPos.current.x, holdStartPos.current.y);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
     if (!autoShapeData.current) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
@@ -1500,6 +1579,49 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       clearOverlay();
       redrawAll();
       triggerSave();
+      return;
+    }
+
+    // 3b. Handle Ruler straight line commit
+    if (tool === 'ruler' && holdStartPos.current) {
+      const pos = getPointerPos(e);
+      const start = holdStartPos.current;
+      const w = pos.x - start.x;
+      const h = pos.y - start.y;
+      if (Math.hypot(w, h) > 3) {
+        const lineStroke: Stroke = {
+          id: crypto.randomUUID(),
+          tool: 'pen',
+          color: settings.penColor,
+          width: settings.penWidth,
+          opacity: settings.penOpacity,
+          points: [start, pos],
+          shape: {
+            type: 'line',
+            path: `M ${start.x} ${start.y} L ${pos.x} ${pos.y}`,
+          },
+        };
+        committedStrokes.current = [...committedStrokes.current, lineStroke];
+        pushCanvasUndo({ type: 'add', strokes: [lineStroke] });
+        redrawAll();
+        triggerSave();
+      }
+      holdStartPos.current = null;
+      currentStroke.current = [];
+      clearOverlay();
+      return;
+    }
+
+    // 3c. Handle Stroke Eraser commit (Batch undo for all deleted lines!)
+    if (tool === 'eraser' && settings.eraserMode !== 'pixel') {
+      if (erasedStrokesThisDrag.current.length > 0) {
+        pushCanvasUndo({ type: 'delete', strokes: [...erasedStrokesThisDrag.current] });
+        erasedStrokesThisDrag.current = [];
+        triggerSave();
+      }
+      currentStroke.current = [];
+      clearOverlay();
+      redrawAll();
       return;
     }
 

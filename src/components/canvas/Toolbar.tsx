@@ -17,6 +17,8 @@ interface ToolbarProps {
   onUndo: () => void;
   onRedo: () => void;
   onAction?: (action: 'export-pdf' | 'export-png' | 'import' | 'clear') => void;
+  theme?: 'light' | 'dark';
+  paperColor?: string;
 }
 
 export type ToolbarOrientation = 'horizontal' | 'vertical-left' | 'vertical-right';
@@ -27,22 +29,35 @@ const tools: { id: Tool; icon: string; label: string; shortcut: string }[] = [
   { id: 'highlighter', icon: 'M15.5 4.5l4 4L8 20H4v-4L15.5 4.5z', label: 'Highlight', shortcut: 'H' },
   { id: 'tape', icon: 'M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7zm3 0v10m10-10v10M7 12h10', label: 'Study Tape (Active Recall)', shortcut: 'K' },
   { id: 'eraser', icon: 'M20 20H7l-4-4 9-9 7 7-4 4M18 13l-6-6', label: 'Eraser', shortcut: 'E' },
+  { id: 'ruler', icon: 'M2 22L22 2M5 19l2-2m2 4l2-2m2 4l2-2m2 4l2-2m2 4l2-2', label: 'Ruler (Straightedge)', shortcut: 'R' },
   { id: 'lasso', icon: 'M12 2a9 9 0 0 0-9 9c0 4 2.5 7.5 6.2 8.6a2 2 0 1 0 2.6-1.5c-2.4-.7-4-2.8-4-5.1 0-3.9 3.1-7 7-7s7 3.1 7 7-3.1 7-7 7', label: 'Lasso', shortcut: 'L' },
   { id: 'shapes', icon: 'M3 3h18v18H3V3zm3 12l4-5 3 4 2-3 4 5', label: 'Shapes', shortcut: 'S' },
 ];
 
-const DEFAULT_QUICK_COLORS = ['#ffffff', '#ff453a', '#32ade6'];
-
 export default function Toolbar({
   activeTool, onToolChange, toolSettings, onSettingsChange,
   showColorPicker, onToggleColorPicker, visible, onToggle, onUndo, onRedo, onAction,
+  theme = 'dark', paperColor = 'navy',
 }: ToolbarProps) {
   const [orientation, setOrientation] = useState<ToolbarOrientation>('horizontal');
   const [showSettings, setShowSettings] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
-  const quickColors = toolSettings.quickColors || DEFAULT_QUICK_COLORS;
+  const isLightBackground = theme === 'light' || paperColor === 'white' || paperColor === 'cream';
+  const defaultColors = isLightBackground
+    ? ['#1a1a2e', '#ff3b30', '#007aff']
+    : ['#ffffff', '#ff453a', '#32ade6'];
+
+  const quickColors = (toolSettings.quickColors || defaultColors).map(c => {
+    if (isLightBackground && (c.toLowerCase() === '#ffffff' || c.toLowerCase() === '#fff')) {
+      return '#1a1a2e';
+    }
+    if (!isLightBackground && (c.toLowerCase() === '#1a1a2e' || c.toLowerCase() === '#000000' || c.toLowerCase() === '#18181b')) {
+      return '#ffffff';
+    }
+    return c;
+  });
 
   const isVertical = orientation === 'vertical-left' || orientation === 'vertical-right';
   const isLeft = orientation === 'vertical-left';
@@ -181,6 +196,57 @@ export default function Toolbar({
                         title={c}
                       />
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Eraser Options: Stroke vs Precision & Highlighter-only */}
+              {activeTool === 'eraser' && (
+                <div className="flex flex-col gap-2 pt-2 border-t border-black/5 dark:border-white/5">
+                  <div>
+                    <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>Eraser Mode</label>
+                    <div className="grid grid-cols-2 gap-1 p-0.5 rounded-xl bg-black/5 dark:bg-white/5">
+                      <button
+                        type="button"
+                        onClick={() => onSettingsChange({ ...toolSettings, eraserMode: 'stroke' })}
+                        className={`py-1 text-xs font-semibold rounded-lg transition-all ${
+                          toolSettings.eraserMode !== 'pixel'
+                            ? 'bg-[var(--accent)] text-[var(--bg-primary)] shadow-sm'
+                            : 'hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-primary)]'
+                        }`}
+                      >
+                        Stroke
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onSettingsChange({ ...toolSettings, eraserMode: 'pixel' })}
+                        className={`py-1 text-xs font-semibold rounded-lg transition-all ${
+                          toolSettings.eraserMode === 'pixel'
+                            ? 'bg-[var(--accent)] text-[var(--bg-primary)] shadow-sm'
+                            : 'hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-primary)]'
+                        }`}
+                      >
+                        Precision
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <label className="text-xs font-semibold block" style={{ color: 'var(--text-primary)' }}>Erase Highlighter Only</label>
+                      <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Protects handwriting & ink</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onSettingsChange({ ...toolSettings, eraseHighlighterOnly: !toolSettings.eraseHighlighterOnly })}
+                      className="w-9 h-5 rounded-full transition-colors relative"
+                      style={{ background: toolSettings.eraseHighlighterOnly ? 'var(--accent)' : 'var(--bg-tertiary)' }}
+                    >
+                      <div
+                        className="w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform"
+                        style={{ left: toolSettings.eraseHighlighterOnly ? '18px' : '3px' }}
+                      />
+                    </button>
                   </div>
                 </div>
               )}
@@ -357,6 +423,48 @@ export default function Toolbar({
             className={isVertical ? "h-px w-5 my-0.5" : "w-px h-5 mx-0.5"}
             style={{ background: 'var(--border)' }}
           />
+
+          {/* Quick Pen Width Presets (One-tap switching for lecture writing / subscripts / headers) */}
+          {activeTool === 'pen' && (
+            <>
+              <div className={`flex items-center gap-1.5 px-0.5 ${isVertical ? 'flex-col' : 'flex-row'}`}>
+                {[
+                  { label: 'Fine', width: 1.5, dotSize: 3.5 },
+                  { label: 'Medium', width: 2.5, dotSize: 5.5 },
+                  { label: 'Bold', width: 4.0, dotSize: 8 },
+                ].map(p => {
+                  const isActive = Math.abs((toolSettings.penWidth || 2.5) - p.width) < 0.4;
+                  return (
+                    <button
+                      key={p.label}
+                      onClick={() => onSettingsChange({ ...toolSettings, penWidth: p.width })}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                        isActive
+                          ? 'bg-[var(--accent)] text-[var(--bg-primary)] shadow-sm scale-105'
+                          : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100'
+                      }`}
+                      title={`${p.label} Pen (${p.width}px)`}
+                    >
+                      <div
+                        className="rounded-full"
+                        style={{
+                          width: `${p.dotSize}px`,
+                          height: `${p.dotSize}px`,
+                          backgroundColor: isActive ? 'currentColor' : (toolSettings.penColor || 'currentColor'),
+                        }}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Divider */}
+              <div
+                className={isVertical ? "h-px w-5 my-0.5" : "w-px h-5 mx-0.5"}
+                style={{ background: 'var(--border)' }}
+              />
+            </>
+          )}
 
           {/* Quick Color Slots */}
           <div className={`flex items-center gap-1 ${isVertical ? 'flex-col' : 'flex-row'}`}>

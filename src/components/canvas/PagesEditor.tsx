@@ -8,6 +8,7 @@ import { drawTemplateBackground } from '@/lib/templates';
 import {
   detectScribble,
   strokeIntersectsBox,
+  strokeIntersectsEraser,
   findStrokesCoveredByScribble,
   detectHoldShape,
   isPointInPolygon,
@@ -97,6 +98,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   const isPenActive = useRef(false);
   const isStylusMode = useRef(false);
   const hasStylusDevice = useRef(false);
+  const erasedStrokesThisDrag = useRef<Stroke[]>([]);
   const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const twoFingerStartMidY = useRef<number>(0);
   const twoFingerStartScrollTop = useRef<number>(0);
@@ -907,6 +909,37 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       return;
     }
 
+    if (tool === 'ruler') {
+      isDrawing.current = true;
+      holdStartPos.current = pos;
+      currentStroke.current = [pos];
+      return;
+    }
+
+    if (tool === 'eraser') {
+      isDrawing.current = true;
+      erasedStrokesThisDrag.current = [];
+      if (settings.eraserMode !== 'pixel') {
+        const page = pageDataMap.current.get(pageId);
+        if (page) {
+          const eraserRadius = (settings.eraserWidth || 24) / 2;
+          const hitStrokes = page.strokes.filter(s => {
+            if (settings.eraseHighlighterOnly && s.tool !== 'highlighter') return false;
+            return strokeIntersectsEraser(s, pos, eraserRadius);
+          });
+          if (hitStrokes.length > 0) {
+            const hitIds = new Set(hitStrokes.map(s => s.id));
+            page.strokes = page.strokes.filter(s => !hitIds.has(s.id));
+            erasedStrokesThisDrag.current.push(...hitStrokes);
+            pageDataMap.current.set(pageId, { ...page });
+            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+            redrawPage(pageId);
+          }
+        }
+        return;
+      }
+    }
+
     if (tool === 'pen' || tool === 'highlighter' || tool === 'eraser' || tool === 'tape') {
       isDrawing.current = true;
       autoShapeData.current = null;
@@ -1106,6 +1139,56 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       }, 500);
     }
 
+    // Stroke Eraser Engine: Cleanly deletes touched strokes in real-time
+    if (tool === 'eraser' && settings.eraserMode !== 'pixel') {
+      const page = pageDataMap.current.get(pageId);
+      if (page) {
+        const eraserRadius = (settings.eraserWidth || 24) / 2;
+        const hitStrokes = page.strokes.filter(s => {
+          if (settings.eraseHighlighterOnly && s.tool !== 'highlighter') return false;
+          return strokeIntersectsEraser(s, pos, eraserRadius);
+        });
+        if (hitStrokes.length > 0) {
+          const hitIds = new Set(hitStrokes.map(s => s.id));
+          page.strokes = page.strokes.filter(s => !hitIds.has(s.id));
+          erasedStrokesThisDrag.current.push(...hitStrokes);
+          pageDataMap.current.set(pageId, { ...page });
+          if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+          redrawPage(pageId);
+        }
+      }
+
+      // Draw smooth eraser indicator ring on overlay canvas
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, (settings.eraserWidth || 24) / 2, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
+      ctx.lineWidth = 1.5;
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    // Ruler straight line preview
+    if (tool === 'ruler' && holdStartPos.current) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+      ctx.save();
+      ctx.strokeStyle = settings.penColor;
+      ctx.lineWidth = settings.penWidth;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(holdStartPos.current.x, holdStartPos.current.y);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
     // Normal stroke preview on overlay
     if (!autoShapeData.current) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1283,6 +1366,50 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       clearOverlay();
       redrawPage(pageId);
       onSavePage(page);
+      return;
+    }
+
+    // 3b. Handle Ruler straight line commit
+    if (tool === 'ruler' && holdStartPos.current) {
+      const pos = getPointerPosOnPage(e, pageId);
+      const start = holdStartPos.current;
+      const w = pos.x - start.x;
+      const h = pos.y - start.y;
+      if (Math.hypot(w, h) > 3) {
+        const lineStroke: Stroke = {
+          id: crypto.randomUUID(),
+          tool: 'pen',
+          color: settings.penColor,
+          width: settings.penWidth,
+          opacity: settings.penOpacity,
+          points: [start, pos],
+          shape: {
+            type: 'line',
+            path: `M ${start.x} ${start.y} L ${pos.x} ${pos.y}`,
+          },
+        };
+        page.strokes = [...page.strokes, lineStroke];
+        pushPageUndo(pageId, { type: 'add', strokes: [lineStroke] });
+        pageDataMap.current.set(pageId, { ...page });
+        redrawPage(pageId);
+        onSavePage(page);
+      }
+      holdStartPos.current = null;
+      currentStroke.current = [];
+      clearOverlay();
+      return;
+    }
+
+    // 3c. Handle Stroke Eraser commit (Batch undo for all deleted lines!)
+    if (tool === 'eraser' && settings.eraserMode !== 'pixel') {
+      if (erasedStrokesThisDrag.current.length > 0) {
+        pushPageUndo(pageId, { type: 'delete', strokes: [...erasedStrokesThisDrag.current] });
+        erasedStrokesThisDrag.current = [];
+        onSavePage(page);
+      }
+      currentStroke.current = [];
+      clearOverlay();
+      redrawPage(pageId);
       return;
     }
 

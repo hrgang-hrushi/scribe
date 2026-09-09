@@ -484,6 +484,63 @@ export function strokeIntersectsBox(stroke: Stroke, box: BoundingBox): boolean {
 }
 
 /**
+ * Distance from point (px, py) to line segment (x1, y1) - (x2, y2).
+ */
+export function distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+  const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+  if (l2 === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+}
+
+/**
+ * Checks if an eraser contact touches any part of a handwritten stroke or shape.
+ * Used by the Stroke Eraser engine for instant, responsive gesture-based line deletion.
+ */
+export function strokeIntersectsEraser(
+  stroke: Stroke,
+  eraserPos: Point,
+  eraserRadius: number
+): boolean {
+  if (!stroke.points || stroke.points.length === 0) return false;
+  const threshold = eraserRadius + (stroke.width || 2) / 2;
+
+  // 1. Fast bounding box check
+  let sMinX = Infinity, sMaxX = -Infinity, sMinY = Infinity, sMaxY = -Infinity;
+  for (const p of stroke.points) {
+    if (p.x < sMinX) sMinX = p.x;
+    if (p.x > sMaxX) sMaxX = p.x;
+    if (p.y < sMinY) sMinY = p.y;
+    if (p.y > sMaxY) sMaxY = p.y;
+  }
+  if (
+    eraserPos.x + threshold < sMinX ||
+    eraserPos.x - threshold > sMaxX ||
+    eraserPos.y + threshold < sMinY ||
+    eraserPos.y - threshold > sMaxY
+  ) {
+    return false;
+  }
+
+  // 2. Segment distance check
+  for (let i = 0; i < stroke.points.length; i++) {
+    if (Math.hypot(stroke.points[i].x - eraserPos.x, stroke.points[i].y - eraserPos.y) <= threshold) {
+      return true;
+    }
+    if (i > 0) {
+      const p1 = stroke.points[i - 1];
+      const p2 = stroke.points[i];
+      if (distToSegment(eraserPos.x, eraserPos.y, p1.x, p1.y, p2.x, p2.y) <= threshold) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * Detects shapes only when a user intentionally holds still at the end of a stroke.
  */
 export function detectHoldShape(points: Point[]): { type: string; path: string } | null {
