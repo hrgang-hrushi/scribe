@@ -718,23 +718,39 @@ export function getStrokeOptions(width: number, smoothing: number, toolType: str
  * and screen boundary resting zones to eliminate resting palms, wrists, and knuckle touches.
  */
 export function isPalmTouch(
-  e: React.PointerEvent | PointerEvent,
-  isPenActivelyTouching: boolean
+  e: React.PointerEvent | PointerEvent | Touch,
+  isPenActivelyTouching: boolean,
+  lastPenTime: number = 0
 ): boolean {
-  if (e.pointerType !== 'touch') return false;
+  // If this is an explicit stylus event, it's never a palm
+  if ((e as any).pointerType === 'pen' || (e as any).touchType === 'stylus') {
+    return false;
+  }
 
-  // Layer 1: If Apple Pencil is actively touching down on the screen right now, any simultaneous touch is 100% resting palm
+  // Layer 1: If Apple Pencil is actively touching down right now, any simultaneous touch is 100% resting palm
   if (isPenActivelyTouching) return true;
 
-  // Layer 2: True flat palm or wrist slap (normal fingertip on iPad retina digitizer is ~20-50px; flat palm is > 85px)
+  // Layer 2: Post-stroke handwriting guard.
+  // When writing with an Apple Pencil, the pencil tip hovers or lifts for 100-1800ms between letters/words.
+  // The palm remains rested on the glass. Reject all touches during this active handwriting window.
+  if (lastPenTime > 0 && Date.now() - lastPenTime < 1800) {
+    return true;
+  }
+
+  // Layer 3: Contact patch dimensions & ellipse radius (iPad Retina digitizer)
+  // A genuine fingertip tap on iPad is ~14-22px (radius ~7-11px).
+  // A resting hypothenar palm, wrist, or side of pinky is > 24px wide or radius > 12px.
   const contactW = (e as any).width || 0;
   const contactH = (e as any).height || 0;
-  if (contactW > 85 || contactH > 85) return true;
+  if (contactW > 24 || contactH > 24) return true;
 
-  // Layer 3: Contact ellipse radius (radius > 40px means diameter > 80px)
   const radiusX = (e as any).radiusX || 0;
   const radiusY = (e as any).radiusY || 0;
-  if (radiusX > 40 || radiusY > 40) return true;
+  if (radiusX > 12 || radiusY > 12) return true;
+
+  // Layer 4: Contact patch area (width * height > 550 or radius area > 140)
+  if (contactW > 0 && contactH > 0 && contactW * contactH > 550) return true;
+  if (radiusX > 0 && radiusY > 0 && radiusX * radiusY > 140) return true;
 
   return false;
 }

@@ -109,6 +109,24 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   const isPenActive = useRef(false);
   const isStylusMode = useRef(false);
   const hasStylusDevice = useRef(false);
+  const [isStylusUser, setIsStylusUser] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('scribe_has_stylus') === 'true';
+    }
+    return false;
+  });
+
+  const markStylusActive = useCallback(() => {
+    hasStylusDevice.current = true;
+    isStylusMode.current = true;
+    if (!isStylusUser) {
+      setIsStylusUser(true);
+      try {
+        localStorage.setItem('scribe_has_stylus', 'true');
+      } catch {}
+    }
+  }, [isStylusUser]);
+
   const erasedStrokesThisDrag = useRef<Stroke[]>([]);
   const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
 
@@ -149,7 +167,25 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
     const onTouchStart = (e: TouchEvent) => {
       const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
-      if (hasStylus || isPenActive.current) {
+      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 1800);
+
+      // Check if any touch contact matches palm geometry (landing on screen before pencil, or resting hand)
+      const hasPalmContact = Array.from(e.touches).some((t: any) => {
+        if (t.touchType === 'stylus') return false;
+        const rx = t.radiusX || 0;
+        const ry = t.radiusY || 0;
+        const w = (t as any).width || 0;
+        const h = (t as any).height || 0;
+        return rx > 12 || ry > 12 || w > 24 || h > 24 || (rx * ry > 140) || (w * h > 550);
+      });
+
+      if (hasStylus) {
+        markStylusActive();
+      }
+
+      // Layer 1 & 2 & 3: Kill accidental scrolling dead in its tracks when writing or palm is down
+      if (hasStylus || isWritingWindow || hasPalmContact) {
+        e.preventDefault();
         return;
       }
 
@@ -173,7 +209,20 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
     const onTouchMove = (e: TouchEvent) => {
       const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
-      if (hasStylus || isPenActive.current) {
+      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 1800);
+
+      const hasPalmContact = Array.from(e.touches).some((t: any) => {
+        if (t.touchType === 'stylus') return false;
+        const rx = t.radiusX || 0;
+        const ry = t.radiusY || 0;
+        const w = (t as any).width || 0;
+        const h = (t as any).height || 0;
+        return rx > 12 || ry > 12 || w > 24 || h > 24 || (rx * ry > 140) || (w * h > 550);
+      });
+
+      // Prevent scroll gesture while writing with Apple Pencil or resting palm
+      if (hasStylus || isWritingWindow || hasPalmContact) {
+        e.preventDefault();
         return;
       }
 
@@ -201,8 +250,6 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         container.scrollTop = pinchStartScroll.top - dY;
         container.scrollLeft = pinchStartScroll.left - dX;
       }
-      // Note: when e.touches.length === 1, e.preventDefault() is NOT called!
-      // Native browser 120Hz smooth scrolling runs unimpeded!
     };
 
     const onTouchEnd = (e: TouchEvent) => {
@@ -945,8 +992,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
     // 1. APPLE PENCIL: 100% Top-Level Hardware Priority
     if (e.pointerType === 'pen') {
-      hasStylusDevice.current = true;
-      isStylusMode.current = true;
+      markStylusActive();
       lastPenTime.current = Date.now();
       isPenActive.current = true;
 
@@ -955,14 +1001,17 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
       } catch {}
     } else if (e.pointerType === 'touch') {
-      if (isPenActive.current) {
-        // Resting palm while Apple Pencil is writing
+      const isPalm = isPalmTouch(e, isPenActive.current, lastPenTime.current);
+      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 1800);
+
+      if (isPalm || isWritingWindow) {
+        // Resting palm or touch during active handwriting session: REJECT COMPLETELY!
         e.preventDefault();
+        e.stopPropagation();
         return;
       }
-      // Record touch start position to detect quick tap vs scroll on pointerup
+      // Record touch start position to detect quick tap vs deliberate scroll on pointerup
       touchStartClient.current = { x: e.clientX, y: e.clientY };
-      // Do NOT preventDefault() so the browser natively scrolls with 120Hz momentum!
       return;
     }
 
@@ -1058,13 +1107,18 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
   function handlePointerMove(e: React.PointerEvent, pageId: string) {
     if (e.pointerType === 'pen') {
+      markStylusActive();
       lastPenTime.current = Date.now();
       isPenActive.current = true;
-      isStylusMode.current = true;
-      hasStylusDevice.current = true;
     }
 
     if (e.pointerType === 'touch') {
+      const isPalm = isPalmTouch(e, isPenActive.current, lastPenTime.current);
+      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 1800);
+      if (isPalm || isWritingWindow) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       return;
     }
 
@@ -1781,7 +1835,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
                     }}
                     className="absolute inset-0 w-full h-full select-none"
                     style={{
-                      touchAction: 'pan-x pan-y',
+                      touchAction: (isStylusUser && tool !== 'select' && tool !== 'text') ? 'none' : 'pan-x pan-y',
                       zIndex: 15,
                       WebkitUserSelect: 'none',
                       userSelect: 'none',

@@ -904,8 +904,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       // Multi-Layer Palm Rejection:
-      // If pen is actively drawing right now, reject simultaneous touch (resting palm)
-      if (isPalmTouch(e, isPenActive.current)) {
+      // If pen is actively drawing or was recently writing, reject touch (resting palm)
+      if (isPalmTouch(e, isPenActive.current, lastPenTime.current)) {
         e.preventDefault();
         return;
       }
@@ -916,9 +916,9 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         return;
       }
 
-      // 2. Single Touch Pan (when pen is not actively touching):
+      // 2. Single Touch Pan (when pen is not actively touching and not within writing window):
       if (activeTouchesRef.current.size === 1) {
-        if (isPenActive.current) {
+        if (isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 1800)) {
           e.preventDefault();
           return;
         }
@@ -1147,7 +1147,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       // Multi-Layer Palm Rejection:
-      if (isPalmTouch(e, isPenActive.current)) {
+      if (isPalmTouch(e, isPenActive.current, lastPenTime.current)) {
         e.preventDefault();
         return;
       }
