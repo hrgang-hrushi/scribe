@@ -12,14 +12,22 @@ import {
   X,
   Loader2,
   BookOpen,
+  ArrowLeftRight,
 } from 'lucide-react';
 
 export interface SplitPdfViewerProps {
   onClose: () => void;
   onInsertToNote?: (file: File) => void;
+  position?: 'left' | 'right';
+  onTogglePosition?: () => void;
 }
 
-export default function SplitPdfViewer({ onClose, onInsertToNote }: SplitPdfViewerProps) {
+export default function SplitPdfViewer({
+  onClose,
+  onInsertToNote,
+  position = 'left',
+  onTogglePosition,
+}: SplitPdfViewerProps) {
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [fileName, setFileName] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -137,7 +145,11 @@ export default function SplitPdfViewer({ onClose, onInsertToNote }: SplitPdfView
   };
 
   return (
-    <div className="flex flex-col w-full h-full bg-[var(--bg-primary)] text-[var(--text-primary)] border-r border-[var(--border)] overflow-hidden select-none">
+    <div
+      className={`flex flex-col w-full h-full bg-[var(--bg-primary)] text-[var(--text-primary)] ${
+        position === 'right' ? 'border-l' : 'border-r'
+      } border-[var(--border)] overflow-hidden select-none`}
+    >
       {/* Hidden File Input */}
       <input
         ref={fileInputRef}
@@ -233,6 +245,19 @@ export default function SplitPdfViewer({ onClose, onInsertToNote }: SplitPdfView
             <FileUp size={13} />
             <span className="hidden sm:inline">{pdfDoc ? 'Change' : 'Open PDF'}</span>
           </button>
+
+          {onTogglePosition && (
+            <button
+              onClick={onTogglePosition}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border border-[var(--border)] bg-[var(--bg-tertiary)] text-[var(--text-primary)] hover:border-blue-500/60 hover:text-blue-500 transition-colors shadow-sm"
+              title={position === 'left' ? 'Move reference panel to the right side' : 'Move reference panel to the left side'}
+            >
+              <ArrowLeftRight size={13} className="text-blue-500 shrink-0" />
+              <span className="hidden sm:inline">
+                {position === 'left' ? 'Move Right' : 'Move Left'}
+              </span>
+            </button>
+          )}
 
           <button
             onClick={onClose}

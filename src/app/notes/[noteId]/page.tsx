@@ -25,7 +25,8 @@ import {
   Palette,
   ChevronLeft,
   BookOpen,
-  Sparkles
+  Sparkles,
+  ArrowLeftRight,
 } from 'lucide-react';
 
 export default function NotePage() {
@@ -64,6 +65,7 @@ export default function NotePage() {
   const [showToolbar, setShowToolbar] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
   const [showSplitPdf, setShowSplitPdf] = useState(false);
+  const [splitPosition, setSplitPosition] = useState<'left' | 'right'>('left');
   const [showPlayground, setShowPlayground] = useState(false);
   const [appSettings, setAppSettings] = useState<any>({});
   const editorRef = useRef<any>(null);
@@ -75,6 +77,10 @@ export default function NotePage() {
     document.documentElement.setAttribute('data-theme', savedTheme);
     const savedSettings = localStorage.getItem('scribe-settings');
     if (savedSettings) setAppSettings(JSON.parse(savedSettings));
+    const savedSplitPosition = localStorage.getItem('scribe-split-position');
+    if (savedSplitPosition === 'left' || savedSplitPosition === 'right') {
+      setSplitPosition(savedSplitPosition);
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey) {
@@ -269,6 +275,16 @@ export default function NotePage() {
     }
   }
 
+  const handleToggleSplitPosition = () => {
+    setSplitPosition(prev => {
+      const next = prev === 'left' ? 'right' : 'left';
+      try {
+        localStorage.setItem('scribe-split-position', next);
+      } catch {}
+      return next;
+    });
+  };
+
   const activePaperTheme = PAPER_THEMES[note?.paperColor || 'navy'] || PAPER_THEMES.navy;
 
   return (
@@ -414,19 +430,33 @@ export default function NotePage() {
             </div>
 
             {/* Split Screen Reference PDF Viewer */}
-            <button
-              onClick={() => setShowSplitPdf(prev => !prev)}
-              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all hover:scale-105 border border-[var(--border)] shadow-sm ${
-                showSplitPdf
-                  ? 'bg-blue-600 text-white shadow-md border-blue-500'
-                  : 'hover:opacity-90'
-              }`}
-              style={!showSplitPdf ? { background: 'var(--bg-tertiary)', color: 'var(--text-primary)' } : undefined}
-              title="Toggle Orientation-Aware Split Screen (PDF Reference + Notebook)"
-            >
-              <BookOpen size={14} />
-              <span className="hidden sm:inline">Reference</span>
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowSplitPdf(prev => !prev)}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all hover:scale-105 border border-[var(--border)] shadow-sm ${
+                  showSplitPdf
+                    ? 'bg-blue-600 text-white shadow-md border-blue-500'
+                    : 'hover:opacity-90'
+                }`}
+                style={!showSplitPdf ? { background: 'var(--bg-tertiary)', color: 'var(--text-primary)' } : undefined}
+                title="Toggle Orientation-Aware Split Screen (PDF Reference + Notebook)"
+              >
+                <BookOpen size={14} />
+                <span className="hidden sm:inline">Reference</span>
+              </button>
+
+              {showSplitPdf && (
+                <button
+                  onClick={handleToggleSplitPosition}
+                  className="px-2 py-1.5 rounded-lg flex items-center gap-1 text-xs font-semibold border border-[var(--border)] hover:border-blue-500/50 hover:scale-105 transition-all shadow-sm"
+                  style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+                  title={splitPosition === 'left' ? 'Move reference to right side' : 'Move reference to left side'}
+                >
+                  <ArrowLeftRight size={13} className="text-blue-500" />
+                  <span className="hidden md:inline">{splitPosition === 'left' ? 'To Right' : 'To Left'}</span>
+                </button>
+              )}
+            </div>
 
             {/* Playground Sensory Break */}
             <button
@@ -490,8 +520,12 @@ export default function NotePage() {
       <div className="flex-1 relative overflow-hidden flex flex-col">
         <SplitLayout
           isSplit={showSplitPdf}
+          position={splitPosition}
+          onTogglePosition={handleToggleSplitPosition}
           sidecar={
             <SplitPdfViewer
+              position={splitPosition}
+              onTogglePosition={handleToggleSplitPosition}
               onClose={() => setShowSplitPdf(false)}
               onInsertToNote={(file) => {
                 editorRef.current?.importMedia(file);
