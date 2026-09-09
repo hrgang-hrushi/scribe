@@ -76,7 +76,7 @@ html, body {
   height: 100%;
 }
 
-/* Universal translucent blurred scrollbar pill with 100% transparent background */
+/* Universal translucent blurred blue scrollbar pill with 100% transparent background */
 *::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -85,13 +85,14 @@ html, body {
   background: transparent !important;
 }
 *::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--text-primary) 22%, transparent);
+  background: rgba(37, 99, 235, 0.8);
   border-radius: 9999px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(147, 197, 253, 0.4);
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text-primary) 38%, transparent);
+  background: rgba(59, 130, 246, 0.95);
 }
 
 .no-scrollbar::-webkit-scrollbar {

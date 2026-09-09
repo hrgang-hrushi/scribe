@@ -1578,18 +1578,17 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
             style={{
               transform: `translateY(${thumbTop}px)`,
               height: `${thumbHeight}px`,
-              background: 'color-mix(in srgb, var(--text-primary) 24%, transparent)',
+              background: 'rgba(37, 99, 235, 0.85)',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid color-mix(in srgb, var(--text-primary) 18%, transparent)',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(147, 197, 253, 0.5)',
+              boxShadow: '0 4px 18px rgba(37, 99, 235, 0.45)',
             }}
             title={`Scroll to navigate pages (${Math.round(scrollProgress * 100)}%)`}
           >
             {/* Pill Center Grip */}
             <div
-              className="w-0.5 h-3 rounded-full transition-colors"
-              style={{ background: 'color-mix(in srgb, var(--text-primary) 40%, transparent)' }}
+              className="w-0.5 h-3 rounded-full transition-colors bg-white/75 group-hover:bg-white"
             />
           </div>
         </div>
