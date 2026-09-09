@@ -2,8 +2,16 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export type SplitPosition = 'left' | 'right';
+
+const fluidSpringTransition = {
+  type: 'spring' as const,
+  stiffness: 300,
+  damping: 30,
+  mass: 0.8,
+};
 
 export interface SplitLayoutProps {
   isSplit: boolean;
@@ -122,21 +130,25 @@ export default function SplitLayout({
       }`}
     >
       {/* Sidecar Pane (Reference PDF) */}
-      <div
+      <motion.div
+        layout="position"
         key="split-sidecar-pane"
+        transition={isDragging.current ? { duration: 0 } : fluidSpringTransition}
         style={{
           width: isLandscape ? `${ratio * 100}%` : '100%',
           height: isLandscape ? '100%' : `${ratio * 100}%`,
           order: position === 'left' ? 1 : 3,
         }}
-        className="relative flex flex-col overflow-hidden bg-[var(--bg-primary)] transition-[width,height] duration-75"
+        className="relative flex flex-col overflow-hidden bg-[var(--bg-primary)]"
       >
         {sidecar}
-      </div>
+      </motion.div>
 
       {/* Draggable Divider Bar */}
-      <div
+      <motion.div
+        layout="position"
         key="split-divider-bar"
+        transition={isDragging.current ? { duration: 0 } : fluidSpringTransition}
         onPointerDown={handlePointerDown}
         onDoubleClick={handleDoubleClick}
         title="Drag to resize split view (Double-click for 50/50 | Click icon to swap sides)"
@@ -176,11 +188,13 @@ export default function SplitLayout({
             <ArrowLeftRight size={11} className={isLandscape ? '' : 'rotate-90'} />
           </button>
         )}
-      </div>
+      </motion.div>
 
       {/* Main Workspace Pane (Notebook Pages / Canvas) */}
-      <div
+      <motion.div
+        layout="position"
         key="split-main-pane"
+        transition={isDragging.current ? { duration: 0 } : fluidSpringTransition}
         style={{
           width: isLandscape ? `${(1 - ratio) * 100}%` : '100%',
           height: isLandscape ? '100%' : `${(1 - ratio) * 100}%`,
@@ -189,7 +203,7 @@ export default function SplitLayout({
         className="relative flex flex-col overflow-hidden flex-1"
       >
         {main}
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -15,6 +15,9 @@
   --canvas-bg: #F4F4F4;
   --toolbar-bg: #FFFFFF;
   --card-bg: #FFFFFF;
+  --ease-fluid: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-s-curve: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 [data-theme="dark"] {
