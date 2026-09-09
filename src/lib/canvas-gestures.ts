@@ -715,7 +715,8 @@ export function getStrokeOptions(width: number, smoothing: number, toolType: str
 /**
  * Comprehensive Multi-Layer Palm Rejection Engine.
  * Evaluates contact patch dimensions, contact ellipse radius, pen-active state,
- * and screen boundary resting zones to eliminate resting palms, wrists, and knuckle touches.
+ * and screen boundary resting zones to eliminate resting palms, wrists, and knuckle touches,
+ * while allowing normal fingertips (15-34px radius, 30-68px width) to fluidly scroll and pinch.
  */
 export function isPalmTouch(
   e: React.PointerEvent | PointerEvent | Touch,
@@ -735,20 +736,20 @@ export function isPalmTouch(
   const radiusX = (e as any).radiusX || 0;
   const radiusY = (e as any).radiusY || 0;
 
-  // Layer 2: Flat palm or wrist contact dimensions (iPad Retina digitizer).
-  // A normal fingertip on iPad is ~10-20px radius (width ~20-40px).
-  // A resting hypothenar palm, wrist, or side of pinky is > 55px wide or radius > 28px.
-  if (contactW > 55 || contactH > 55) return true;
-  if (radiusX > 28 || radiusY > 28) return true;
-  if (contactW > 0 && contactH > 0 && contactW * contactH > 2200) return true;
-  if (radiusX > 0 && radiusY > 0 && radiusX * radiusY > 600) return true;
+  // Layer 2: Flat palm, hypothenar margin, or wrist contact dimensions (iPad Retina digitizer).
+  // A normal fingertip on iPad Retina has radius ~15-34px (width ~30-68px).
+  // A resting palm, wrist, or base of hand has width > 95px or radius > 48px, or large contact ellipse area.
+  if (contactW > 95 || contactH > 95) return true;
+  if (radiusX > 48 || radiusY > 48) return true;
+  if (contactW > 0 && contactH > 0 && contactW * contactH > 7000) return true;
+  if (radiusX > 0 && radiusY > 0 && radiusX * radiusY > 2000) return true;
 
-  // Layer 3: Inter-stroke handwriting pause guard (within 450ms of pencil lift).
+  // Layer 3: Inter-stroke handwriting pause guard (within 250ms of pencil lift).
   // During pen lifts between letters/words, palm remains rested on glass.
-  // Reject intermediate/relaxed hand contact patches (>18px radius or >38px width),
-  // but allow deliberate small fingertips (<18px radius) to scroll/pinch immediately!
-  if (lastPenTime > 0 && Date.now() - lastPenTime < 450) {
-    if (radiusX > 18 || radiusY > 18 || contactW > 38 || contactH > 38) {
+  // Reject large resting hand contact patches (>36px radius or >72px width),
+  // but allow clean deliberate fingertips (<36px radius) to scroll/pinch immediately!
+  if (lastPenTime > 0 && Date.now() - lastPenTime < 250) {
+    if (radiusX > 36 || radiusY > 36 || contactW > 72 || contactH > 72) {
       return true;
     }
   }
