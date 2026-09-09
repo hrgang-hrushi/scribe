@@ -1983,37 +1983,61 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       />
 
       {/* Custom Blurred Scrollbar Pill with 100% Transparent Background */}
-      {thumbHeight > 0 && (
-        <div
-          className={`absolute right-2 top-0 bottom-0 w-6 z-30 pointer-events-none flex flex-col items-center transition-opacity duration-300 ${
-            isScrolling ? 'opacity-100' : 'opacity-0 hover:opacity-100'
-          }`}
-          style={{ background: 'transparent' }}
-        >
+      {thumbHeight > 0 && (() => {
+        const activeWritingColor = tool === 'tape'
+          ? (settings.tapeColor || '#f59e0b')
+          : tool === 'highlighter'
+          ? (settings.highlighterColor || '#facc15')
+          : (settings.penColor || '#007aff');
+        const isLightInk = activeWritingColor.toLowerCase() === '#ffffff' || activeWritingColor.toLowerCase() === '#fff';
+        let glowShadow = '0 4px 18px rgba(0, 0, 0, 0.25)';
+        if (!isLightInk) {
+          if (activeWritingColor.startsWith('#') && activeWritingColor.length === 7) {
+            glowShadow = `0 4px 18px ${activeWritingColor}80, 0 1px 4px rgba(0, 0, 0, 0.25)`;
+          } else if (activeWritingColor.startsWith('#') && activeWritingColor.length === 4) {
+            const r = activeWritingColor[1];
+            const g = activeWritingColor[2];
+            const b = activeWritingColor[3];
+            glowShadow = `0 4px 18px #${r}${r}${g}${g}${b}${b}80, 0 1px 4px rgba(0, 0, 0, 0.25)`;
+          } else {
+            glowShadow = `0 4px 18px rgba(0, 122, 255, 0.5), 0 1px 4px rgba(0, 0, 0, 0.25)`;
+          }
+        }
+
+        return (
           <div
-            onPointerDown={handleThumbPointerDown}
-            onPointerMove={handleThumbPointerMove}
-            onPointerUp={handleThumbPointerUp}
-            onPointerCancel={handleThumbPointerUp}
-            className="pointer-events-auto cursor-grab active:cursor-grabbing group relative w-2.5 hover:w-3.5 active:w-3.5 transition-[width,transform] duration-150 rounded-full flex items-center justify-center shadow-lg"
-            style={{
-              transform: `translateY(${thumbTop}px)`,
-              height: `${thumbHeight}px`,
-              background: '#2563eb',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid rgba(147, 197, 253, 0.6)',
-              boxShadow: '0 4px 18px rgba(37, 99, 235, 0.5)',
-            }}
-            title={`Scroll to navigate pages (${Math.round(scrollProgress * 100)}%)`}
+            className={`absolute right-2 top-0 bottom-0 w-6 z-30 pointer-events-none flex flex-col items-center transition-opacity duration-300 ${
+              isScrolling ? 'opacity-100' : 'opacity-0 hover:opacity-100'
+            }`}
+            style={{ background: 'transparent' }}
           >
-            {/* Pill Center Grip */}
             <div
-              className="w-0.5 h-3 rounded-full transition-colors bg-white/75 group-hover:bg-white"
-            />
+              onPointerDown={handleThumbPointerDown}
+              onPointerMove={handleThumbPointerMove}
+              onPointerUp={handleThumbPointerUp}
+              onPointerCancel={handleThumbPointerUp}
+              className="pointer-events-auto cursor-grab active:cursor-grabbing group relative w-2.5 hover:w-3.5 active:w-3.5 transition-[width,transform] duration-150 rounded-full flex items-center justify-center shadow-lg"
+              style={{
+                transform: `translateY(${thumbTop}px)`,
+                height: `${thumbHeight}px`,
+                background: activeWritingColor,
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: isLightInk ? '1.5px solid rgba(0, 0, 0, 0.25)' : '1.5px solid rgba(255, 255, 255, 0.5)',
+                boxShadow: glowShadow,
+              }}
+              title={`Scroll to navigate pages (${Math.round(scrollProgress * 100)}%)`}
+            >
+              {/* Pill Center Grip */}
+              <div
+                className={`w-0.5 h-3 rounded-full transition-colors ${
+                  isLightInk ? 'bg-black/60 group-hover:bg-black/90' : 'bg-white/85 group-hover:bg-white'
+                } shadow-sm`}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 });

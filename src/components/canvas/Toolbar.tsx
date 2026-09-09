@@ -140,13 +140,22 @@ export default function Toolbar({
       ? 'fixed left-4 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center pointer-events-none'
       : 'fixed right-4 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center pointer-events-none'
     : isTop
-    ? focusMode
-      ? 'fixed top-3 left-0 right-0 z-40 flex justify-center pointer-events-none safe-top'
-      : 'fixed top-14 md:top-16 left-0 right-0 z-40 flex justify-center pointer-events-none safe-top'
+    ? 'fixed left-0 right-0 z-40 flex justify-center pointer-events-none'
     : 'fixed bottom-6 left-0 right-0 z-40 flex justify-center pointer-events-none safe-bottom';
 
   return (
-    <div className={containerClasses}>
+    <div
+      className={containerClasses}
+      style={
+        isTop
+          ? {
+              top: focusMode
+                ? 'max(env(safe-area-inset-top, 0px), 12px)'
+                : 'calc(max(env(safe-area-inset-top, 0px), 12px) + 60px)',
+            }
+          : undefined
+      }
+    >
       <motion.div
         key={currentPos}
         layout
@@ -496,16 +505,16 @@ export default function Toolbar({
                       className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
                         isActive
                           ? 'bg-[var(--accent)] text-[var(--bg-primary)] shadow-sm scale-105'
-                          : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100'
+                          : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-[var(--text-primary)] opacity-75 hover:opacity-100'
                       }`}
                       title={`${p.label} Pen (${p.width}px)`}
                     >
                       <div
-                        className="rounded-full"
+                        className="rounded-full transition-transform"
                         style={{
                           width: `${p.dotSize}px`,
                           height: `${p.dotSize}px`,
-                          backgroundColor: isActive ? 'currentColor' : (toolSettings.penColor || 'currentColor'),
+                          backgroundColor: 'currentColor',
                         }}
                       />
                     </button>
@@ -544,16 +553,24 @@ export default function Toolbar({
               );
             })}
 
-            {/* Color Palette Modal Trigger */}
+            {/* Color Palette Modal Trigger (Rainbow Spectrum Wheel) */}
             <button
               onClick={onToggleColorPicker}
-              className="w-8 h-8 rounded-xl flex items-center justify-center transition-transform hover:scale-110"
-              title="Full Palette (C)"
+              className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 relative group p-0.5"
+              title="Full Color Palette (C)"
+              aria-label="Open color palette"
             >
               <div
-                className="w-4 h-4 rounded-full border-2 border-white/60 shadow-sm"
-                style={{ background: activeTool === 'highlighter' ? toolSettings.highlighterColor : toolSettings.penColor }}
-              />
+                className="w-5 h-5 rounded-full shadow-sm relative flex items-center justify-center transition-transform group-hover:scale-105"
+                style={{
+                  background: 'conic-gradient(from 90deg, #ff3b30, #ff9500, #ffcc00, #34c759, #00c7be, #007aff, #5856d6, #af52de, #ff2d55, #ff3b30)',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                  border: '1.5px solid rgba(255,255,255,0.7)',
+                }}
+              >
+                {/* Subtle center core */}
+                <div className="w-1.5 h-1.5 rounded-full bg-white/90 shadow-[0_0_1px_rgba(0,0,0,0.4)]" />
+              </div>
             </button>
           </div>
 

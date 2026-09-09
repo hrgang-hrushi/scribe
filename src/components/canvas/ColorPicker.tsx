@@ -9,10 +9,12 @@ interface ColorPickerProps {
 
 export default function ColorPicker({ colors, activeColor, onSelect, onClose }: ColorPickerProps) {
   return (
-    <div
-      className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 rounded-2xl p-4 animate-slide-up"
-      style={{ background: 'var(--toolbar-bg)', border: '1px solid var(--border)', backdropFilter: 'blur(16px)' }}
-    >
+    <>
+      <div className="fixed inset-0 z-50 bg-black/25 backdrop-blur-[2px]" onClick={onClose} />
+      <div
+        className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 rounded-2xl p-4 animate-slide-up shadow-2xl"
+        style={{ background: 'var(--toolbar-bg)', border: '1px solid var(--border)', backdropFilter: 'blur(20px)' }}
+      >
       <div className="grid grid-cols-5 gap-2 mb-3">
         {colors.map(color => (
           <button
@@ -44,5 +46,6 @@ export default function ColorPicker({ colors, activeColor, onSelect, onClose }: 
         </button>
       </div>
     </div>
+    </>
   );
 }

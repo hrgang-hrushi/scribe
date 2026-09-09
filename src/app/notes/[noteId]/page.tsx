@@ -514,7 +514,11 @@ export default function NotePage() {
 
       {/* Floating Zen Mode Exit Pill (When Focus Mode is active) */}
       {focusMode && (
-        <div className="absolute top-4 right-4 z-50 animate-fade-in flex items-center gap-2">
+        <div
+          className={`absolute z-50 animate-fade-in flex items-center gap-2 safe-top transition-all duration-300 ${
+            toolbarPosition === 'right' ? 'top-4 left-4' : 'top-4 right-4'
+          }`}
+        >
           <button
             onClick={() => setFocusMode(false)}
             className="px-3.5 py-1.5 rounded-full flex items-center gap-2 text-xs font-bold shadow-xl backdrop-blur-xl transition-all hover:scale-105"
