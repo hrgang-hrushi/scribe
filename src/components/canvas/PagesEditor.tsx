@@ -15,6 +15,7 @@ import {
   calibratePressure,
   getStrokeOptions,
   isPalmTouch,
+  snapRulerPoint,
   type BoundingBox,
 } from '@/lib/canvas-gestures';
 import { Plus, Trash2, Copy } from 'lucide-react';
@@ -1086,9 +1087,49 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         const r = Math.hypot(w, h);
         ctx.arc(start.x, start.y, r, 0, Math.PI * 2);
         ctx.stroke();
+      } else if (type === 'triangle') {
+        ctx.moveTo(start.x + w / 2, start.y);
+        ctx.lineTo(start.x + w, pos.y);
+        ctx.lineTo(start.x, pos.y);
+        ctx.closePath();
+        ctx.stroke();
       } else if (type === 'line') {
+        const snapped = snapRulerPoint(start, pos);
         ctx.moveTo(start.x, start.y);
-        ctx.lineTo(pos.x, pos.y);
+        ctx.lineTo(snapped.x, snapped.y);
+        ctx.stroke();
+      } else if (type === 'arrow') {
+        const snapped = snapRulerPoint(start, pos);
+        const endX = snapped.x;
+        const endY = snapped.y;
+        const arrowAngle = Math.atan2(endY - start.y, endX - start.x);
+        const headlen = 15;
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(endX, endY);
+        ctx.lineTo(endX - headlen * Math.cos(arrowAngle - Math.PI / 6), endY - headlen * Math.sin(arrowAngle - Math.PI / 6));
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(endX - headlen * Math.cos(arrowAngle + Math.PI / 6), endY - headlen * Math.sin(arrowAngle + Math.PI / 6));
+        ctx.stroke();
+      } else if (type === 'axis') {
+        const minX = Math.min(start.x, pos.x);
+        const maxX = Math.max(start.x, pos.x);
+        const minY = Math.min(start.y, pos.y);
+        const maxY = Math.max(start.y, pos.y);
+        const cx = (minX + maxX) / 2;
+        const cy = (minY + maxY) / 2;
+        const head = 10;
+        // Horizontal X axis
+        ctx.moveTo(minX, cy);
+        ctx.lineTo(maxX, cy);
+        ctx.lineTo(maxX - head, cy - 5);
+        ctx.moveTo(maxX, cy);
+        ctx.lineTo(maxX - head, cy + 5);
+        // Vertical Y axis
+        ctx.moveTo(cx, maxY);
+        ctx.lineTo(cx, minY);
+        ctx.lineTo(cx - 5, minY + head);
+        ctx.moveTo(cx, minY);
+        ctx.lineTo(cx + 5, minY + head);
         ctx.stroke();
       }
       ctx.restore();
@@ -1173,8 +1214,9 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       return;
     }
 
-    // Ruler straight line preview
+    // Ruler straight line preview with intelligent angle snapping & tactile degree badge
     if (tool === 'ruler' && holdStartPos.current) {
+      const snapped = snapRulerPoint(holdStartPos.current, pos);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
       ctx.save();
@@ -1183,8 +1225,28 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(holdStartPos.current.x, holdStartPos.current.y);
-      ctx.lineTo(pos.x, pos.y);
+      ctx.lineTo(snapped.x, snapped.y);
       ctx.stroke();
+
+      // Show sleek angle badge when snapped
+      if (snapped.isSnapped) {
+        ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+        const badgeText = `${Math.abs(snapped.angleDeg)}°`;
+        const textW = ctx.measureText(badgeText).width;
+        const midX = (holdStartPos.current.x + snapped.x) / 2;
+        const midY = (holdStartPos.current.y + snapped.y) / 2 - 14;
+
+        ctx.fillStyle = 'rgba(0, 122, 255, 0.88)';
+        ctx.beginPath();
+        ctx.roundRect(midX - textW / 2 - 6, midY - 9, textW + 12, 18, 9);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeText, midX, midY);
+      }
+
       ctx.restore();
       return;
     }
@@ -1345,8 +1407,31 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         } else if (type === 'circle') {
           const r = Math.hypot(w, h);
           path = `M ${start.x - r} ${start.y} A ${r} ${r} 0 1 1 ${start.x + r} ${start.y} A ${r} ${r} 0 1 1 ${start.x - r} ${start.y} Z`;
+        } else if (type === 'triangle') {
+          path = `M ${start.x + w / 2} ${start.y} L ${start.x + w} ${pos.y} L ${start.x} ${pos.y} Z`;
         } else if (type === 'line') {
-          path = `M ${start.x} ${start.y} L ${pos.x} ${pos.y}`;
+          const snapped = snapRulerPoint(start, pos);
+          path = `M ${start.x} ${start.y} L ${snapped.x} ${snapped.y}`;
+        } else if (type === 'arrow') {
+          const snapped = snapRulerPoint(start, pos);
+          const endX = snapped.x;
+          const endY = snapped.y;
+          const arrowAngle = Math.atan2(endY - start.y, endX - start.x);
+          const headlen = 15;
+          const x1 = endX - headlen * Math.cos(arrowAngle - Math.PI / 6);
+          const y1 = endY - headlen * Math.sin(arrowAngle - Math.PI / 6);
+          const x2 = endX - headlen * Math.cos(arrowAngle + Math.PI / 6);
+          const y2 = endY - headlen * Math.sin(arrowAngle + Math.PI / 6);
+          path = `M ${start.x} ${start.y} L ${endX} ${endY} M ${x1} ${y1} L ${endX} ${endY} L ${x2} ${y2}`;
+        } else if (type === 'axis') {
+          const minX = Math.min(start.x, pos.x);
+          const maxX = Math.max(start.x, pos.x);
+          const minY = Math.min(start.y, pos.y);
+          const maxY = Math.max(start.y, pos.y);
+          const cx = (minX + maxX) / 2;
+          const cy = (minY + maxY) / 2;
+          const head = 10;
+          path = `M ${minX} ${cy} L ${maxX} ${cy} M ${maxX - head} ${cy - 5} L ${maxX} ${cy} L ${maxX - head} ${cy + 5} M ${cx} ${maxY} L ${cx} ${minY} M ${cx - 5} ${minY + head} L ${cx} ${minY} L ${cx + 5} ${minY + head}`;
         }
         const shapeStroke: Stroke = {
           id: crypto.randomUUID(),
@@ -1369,12 +1454,13 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       return;
     }
 
-    // 3b. Handle Ruler straight line commit
+    // 3b. Handle Ruler straight line commit (with angle snapping)
     if (tool === 'ruler' && holdStartPos.current) {
       const pos = getPointerPosOnPage(e, pageId);
       const start = holdStartPos.current;
-      const w = pos.x - start.x;
-      const h = pos.y - start.y;
+      const snapped = snapRulerPoint(start, pos);
+      const w = snapped.x - start.x;
+      const h = snapped.y - start.y;
       if (Math.hypot(w, h) > 3) {
         const lineStroke: Stroke = {
           id: crypto.randomUUID(),
@@ -1382,10 +1468,10 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
           color: settings.penColor,
           width: settings.penWidth,
           opacity: settings.penOpacity,
-          points: [start, pos],
+          points: [start, { x: snapped.x, y: snapped.y, pressure: 0.5, t: Date.now() }],
           shape: {
             type: 'line',
-            path: `M ${start.x} ${start.y} L ${pos.x} ${pos.y}`,
+            path: `M ${start.x} ${start.y} L ${snapped.x} ${snapped.y}`,
           },
         };
         page.strokes = [...page.strokes, lineStroke];

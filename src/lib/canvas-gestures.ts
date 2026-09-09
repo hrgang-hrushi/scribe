@@ -91,8 +91,10 @@ export function detectScribble(points: Point[]): { isScribble: boolean; bounds: 
   if (!points || points.length < 12) return null; // Real scratch-outs require multiple directional sweeps
 
   // Natural scratching time window (80ms - 2500ms)
-  if (points[0].t && points[points.length - 1].t) {
-    const duration = points[points.length - 1].t - points[0].t;
+  const t0 = points[0]?.t;
+  const tEnd = points[points.length - 1]?.t;
+  if (t0 !== undefined && tEnd !== undefined) {
+    const duration = tEnd - t0;
     if (duration > 2500 || duration < 80) return null;
   }
 
@@ -744,4 +746,49 @@ export function isPalmTouch(
   }
 
   return false;
+}
+
+/**
+ * Intelligent Angle Snapping for Ruler & Math Diagramming.
+ * Snaps lines within ~5 degrees to exact horizontal (0°), vertical (90°), or 45° diagonals.
+ */
+export function snapRulerPoint(
+  start: { x: number; y: number },
+  pos: { x: number; y: number }
+): { x: number; y: number; isSnapped: boolean; angleDeg: number } {
+  const dx = pos.x - start.x;
+  const dy = pos.y - start.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 10) return { x: pos.x, y: pos.y, isSnapped: false, angleDeg: 0 };
+
+  const angle = Math.atan2(dy, dx);
+  const snapThreshold = 0.087; // ~5 degrees
+  const angleDeg = Math.round((angle * 180) / Math.PI);
+
+  // 1. Horizontal snap (0° or 180°)
+  if (Math.abs(angle) < snapThreshold || Math.abs(Math.abs(angle) - Math.PI) < snapThreshold) {
+    return { x: pos.x, y: start.y, isSnapped: true, angleDeg: Math.abs(angle) < snapThreshold ? 0 : 180 };
+  }
+
+  // 2. Vertical snap (90° or -90°)
+  if (Math.abs(Math.abs(angle) - Math.PI / 2) < snapThreshold) {
+    return { x: start.x, y: pos.y, isSnapped: true, angleDeg: angle > 0 ? 90 : -90 };
+  }
+
+  // 3. 45° diagonal snap
+  const piOver4 = Math.PI / 4;
+  const threePiOver4 = 3 * Math.PI / 4;
+  if (Math.abs(Math.abs(angle) - piOver4) < snapThreshold || Math.abs(Math.abs(angle) - threePiOver4) < snapThreshold) {
+    const signX = dx >= 0 ? 1 : -1;
+    const signY = dy >= 0 ? 1 : -1;
+    const avgLen = (Math.abs(dx) + Math.abs(dy)) / 2;
+    return {
+      x: start.x + signX * avgLen,
+      y: start.y + signY * avgLen,
+      isSnapped: true,
+      angleDeg: signX > 0 ? (signY > 0 ? 45 : -45) : (signY > 0 ? 135 : -135),
+    };
+  }
+
+  return { x: pos.x, y: pos.y, isSnapped: false, angleDeg };
 }

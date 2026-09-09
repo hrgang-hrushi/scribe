@@ -170,7 +170,7 @@ export interface ToolSettings {
   tapeWidth?: number;
   studyMode?: boolean;
   smoothing: number;
-  shapeType?: 'rect' | 'circle' | 'triangle' | 'line' | 'arrow';
+  shapeType?: 'rect' | 'circle' | 'triangle' | 'line' | 'arrow' | 'axis';
   holdToShape?: boolean;
   scribbleToErase?: boolean;
   palmRejection?: boolean;
