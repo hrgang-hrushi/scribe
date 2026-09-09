@@ -127,6 +127,15 @@ export function detectScribble(points: Point[]): { isScribble: boolean; bounds: 
   if (diagonal < 15) return null;
   if (width > 450 || height > 350 || diagonal > 500) return null;
 
+  // 1. Underline / Heading Emphasis / Margin Rule Immunity:
+  // Underlines are elongated horizontally with flat vertical height (height <= 42px).
+  // Margin rules are elongated vertically with flat horizontal width (width <= 42px).
+  // Real scratch-outs require vertical/diagonal sweeps covering entire letter bodies.
+  const aspectRatioX = width / Math.max(1, height);
+  const aspectRatioY = height / Math.max(1, width);
+  if (aspectRatioX >= 2.6 && height <= 42) return null; // Underline or heading rule
+  if (aspectRatioY >= 2.6 && width <= 42) return null; // Vertical margin line / bracket
+
   const density = totalLength / diagonal;
   // A scratch-out must be dense (repeatedly passing over the target)
   if (density < 2.5) return null;
@@ -340,6 +349,8 @@ export function findStrokesCoveredByScribble(
       if (p.y > sMaxY) sMaxY = p.y;
     }
 
+    const strokeHeight = sMaxY - sMinY;
+
     const bboxOverlaps = !(
       sMaxX < scribbleBounds.minX ||
       sMinX > scribbleBounds.maxX ||
@@ -349,8 +360,19 @@ export function findStrokesCoveredByScribble(
 
     if (!bboxOverlaps) continue;
 
-    // 2. Direct physical line segment crossing
-    let hasLineIntersection = false;
+    // 2. Vertical Overlap Guard (Heading Protection):
+    // A scribble must cover the body of the target stroke, not just graze the baseline / descenders.
+    // If the vertical overlap is less than 35% of the stroke's height,
+    // the stroke sits above (e.g. heading above underline) or below the scribble — PRESERVE IT!
+    const overlapY = Math.max(0, Math.min(sMaxY, scribbleBounds.maxY) - Math.max(sMinY, scribbleBounds.minY));
+    const verticalCoverageRatio = strokeHeight > 0 ? overlapY / strokeHeight : 1;
+    if (strokeHeight >= 16 && verticalCoverageRatio < 0.35) {
+      continue; // Heading or stroke sitting strictly above or below the gesture! Never delete!
+    }
+
+    // 3. Segment Intersection Analysis:
+    // Real scratch-outs cross through handwritten characters multiple times
+    let intersectionCount = 0;
     for (let i = 1; i < scribblePoints.length; i++) {
       const scr1 = scribblePoints[i - 1];
       const scr2 = scribblePoints[i];
@@ -360,19 +382,19 @@ export function findStrokesCoveredByScribble(
         const str2 = stroke.points[j];
 
         if (segmentIntersectsSegment(scr1, scr2, str1, str2)) {
-          hasLineIntersection = true;
-          break;
+          intersectionCount++;
+          if (intersectionCount >= 2) break;
         }
       }
-      if (hasLineIntersection) break;
+      if (intersectionCount >= 2) break;
     }
 
-    if (hasLineIntersection) {
+    if (intersectionCount >= 2) {
       result.push(stroke);
       continue;
     }
 
-    // 3. Point enclosure check (for small dots/accents or short strokes inside the scribble)
+    // 4. Point enclosure check (for small dots/accents or short strokes inside the scribble)
     let enclosedPoints = 0;
     for (const pt of stroke.points) {
       if (
@@ -385,8 +407,12 @@ export function findStrokesCoveredByScribble(
       }
     }
 
-    // If at least 2 points or the majority of a small stroke is inside the scribble
-    if (enclosedPoints >= Math.min(2, stroke.points.length)) {
+    const pointRatio = enclosedPoints / stroke.points.length;
+    // For small strokes (dot of 'i' or 'j', accents), at least 60% of points must be inside
+    // For normal strokes, at least 50% must be inside AND have at least 1 intersection
+    if (stroke.points.length <= 6 && pointRatio >= 0.60) {
+      result.push(stroke);
+    } else if (pointRatio >= 0.50 && intersectionCount >= 1) {
       result.push(stroke);
     }
   }
@@ -569,4 +595,96 @@ export function isPointInPolygon(point: { x: number; y: number }, polygon: { x: 
     if (intersect) inside = !inside;
   }
   return inside;
+}
+
+/**
+ * Ergonomic pressure calibration curve for Apple Pencil & digital styluses.
+ * Hardware sensors on WebKit / iPadOS emit low raw pressure (0.05 - 0.25) for normal comfortable handwriting.
+ * This curve lifts the baseline so light touches produce rich, consistent ink lines without forcing
+ * the user to press hard on the iPad glass, while preserving dynamic range for deliberate emphasis.
+ */
+export function calibratePressure(rawPressure: number | undefined, pointerType?: string): number {
+  if (pointerType !== 'pen' && pointerType !== undefined) {
+    return 0.5;
+  }
+  if (rawPressure === undefined || rawPressure === 0 || isNaN(rawPressure)) {
+    return 0.5;
+  }
+  const p = Math.min(1, Math.max(0, rawPressure));
+  return Math.min(1, Math.max(0.35, 0.30 + 0.70 * Math.pow(p, 0.40)));
+}
+
+/**
+ * Returns tuned perfect-freehand stroke options for silky, responsive handwriting.
+ * Eliminates hand fatigue by reducing thinning from 0.65 to 0.30 and adding subtle end tapers.
+ */
+export function getStrokeOptions(width: number, smoothing: number, toolType: string = 'pen') {
+  if (toolType === 'highlighter') {
+    return {
+      size: width,
+      thinning: 0,
+      smoothing: 0.65,
+      streamline: 0.50,
+      simulatePressure: false,
+      start: { cap: true, taper: 0 },
+      end: { cap: true, taper: 0 },
+    };
+  }
+  if (toolType === 'eraser') {
+    return {
+      size: width,
+      thinning: 0,
+      smoothing: 0.50,
+      streamline: 0.40,
+      simulatePressure: false,
+      start: { cap: true, taper: 0 },
+      end: { cap: true, taper: 0 },
+    };
+  }
+  return {
+    size: width,
+    thinning: 0.30, // Gentle dynamic variation (eliminates hard pushing on glass!)
+    smoothing: 0.60 + smoothing * 0.20,
+    streamline: 0.50 + smoothing * 0.25, // Dampens micro-jitter from slippery iPad screen
+    simulatePressure: false,
+    easing: (t: number) => t,
+    start: { cap: true, taper: 2 }, // Organic stroke start
+    end: { cap: true, taper: 3 },   // Natural stroke lift-off
+  };
+}
+
+/**
+ * Comprehensive Multi-Layer Palm Rejection Engine.
+ * Evaluates contact patch dimensions, contact ellipse radius, temporal stylus proximity,
+ * and screen boundary resting zones to eliminate resting palms, wrists, and knuckle touches.
+ */
+export function isPalmTouch(
+  e: React.PointerEvent | PointerEvent,
+  inStylusSession: boolean
+): boolean {
+  if (e.pointerType !== 'touch') return false;
+
+  // Layer 1: In active stylus session, any single touch is resting palm
+  if (inStylusSession) return true;
+
+  // Layer 2: Hardware contact patch size (palm vs fingertip)
+  const contactW = (e as any).width || 0;
+  const contactH = (e as any).height || 0;
+  if (contactW > 20 || contactH > 20) return true;
+
+  // Layer 3: Contact ellipse radius
+  const radiusX = (e as any).radiusX || 0;
+  const radiusY = (e as any).radiusY || 0;
+  if (radiusX > 15 || radiusY > 15) return true;
+
+  // Layer 4: Screen edge palm resting zone
+  if (typeof window !== 'undefined') {
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const isNearBottomEdge = e.clientY > vh - 90;
+    const isNearBottomCorner = isNearBottomEdge && (e.clientX < 90 || e.clientX > vw - 90);
+    if (isNearBottomCorner && (contactW > 14 || contactH > 14)) return true;
+  }
+
+  return false;
 }

@@ -5,7 +5,17 @@ import { getStroke } from 'perfect-freehand';
 import type { Page, Stroke, Point, TextBox, ImageBlock, Tool, ToolSettings, PaperColor, NoteTemplate } from '@/lib/types';
 import { PAPER_THEMES } from '@/lib/types';
 import { drawTemplateBackground } from '@/lib/templates';
-import { detectScribble, strokeIntersectsBox, findStrokesCoveredByScribble, detectHoldShape, isPointInPolygon, type BoundingBox } from '@/lib/canvas-gestures';
+import {
+  detectScribble,
+  strokeIntersectsBox,
+  findStrokesCoveredByScribble,
+  detectHoldShape,
+  isPointInPolygon,
+  calibratePressure,
+  getStrokeOptions,
+  isPalmTouch,
+  type BoundingBox,
+} from '@/lib/canvas-gestures';
 import ImageElementOverlay from './ImageElementOverlay';
 
 function getSvgPathFromStroke(stroke: number[][]): string {
@@ -20,18 +30,6 @@ function getSvgPathFromStroke(stroke: number[][]): string {
   );
   d.push('Z');
   return d.join(' ');
-}
-
-function getStrokeOptions(width: number, smoothing: number) {
-  return {
-    size: width,
-    thinning: 0.5 + smoothing * 0.3,
-    smoothing: 0.5 + smoothing * 0.4,
-    streamline: 0.5 + smoothing * 0.3,
-    easing: (t: number) => t,
-    start: { cap: true, taper: 0 },
-    end: { cap: true, taper: 0 },
-  };
 }
 
 interface CanvasEditorProps {
@@ -85,6 +83,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   const lastPenTime = useRef(0);
   const isPenActive = useRef(false);
   const isStylusMode = useRef(false);
+  const hasStylusDevice = useRef(false);
   const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const twoFingerStartMid = useRef<{ x: number; y: number } | null>(null);
   const twoFingerStartPan = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -827,7 +826,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       return;
     }
 
-    const options = getStrokeOptions(stroke.width, settings.smoothing);
+    const options = getStrokeOptions(stroke.width, settings.smoothing, stroke.tool);
     const outlinePoints = getStroke(stroke.points.map(p => [p.x, p.y, p.pressure]), options);
     const path = new Path2D(getSvgPathFromStroke(outlinePoints));
 
@@ -871,7 +870,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     return {
       x: (e.clientX - rect.left - panRef.current.x) / zoomRef.current,
       y: (e.clientY - rect.top - panRef.current.y) / zoomRef.current,
-      pressure: e.pressure || 0.5,
+      pressure: calibratePressure(e.pressure, e.pointerType),
       t: Date.now(),
     };
   }
@@ -887,6 +886,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
 
     // 1. APPLE PENCIL: 100% Top-Level Hardware Priority
     if (e.pointerType === 'pen') {
+      hasStylusDevice.current = true;
       isStylusMode.current = true;
       lastPenTime.current = Date.now();
       isPenActive.current = true;
@@ -899,8 +899,24 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     } else if (e.pointerType === 'touch') {
       activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-      // Stylus session detection: if stylus is active or was used recently, ANY single touch is a resting palm!
-      const inStylusSession = isStylusMode.current || isPenActive.current || (Date.now() - lastPenTime.current < 4000);
+      // Stylus session detection: if stylus is active, paired, or used recently, ANY single touch is a resting palm!
+      const inStylusSession =
+        hasStylusDevice.current ||
+        isStylusMode.current ||
+        isPenActive.current ||
+        Date.now() - lastPenTime.current < 4500;
+
+      // Multi-Layer Palm Rejection (contact geometry, radius, resting edge zone)
+      if (isPalmTouch(e, inStylusSession)) {
+        e.preventDefault();
+        return;
+      }
+
+      // Clustered 3+ touch slap rejection (palm dropping on screen)
+      if (activeTouchesRef.current.size >= 3) {
+        e.preventDefault();
+        return;
+      }
 
       // 2. PALM REJECTION (Single Touch in Stylus Mode):
       if (activeTouchesRef.current.size === 1) {
@@ -921,12 +937,19 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       // 3. TWO-FINGER PINCH & PAN GESTURE:
       if (activeTouchesRef.current.size === 2) {
         const pts = Array.from(activeTouchesRef.current.values());
+        const touchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (touchDist < 45) {
+          // Palm crease/fold: reject
+          e.preventDefault();
+          return;
+        }
+
         twoFingerStartMid.current = {
           x: (pts[0].x + pts[1].x) / 2,
           y: (pts[0].y + pts[1].y) / 2,
         };
         twoFingerStartPan.current = { ...panRef.current };
-        lastPinchDist.current = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        lastPinchDist.current = touchDist;
         isPanningRef.current = true;
         e.preventDefault();
         return;
@@ -1095,15 +1118,38 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       lastPenTime.current = Date.now();
       isPenActive.current = true;
       isStylusMode.current = true;
+      hasStylusDevice.current = true;
     }
 
     if (e.pointerType === 'touch') {
       activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      const inStylusSession = isStylusMode.current || isPenActive.current || (Date.now() - lastPenTime.current < 4000);
+      const inStylusSession =
+        hasStylusDevice.current ||
+        isStylusMode.current ||
+        isPenActive.current ||
+        Date.now() - lastPenTime.current < 4500;
+
+      // Multi-Layer Palm Rejection:
+      if (isPalmTouch(e, inStylusSession)) {
+        e.preventDefault();
+        return;
+      }
+
+      // Clustered 3+ touch slap rejection
+      if (activeTouchesRef.current.size >= 3) {
+        e.preventDefault();
+        return;
+      }
 
       // TWO-FINGER PAN & PINCH ZOOM:
       if (activeTouchesRef.current.size === 2) {
         const pts = Array.from(activeTouchesRef.current.values());
+        const touchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (touchDist < 45) {
+          e.preventDefault();
+          return;
+        }
+
         const currentMid = {
           x: (pts[0].x + pts[1].x) / 2,
           y: (pts[0].y + pts[1].y) / 2,
@@ -1116,12 +1162,11 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         }
 
         // Pinch zoom
-        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        if (lastPinchDist.current > 0 && dist > 0) {
-          const factor = dist / lastPinchDist.current;
+        if (lastPinchDist.current > 0 && touchDist > 0) {
+          const factor = touchDist / lastPinchDist.current;
           const newZoom = Math.min(3, Math.max(0.3, zoomRef.current * factor));
           zoomRef.current = newZoom;
-          lastPinchDist.current = dist;
+          lastPinchDist.current = touchDist;
         }
 
         redrawAll();
@@ -1764,6 +1809,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         onPointerLeave={handlePointerUp}
         onContextMenu={(e) => e.preventDefault()}
         onTouchStart={handleTouchStart}
