@@ -85,11 +85,11 @@ html, body {
   background: transparent !important;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(37, 99, 235, 0.8);
+  background: #2563eb;
   border-radius: 9999px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(147, 197, 253, 0.4);
+  border: 1px solid rgba(147, 197, 253, 0.5);
 }
 *::-webkit-scrollbar-thumb:hover {
   background: rgba(59, 130, 246, 0.95);

@@ -1578,11 +1578,11 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
             style={{
               transform: `translateY(${thumbTop}px)`,
               height: `${thumbHeight}px`,
-              background: 'rgba(37, 99, 235, 0.85)',
+              background: '#2563eb',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid rgba(147, 197, 253, 0.5)',
-              boxShadow: '0 4px 18px rgba(37, 99, 235, 0.45)',
+              border: '1px solid rgba(147, 197, 253, 0.6)',
+              boxShadow: '0 4px 18px rgba(37, 99, 235, 0.5)',
             }}
             title={`Scroll to navigate pages (${Math.round(scrollProgress * 100)}%)`}
           >
