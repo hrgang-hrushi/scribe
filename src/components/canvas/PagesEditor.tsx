@@ -18,7 +18,7 @@ import {
   snapRulerPoint,
   type BoundingBox,
 } from '@/lib/canvas-gestures';
-import { Plus, Trash2, Copy, Minus, Maximize2 } from 'lucide-react';
+import { Plus, Trash2, Copy } from 'lucide-react';
 import ImageElementOverlay from './ImageElementOverlay';
 
 function getSvgPathFromStroke(stroke: number[][]): string {
@@ -107,25 +107,8 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   const erasedStrokesThisDrag = useRef<Stroke[]>([]);
   const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
 
-  // Pinch-to-Zoom & Two-Finger Pan Tracking
-  const isPinching = useRef(false);
-  const initialPinchDist = useRef<number>(0);
-  const initialPinchMid = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const initialPinchZoom = useRef<number>(1.0);
-  const initialPinchScroll = useRef<{ top: number; left: number }>({ top: 0, left: 0 });
-
-  // Single-Finger Smooth Scrolling & Inertia (X & Y navigation)
-  const isFingerScrolling = useRef(false);
-  const touchStartY = useRef(0);
-  const touchStartX = useRef(0);
-  const touchStartScrollTop = useRef(0);
-  const touchStartScrollLeft = useRef(0);
-  const lastTouchY = useRef(0);
-  const lastTouchX = useRef(0);
-  const lastTouchTime = useRef(0);
-  const touchVelocityY = useRef(0);
-  const touchVelocityX = useRef(0);
-  const momentumAnimFrame = useRef<number | null>(null);
+  // Touch Start Reference for Tap-to-Reveal Detection
+  const touchStartClient = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Auto-fit calculation (responsive page fit to screen width)
   const calculateFitZoom = useCallback(() => {
@@ -138,30 +121,110 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     return Math.min(1.0, Math.max(0.35, Math.round(fit * 100) / 100));
   }, []);
 
-  const handleFitToScreen = useCallback(() => {
-    const fit = calculateFitZoom();
-    setZoom(fit);
-    zoomRef.current = fit;
-    if (containerRef.current) {
-      const maxScrollLeft = containerRef.current.scrollWidth - containerRef.current.clientWidth;
-      if (maxScrollLeft > 0) {
-        containerRef.current.scrollLeft = maxScrollLeft / 2;
-      }
-    }
-  }, [calculateFitZoom]);
-
-  const handleZoomChange = useCallback((nextZoom: number) => {
-    const clamped = Math.min(2.5, Math.max(0.35, Math.round(nextZoom * 100) / 100));
-    setZoom(clamped);
-    zoomRef.current = clamped;
-  }, []);
-
   // Initial auto-fit on mount
   useEffect(() => {
     const initialFit = calculateFitZoom();
     setZoom(initialFit);
     zoomRef.current = initialFit;
   }, [calculateFitZoom]);
+
+  // Two-Finger Pinch-to-Zoom & Pan Gesture Engine (Native, Zero UI Dependency)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let pinchStartDist = 0;
+    let pinchStartZoom = 1.0;
+    let pinchStartMid = { x: 0, y: 0 };
+    let pinchStartScroll = { top: 0, left: 0 };
+    let isPinching = false;
+
+    const onTouchStart = (e: TouchEvent) => {
+      const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
+      if (hasStylus || isPenActive.current) {
+        return;
+      }
+
+      if (e.touches.length === 2) {
+        isPinching = true;
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        pinchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        pinchStartZoom = zoomRef.current;
+        pinchStartMid = {
+          x: (t1.clientX + t2.clientX) / 2,
+          y: (t1.clientY + t2.clientY) / 2,
+        };
+        pinchStartScroll = {
+          top: container.scrollTop,
+          left: container.scrollLeft,
+        };
+        e.preventDefault();
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
+      if (hasStylus || isPenActive.current) {
+        return;
+      }
+
+      if (e.touches.length === 2 && isPinching && pinchStartDist > 10) {
+        // Prevent browser viewport zoom and handle page pinch zoom
+        e.preventDefault();
+
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        const scale = currentDist / pinchStartDist;
+        const newZoom = Math.min(2.5, Math.max(0.35, Math.round(pinchStartZoom * scale * 100) / 100));
+
+        setZoom(newZoom);
+        zoomRef.current = newZoom;
+
+        // Two-finger pan: follow the touch midpoint
+        const currentMid = {
+          x: (t1.clientX + t2.clientX) / 2,
+          y: (t1.clientY + t2.clientY) / 2,
+        };
+        const dX = currentMid.x - pinchStartMid.x;
+        const dY = currentMid.y - pinchStartMid.y;
+        container.scrollTop = pinchStartScroll.top - dY;
+        container.scrollLeft = pinchStartScroll.left - dX;
+      }
+      // Note: when e.touches.length === 1, e.preventDefault() is NOT called!
+      // Native browser 120Hz smooth scrolling runs unimpeded!
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        isPinching = false;
+      }
+    };
+
+    const onGestureStart = (e: Event) => {
+      e.preventDefault();
+    };
+    const onGestureChange = (e: Event) => {
+      e.preventDefault();
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: false, capture: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false, capture: true });
+    container.addEventListener('touchend', onTouchEnd, { passive: false, capture: true });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: false, capture: true });
+    container.addEventListener('gesturestart', onGestureStart, { passive: false });
+    container.addEventListener('gesturechange', onGestureChange, { passive: false });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart, { capture: true } as any);
+      container.removeEventListener('touchmove', onTouchMove, { capture: true } as any);
+      container.removeEventListener('touchend', onTouchEnd, { capture: true } as any);
+      container.removeEventListener('touchcancel', onTouchEnd, { capture: true } as any);
+      container.removeEventListener('gesturestart', onGestureStart);
+      container.removeEventListener('gesturechange', onGestureChange);
+    };
+  }, []);
 
   // Trackpad pinch-to-zoom (Ctrl/Cmd + Wheel)
   useEffect(() => {
@@ -209,13 +272,6 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
   }, [tool]);
 
-  useEffect(() => {
-    return () => {
-      if (momentumAnimFrame.current) {
-        cancelAnimationFrame(momentumAnimFrame.current);
-      }
-    };
-  }, []);
 
   // Scroll metrics, blur-blend vignettes, and floating blurred scrollbar pill
   const [canScrollUp, setCanScrollUp] = useState(false);
@@ -285,6 +341,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   }, [pages.length, updateScrollMetrics]);
 
   const handleThumbPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return; // Do not intercept native touch scrolling!
     e.stopPropagation();
     e.preventDefault();
     isDraggingThumb.current = true;
@@ -872,198 +929,6 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     };
   }
 
-  const handleTouchDown = useCallback((e: React.PointerEvent) => {
-    activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-    // Reject if Apple Pencil is actively drawing ink on screen
-    if (isPenActive.current) {
-      e.preventDefault();
-      return;
-    }
-
-    // Hardware contact patch rejection (accidental palm/wrist)
-    if (isPalmTouch(e, false)) {
-      e.preventDefault();
-      return;
-    }
-
-    // 3+ touch slap rejection
-    if (activeTouchesRef.current.size >= 3) {
-      e.preventDefault();
-      return;
-    }
-
-    // Two finger gesture: start pinch to zoom & pan
-    if (activeTouchesRef.current.size === 2) {
-      const pts = Array.from(activeTouchesRef.current.values());
-      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      if (dist < 25) {
-        e.preventDefault();
-        return;
-      }
-
-      if (momentumAnimFrame.current) {
-        cancelAnimationFrame(momentumAnimFrame.current);
-        momentumAnimFrame.current = null;
-      }
-      isFingerScrolling.current = false;
-
-      initialPinchDist.current = dist;
-      initialPinchMid.current = {
-        x: (pts[0].x + pts[1].x) / 2,
-        y: (pts[0].y + pts[1].y) / 2,
-      };
-      initialPinchZoom.current = zoomRef.current;
-      initialPinchScroll.current = {
-        top: containerRef.current?.scrollTop || 0,
-        left: containerRef.current?.scrollLeft || 0,
-      };
-      isPinching.current = true;
-      e.preventDefault();
-      return;
-    }
-
-    // Single finger touch: prepare for smooth scroll or tap
-    if (activeTouchesRef.current.size === 1) {
-      isPinching.current = false;
-      if (momentumAnimFrame.current) {
-        cancelAnimationFrame(momentumAnimFrame.current);
-        momentumAnimFrame.current = null;
-      }
-
-      touchStartY.current = e.clientY;
-      touchStartX.current = e.clientX;
-      touchStartScrollTop.current = containerRef.current?.scrollTop || 0;
-      touchStartScrollLeft.current = containerRef.current?.scrollLeft || 0;
-      lastTouchY.current = e.clientY;
-      lastTouchX.current = e.clientX;
-      lastTouchTime.current = Date.now();
-      touchVelocityY.current = 0;
-      touchVelocityX.current = 0;
-      isFingerScrolling.current = false;
-
-      try {
-        (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
-      } catch {}
-      return;
-    }
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.PointerEvent) => {
-    activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-    if (isPenActive.current) {
-      e.preventDefault();
-      return;
-    }
-
-    if (isPalmTouch(e, false)) {
-      e.preventDefault();
-      return;
-    }
-
-    if (activeTouchesRef.current.size >= 3) {
-      e.preventDefault();
-      return;
-    }
-
-    // Two-finger pinch to zoom & pan
-    if (activeTouchesRef.current.size === 2 && isPinching.current && containerRef.current) {
-      const pts = Array.from(activeTouchesRef.current.values());
-      const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      const currentMid = {
-        x: (pts[0].x + pts[1].x) / 2,
-        y: (pts[0].y + pts[1].y) / 2,
-      };
-
-      if (initialPinchDist.current > 20) {
-        const scale = currentDist / initialPinchDist.current;
-        const nextZoom = Math.min(2.5, Math.max(0.35, Math.round(initialPinchZoom.current * scale * 100) / 100));
-        setZoom(nextZoom);
-        zoomRef.current = nextZoom;
-
-        const dMidX = currentMid.x - initialPinchMid.current.x;
-        const dMidY = currentMid.y - initialPinchMid.current.y;
-        containerRef.current.scrollTop = initialPinchScroll.current.top - dMidY;
-        containerRef.current.scrollLeft = initialPinchScroll.current.left - dMidX;
-      }
-      e.preventDefault();
-      return;
-    }
-
-    // Single finger scroll
-    if (activeTouchesRef.current.size === 1 && containerRef.current) {
-      const dy = e.clientY - touchStartY.current;
-      const dx = e.clientX - touchStartX.current;
-
-      if (Math.hypot(dx, dy) > 6 || isFingerScrolling.current) {
-        isFingerScrolling.current = true;
-        containerRef.current.scrollTop = touchStartScrollTop.current - dy;
-        containerRef.current.scrollLeft = touchStartScrollLeft.current - dx;
-
-        const now = Date.now();
-        const dt = now - lastTouchTime.current;
-        if (dt > 0 && dt < 120) {
-          const vy = (e.clientY - lastTouchY.current) / dt;
-          const vx = (e.clientX - lastTouchX.current) / dt;
-          touchVelocityY.current = vy * 0.8 + touchVelocityY.current * 0.2;
-          touchVelocityX.current = vx * 0.8 + touchVelocityX.current * 0.2;
-        }
-        lastTouchY.current = e.clientY;
-        lastTouchX.current = e.clientX;
-        lastTouchTime.current = now;
-      }
-      e.preventDefault();
-      return;
-    }
-  }, []);
-
-  const handleTouchUp = useCallback((e: React.PointerEvent) => {
-    activeTouchesRef.current.delete(e.pointerId);
-    try {
-      (e.target as HTMLElement)?.releasePointerCapture(e.pointerId);
-    } catch {}
-
-    if (activeTouchesRef.current.size === 0) {
-      isPinching.current = false;
-      if (isFingerScrolling.current) {
-        isFingerScrolling.current = false;
-
-        let vy = touchVelocityY.current;
-        let vx = touchVelocityX.current;
-        if ((Math.abs(vy) > 0.1 || Math.abs(vx) > 0.1) && containerRef.current) {
-          const step = () => {
-            if (!containerRef.current || (Math.abs(vy) < 0.02 && Math.abs(vx) < 0.02)) {
-              momentumAnimFrame.current = null;
-              return;
-            }
-            containerRef.current.scrollTop -= vy * 16;
-            containerRef.current.scrollLeft -= vx * 16;
-            vy *= 0.94;
-            vx *= 0.94;
-            momentumAnimFrame.current = requestAnimationFrame(step);
-          };
-          momentumAnimFrame.current = requestAnimationFrame(step);
-        }
-      }
-    } else if (activeTouchesRef.current.size === 1) {
-      isPinching.current = false;
-      const remaining = Array.from(activeTouchesRef.current.values())[0];
-      if (remaining) {
-        touchStartY.current = remaining.y;
-        touchStartX.current = remaining.x;
-        touchStartScrollTop.current = containerRef.current?.scrollTop || 0;
-        touchStartScrollLeft.current = containerRef.current?.scrollLeft || 0;
-        lastTouchY.current = remaining.y;
-        lastTouchX.current = remaining.x;
-        lastTouchTime.current = Date.now();
-        touchVelocityY.current = 0;
-        touchVelocityX.current = 0;
-        isFingerScrolling.current = false;
-      }
-    }
-  }, []);
-
   function handlePointerDown(e: React.PointerEvent, pageId: string) {
     setActivePageId(pageId);
     setSelectedStrokes(null);
@@ -1076,20 +941,19 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       lastPenTime.current = Date.now();
       isPenActive.current = true;
 
-      // Instantly cancel any active scrolling / momentum inertia
-      isFingerScrolling.current = false;
-      isPinching.current = false;
-      if (momentumAnimFrame.current) {
-        cancelAnimationFrame(momentumAnimFrame.current);
-        momentumAnimFrame.current = null;
-      }
-
       e.preventDefault();
       try {
         (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
       } catch {}
     } else if (e.pointerType === 'touch') {
-      handleTouchDown(e);
+      if (isPenActive.current) {
+        // Resting palm while Apple Pencil is writing
+        e.preventDefault();
+        return;
+      }
+      // Record touch start position to detect quick tap vs scroll on pointerup
+      touchStartClient.current = { x: e.clientX, y: e.clientY };
+      // Do NOT preventDefault() so the browser natively scrolls with 120Hz momentum!
       return;
     }
 
@@ -1192,7 +1056,6 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
 
     if (e.pointerType === 'touch') {
-      handleTouchMove(e);
       return;
     }
 
@@ -1459,11 +1322,12 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
 
     if (e.pointerType === 'touch') {
-      const wasScrolling = isFingerScrolling.current;
-      handleTouchUp(e);
-
-      // If finger tapped without scrolling or pinching, handle tape toggle
-      if (!wasScrolling && !isPinching.current) {
+      // If finger lifted with < 10px total displacement, it was a quick tap
+      const dist = Math.hypot(
+        e.clientX - touchStartClient.current.x,
+        e.clientY - touchStartClient.current.y
+      );
+      if (dist < 10) {
         const pos = getPointerPosOnPage(e, pageId);
         if (tool === 'tape' || tool === 'select') {
           const page = pageDataMap.current.get(pageId);
@@ -1767,22 +1631,11 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        onPointerDown={(e) => {
-          if (e.pointerType === 'touch') handleTouchDown(e);
-        }}
-        onPointerMove={(e) => {
-          if (e.pointerType === 'touch') handleTouchMove(e);
-        }}
-        onPointerUp={(e) => {
-          if (e.pointerType === 'touch') handleTouchUp(e);
-        }}
-        onPointerCancel={(e) => {
-          if (e.pointerType === 'touch') handleTouchUp(e);
-        }}
         className="w-full h-full overflow-y-auto overflow-x-auto p-4 md:p-8 flex flex-col items-center gap-8 no-scrollbar select-none"
         style={{
           background: 'var(--canvas-bg)',
-          touchAction: 'none',
+          touchAction: 'pan-x pan-y',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
         <div className="flex flex-col items-center gap-8 w-fit min-w-full py-2">
@@ -1907,7 +1760,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
                     }}
                     className="absolute inset-0 w-full h-full select-none"
                     style={{
-                      touchAction: 'none',
+                      touchAction: 'pan-x pan-y',
                       zIndex: 15,
                       WebkitUserSelect: 'none',
                       userSelect: 'none',
@@ -1947,7 +1800,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
           })}
 
           {/* Seamless "Scroll to New Page" / "+ Add Page" Footer */}
-          <div className="w-full flex flex-col items-center justify-center py-10 pb-24 gap-3">
+          <div className="w-full flex flex-col items-center justify-center py-10 pb-36 gap-3">
             <button
               onClick={onAddPage}
               className="group px-6 py-3.5 rounded-full flex items-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-md"
@@ -2026,62 +1879,6 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
           </div>
         </div>
       )}
-
-      {/* Floating Zoom Controls Pill (Zoom Out, Current %, Zoom In, Screen Fit) */}
-      <div
-        className="absolute bottom-6 left-6 z-40 flex items-center gap-1 px-3 py-1.5 rounded-full shadow-2xl backdrop-blur-xl border select-none transition-all"
-        style={{
-          background: theme === 'dark' ? 'rgba(24, 24, 34, 0.88)' : 'rgba(255, 255, 255, 0.90)',
-          color: 'var(--text-primary)',
-          borderColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.10)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.08)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          onClick={() => handleZoomChange(zoom - 0.1)}
-          disabled={zoom <= 0.35}
-          className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10 active:scale-90 transition-all disabled:opacity-30 disabled:pointer-events-none"
-          title="Zoom Out (−)"
-          aria-label="Zoom Out"
-        >
-          <Minus size={13} />
-        </button>
-
-        <button
-          type="button"
-          onClick={handleFitToScreen}
-          className="px-2 py-0.5 rounded-md text-xs font-semibold hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] text-center"
-          title="Click to Fit to Screen"
-        >
-          {Math.round(zoom * 100)}%
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleZoomChange(zoom + 0.1)}
-          disabled={zoom >= 2.5}
-          className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10 active:scale-90 transition-all disabled:opacity-30 disabled:pointer-events-none"
-          title="Zoom In (+)"
-          aria-label="Zoom In"
-        >
-          <Plus size={13} />
-        </button>
-
-        <div className="w-[1px] h-3.5 bg-black/15 dark:bg-white/20 mx-0.5" />
-
-        <button
-          type="button"
-          onClick={handleFitToScreen}
-          className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 hover:bg-black/10 dark:hover:bg-white/10 active:scale-95 transition-all"
-          title="Fit Page to Screen Width"
-        >
-          <Maximize2 size={12} />
-          <span>Fit</span>
-        </button>
-      </div>
     </div>
   );
 });

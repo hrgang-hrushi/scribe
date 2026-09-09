@@ -726,25 +726,15 @@ export function isPalmTouch(
   // Layer 1: If Apple Pencil is actively touching down on the screen right now, any simultaneous touch is 100% resting palm
   if (isPenActivelyTouching) return true;
 
-  // Layer 2: Hardware contact patch size (palm vs fingertip)
-  // Standard human fingertip is ~8-14px; flat palm or knuckle contact is > 22px
+  // Layer 2: True flat palm or wrist slap (normal fingertip on iPad retina digitizer is ~20-50px; flat palm is > 85px)
   const contactW = (e as any).width || 0;
   const contactH = (e as any).height || 0;
-  if (contactW > 22 || contactH > 22) return true;
+  if (contactW > 85 || contactH > 85) return true;
 
-  // Layer 3: Contact ellipse radius
+  // Layer 3: Contact ellipse radius (radius > 40px means diameter > 80px)
   const radiusX = (e as any).radiusX || 0;
   const radiusY = (e as any).radiusY || 0;
-  if (radiusX > 18 || radiusY > 18) return true;
-
-  // Layer 4: Screen edge palm resting zone with elevated contact patch
-  if (typeof window !== 'undefined') {
-    const vh = window.innerHeight;
-    const vw = window.innerWidth;
-    const isNearBottomEdge = e.clientY > vh - 90;
-    const isNearBottomCorner = isNearBottomEdge && (e.clientX < 90 || e.clientX > vw - 90);
-    if (isNearBottomCorner && (contactW > 16 || contactH > 16)) return true;
-  }
+  if (radiusX > 40 || radiusY > 40) return true;
 
   return false;
 }
