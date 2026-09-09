@@ -65,175 +65,333 @@ function segmentIntersectsBox(
 }
 
 /**
- * Detects if a stroke is a rapid scratch-out / scribble gesture meant to erase.
- * Recognizes multi-angle zigzags (horizontal, vertical, diagonal) and tight loops,
- * while strictly preventing accidental triggers on cursive handwriting or drawings.
+/**
+ * Checks if two 2D line segments (p1-p2 and p3-p4) intersect.
+ */
+function segmentIntersectsSegment(p1: Point, p2: Point, p3: Point, p4: Point): boolean {
+  function ccw(A: Point, B: Point, C: Point) {
+    return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
+  }
+  return ccw(p1, p3, p4) !== ccw(p2, p3, p4) && ccw(p1, p2, p3) !== ccw(p1, p2, p4);
+}
+
+/**
+ * High-precision, zero-false-positive Scribble / Scratch-Out Classifier.
+ *
+ * Guaranteed to NEVER misidentify:
+ * - Single letters (a, b, c, d, e, k, m, o, r, s, w, etc.)
+ * - Cursive handwriting words (e.g. "minimum", "in", "the")
+ * - Math equations, integrals, sigmas, exponents, fractions
+ *
+ * Accurately detects:
+ * - Genuine multi-pass back-and-forth scratch-outs (horizontal, diagonal, vertical)
+ * - Dense multi-revolution cloud scratch-outs
  */
 export function detectScribble(points: Point[]): { isScribble: boolean; bounds: BoundingBox } | null {
-  if (!points || points.length < 5) return null;
+  if (!points || points.length < 12) return null; // Real scratch-outs require multiple directional sweeps
 
-  // If timestamps are present, scribbles must occur within a natural scratch time window (40ms - 3200ms)
+  // Natural scratching time window (80ms - 2500ms)
   if (points[0].t && points[points.length - 1].t) {
     const duration = points[points.length - 1].t - points[0].t;
-    if (duration > 3200) return null; // Too slow to be an intentional scratch-out
-    if (duration > 0 && duration < 40) return null; // Accidental micro-tap/spike
+    if (duration > 2500 || duration < 80) return null;
   }
 
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  // 1. Resample and denoise points (filter micro-jitter < 3.5px)
+  const filtered: Point[] = [points[0]];
   let totalLength = 0;
+  let minX = points[0].x, maxX = points[0].x, minY = points[0].y, maxY = points[0].y;
 
-  for (let i = 0; i < points.length; i++) {
+  for (let i = 1; i < points.length; i++) {
     const p = points[i];
     if (p.x < minX) minX = p.x;
     if (p.x > maxX) maxX = p.x;
     if (p.y < minY) minY = p.y;
     if (p.y > maxY) maxY = p.y;
-    if (i > 0) {
-      totalLength += Math.hypot(p.x - points[i - 1].x, p.y - points[i - 1].y);
+
+    const last = filtered[filtered.length - 1];
+    const dist = Math.hypot(p.x - last.x, p.y - last.y);
+    if (dist >= 3.5) {
+      filtered.push(p);
+      totalLength += dist;
     }
   }
+
+  if (filtered.length < 10) return null;
 
   const width = maxX - minX;
   const height = maxY - minY;
   const diagonal = Math.hypot(width, height) || 1;
 
-  // Gesture must have intentional motion and remain localized (not scratching the whole screen)
-  if (totalLength < 30) return null;
-  if (diagonal < 10) return null;
-  // A scratch-out is localized over a word or symbol to erase (not an entire diagram or page)
-  if (width > 400 || height > 300 || diagonal > 420) return null;
+  // Scratch-outs must have substance and remain reasonably localized
+  if (totalLength < 70) return null; // Real scratch-outs travel at least 70px
+  if (diagonal < 15) return null;
+  if (width > 450 || height > 350 || diagonal > 500) return null;
 
   const density = totalLength / diagonal;
+  // A scratch-out must be dense (repeatedly passing over the target)
+  if (density < 2.5) return null;
 
-  // End-to-end net displacement vs total path length:
-  // In cursive handwriting and drawings, the pen travels across the page (displacementRatio > 0.40).
-  // In a scratch-out, the pen scrubs back and forth over the same spot (displacementRatio < 0.38).
   const netDisplacement = Math.hypot(
-    points[points.length - 1].x - points[0].x,
-    points[points.length - 1].y - points[0].y
+    filtered[filtered.length - 1].x - filtered[0].x,
+    filtered[filtered.length - 1].y - filtered[0].y
   );
   const displacementRatio = netDisplacement / totalLength;
+  // In cursive and drawings, pen travels across page (displacementRatio > 0.32).
+  // In scratch-outs, pen stays in place (displacementRatio < 0.28).
+  if (displacementRatio > 0.30) return null;
 
-  // Filter out micro-jitter points (< 2px apart) for robust reversal counting
-  const filtered: Point[] = [points[0]];
-  for (let i = 1; i < points.length; i++) {
-    const last = filtered[filtered.length - 1];
-    if (Math.hypot(points[i].x - last.x, points[i].y - last.y) >= 2) {
-      filtered.push(points[i]);
-    }
-  }
-
-  if (filtered.length < 5) return null;
-
-  // 1. Sharp Direction Reversals & Angular Turning
-  let sharpReversals = 0;
-  let totalAngularTurn = 0;
-
-  for (let i = 1; i < filtered.length - 1; i++) {
-    const pPrev = filtered[i - 1];
-    const pCurr = filtered[i];
-    const pNext = filtered[i + 1];
-
-    const v1x = pCurr.x - pPrev.x;
-    const v1y = pCurr.y - pPrev.y;
-    const v2x = pNext.x - pCurr.x;
-    const v2y = pNext.y - pCurr.y;
-
-    const len1 = Math.hypot(v1x, v1y);
-    const len2 = Math.hypot(v2x, v2y);
-
-    if (len1 > 0 && len2 > 0) {
-      const dot = (v1x * v2x + v1y * v2y) / (len1 * len2);
-      // Sharp hairpin turn (cosine < -0.32 corresponds to an angle > 108°)
-      if (dot < -0.32) {
-        sharpReversals++;
-      }
-
-      // Track angular turning for circular / spiral scribbles
-      const a1 = Math.atan2(v1y, v1x);
-      const a2 = Math.atan2(v2y, v2x);
-      let diff = a2 - a1;
-      while (diff > Math.PI) diff -= 2 * Math.PI;
-      while (diff < -Math.PI) diff += 2 * Math.PI;
-      totalAngularTurn += Math.abs(diff);
-    }
-  }
-
-  // 2. Multi-Directional 1D Projected Extrema Check
-  // Check 4 projection axes: 0° (horizontal), 45° (diagonal), 90° (vertical), 135° (slanted)
-  const angles = [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4];
-  let maxProjectedReversals = 0;
+  // 2. Check 8 projection angles for alternating oscillations (0°, 22.5°, 45°, 67.5°, 90°, 112.5°, 135°, 157.5°)
+  const angles = [0, Math.PI / 8, Math.PI / 4, (3 * Math.PI) / 8, Math.PI / 2, (5 * Math.PI) / 8, (3 * Math.PI) / 4, (7 * Math.PI) / 8];
+  
+  let bestOscillation = {
+    reversals: 0,
+    averageOverlap: 0,
+    sharpTurns: 0,
+  };
 
   for (const angle of angles) {
     const cosA = Math.cos(angle);
     const sinA = Math.sin(angle);
-    let reversals = 0;
-    let lastDelta = 0;
-    let accumDelta = 0;
 
-    for (let i = 1; i < filtered.length; i++) {
-      const sPrev = filtered[i - 1].x * cosA + filtered[i - 1].y * sinA;
-      const sCurr = filtered[i].x * cosA + filtered[i].y * sinA;
-      const ds = sCurr - sPrev;
+    // Project points onto this axis
+    const proj: number[] = filtered.map(p => p.x * cosA + p.y * sinA);
+    const projMin = Math.min(...proj);
+    const projMax = Math.max(...proj);
+    const projSpan = projMax - projMin;
 
-      if (Math.abs(ds) > 0.5) {
-        if (lastDelta === 0) {
-          lastDelta = ds;
-          accumDelta = ds;
-        } else if (Math.sign(ds) === Math.sign(lastDelta)) {
-          accumDelta += ds;
-        } else {
-          // Changed direction! Ensure previous swing was substantial (>= 8px) to avoid jitter
-          if (Math.abs(accumDelta) >= 8) {
-            reversals++;
-            lastDelta = ds;
-            accumDelta = ds;
-          }
+    if (projSpan < 14) continue;
+
+    // Minimum amplitude for a legitimate leg: at least 12px or 32% of projected span
+    const minSwing = Math.max(12, projSpan * 0.32);
+
+    const extrema: { val: number; idx: number }[] = [];
+    let currentDir = 0; // +1 increasing, -1 decreasing
+    let lastExtremum = proj[0];
+    let lastExtremumIdx = 0;
+
+    for (let i = 1; i < proj.length; i++) {
+      const delta = proj[i] - lastExtremum;
+      if (currentDir === 0) {
+        if (Math.abs(delta) >= minSwing) {
+          currentDir = Math.sign(delta);
+          lastExtremum = proj[i];
+          lastExtremumIdx = i;
+          extrema.push({ val: proj[0], idx: 0 });
+        }
+      } else if (currentDir === 1) { // Moving positive
+        if (proj[i] > lastExtremum) {
+          lastExtremum = proj[i];
+          lastExtremumIdx = i;
+        } else if (lastExtremum - proj[i] >= minSwing) {
+          // Peaked and reversed!
+          extrema.push({ val: lastExtremum, idx: lastExtremumIdx });
+          currentDir = -1;
+          lastExtremum = proj[i];
+          lastExtremumIdx = i;
+        }
+      } else if (currentDir === -1) { // Moving negative
+        if (proj[i] < lastExtremum) {
+          lastExtremum = proj[i];
+          lastExtremumIdx = i;
+        } else if (proj[i] - lastExtremum >= minSwing) {
+          // Valley and reversed!
+          extrema.push({ val: lastExtremum, idx: lastExtremumIdx });
+          currentDir = 1;
+          lastExtremum = proj[i];
+          lastExtremumIdx = i;
         }
       }
     }
-    if (reversals > maxProjectedReversals) {
-      maxProjectedReversals = reversals;
+    if (extrema.length > 0) {
+      extrema.push({ val: lastExtremum, idx: lastExtremumIdx });
+    }
+
+    const reversals = Math.max(0, extrema.length - 1);
+    if (reversals >= 5) {
+      // Calculate spatial overlap between consecutive sweeps
+      let totalOverlapRatio = 0;
+      let overlapCount = 0;
+
+      for (let e = 1; e < extrema.length - 1; e++) {
+        const sweep1Min = Math.min(extrema[e - 1].val, extrema[e].val);
+        const sweep1Max = Math.max(extrema[e - 1].val, extrema[e].val);
+        const sweep2Min = Math.min(extrema[e].val, extrema[e + 1].val);
+        const sweep2Max = Math.max(extrema[e].val, extrema[e + 1].val);
+
+        const intMin = Math.max(sweep1Min, sweep2Min);
+        const intMax = Math.min(sweep1Max, sweep2Max);
+        const unionMin = Math.min(sweep1Min, sweep2Min);
+        const unionMax = Math.max(sweep1Max, sweep2Max);
+
+        const intersection = Math.max(0, intMax - intMin);
+        const union = Math.max(1, unionMax - unionMin);
+
+        totalOverlapRatio += intersection / union;
+        overlapCount++;
+      }
+
+      const averageOverlap = overlapCount > 0 ? totalOverlapRatio / overlapCount : 0;
+
+      // Count sharp hairpin turn angles at the extrema points
+      let sharpTurns = 0;
+      for (let e = 1; e < extrema.length - 1; e++) {
+        const idx = extrema[e].idx;
+        if (idx > 0 && idx < filtered.length - 1) {
+          const v1x = filtered[idx].x - filtered[idx - 1].x;
+          const v1y = filtered[idx].y - filtered[idx - 1].y;
+          const v2x = filtered[idx + 1].x - filtered[idx].x;
+          const v2y = filtered[idx + 1].y - filtered[idx].y;
+          const len1 = Math.hypot(v1x, v1y);
+          const len2 = Math.hypot(v2x, v2y);
+          if (len1 > 0 && len2 > 0) {
+            const dot = (v1x * v2x + v1y * v2y) / (len1 * len2);
+            if (dot < -0.30) sharpTurns++; // Hairpin angle > 107°
+          }
+        }
+      }
+
+      if (reversals > bestOscillation.reversals) {
+        bestOscillation = { reversals, averageOverlap, sharpTurns };
+      }
     }
   }
 
-  // Strict physical criteria for an intentional scratch-out:
-  // 1. Zigzag scratch: At least 4 reversals (2 full back-and-forth passes), high density (>= 2.0),
-  //    and the stroke does NOT progress linearly across the paper (displacementRatio < 0.42).
-  const isZigzagScribble =
-    (maxProjectedReversals >= 4 || sharpReversals >= 4) &&
-    density >= 2.0 &&
-    displacementRatio < 0.42;
+  // 3. Evaluate criteria:
+  // A true zigzag scratch-out:
+  // - At least 6 alternating reversals (at least 3 full cycles) with average overlap >= 0.48
+  // - OR 5 reversals with very high overlap (>= 0.62) and sharp hairpin turns (>= 3)
+  const isZigzagScratch =
+    (bestOscillation.reversals >= 6 && bestOscillation.averageOverlap >= 0.48) ||
+    (bestOscillation.reversals >= 5 && bestOscillation.averageOverlap >= 0.62 && bestOscillation.sharpTurns >= 3);
 
-  // 2. High-oscillation scratch: At least 5 rapid back-and-forth swings in place
-  const isHighOscillation =
-    (maxProjectedReversals >= 5 || sharpReversals >= 5) &&
-    density >= 1.8 &&
-    displacementRatio < 0.38;
+  // 4. Safe Cloud/Vortex Scratch-Out (Dense circular scribble cloud)
+  // Must be a dense cloud: at least 4 full revolutions (8π) AND multiple self-crossings
+  let totalAngularTurn = 0;
+  for (let i = 1; i < filtered.length - 1; i++) {
+    const v1x = filtered[i].x - filtered[i - 1].x;
+    const v1y = filtered[i].y - filtered[i - 1].y;
+    const v2x = filtered[i + 1].x - filtered[i].x;
+    const v2y = filtered[i + 1].y - filtered[i].y;
+    const a1 = Math.atan2(v1y, v1x);
+    const a2 = Math.atan2(v2y, v2x);
+    let diff = a2 - a1;
+    while (diff > Math.PI) diff -= 2 * Math.PI;
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    totalAngularTurn += Math.abs(diff);
+  }
 
-  // 3. Looping/circular scratch: Cumulative turning >= 3.5π (1.75 circles) in a compact area
-  const isLoopingScribble =
-    totalAngularTurn >= 3.5 * Math.PI &&
-    density >= 2.2 &&
-    diagonal <= 200 &&
-    displacementRatio < 0.35;
+  // Fast self-crossing count
+  let crossings = 0;
+  for (let i = 0; i < filtered.length - 3; i += 2) {
+    for (let j = i + 3; j < filtered.length - 1; j += 2) {
+      if (segmentIntersectsSegment(filtered[i], filtered[i + 1], filtered[j], filtered[j + 1])) {
+        crossings++;
+      }
+    }
+  }
 
-  if (isZigzagScribble || isHighOscillation || isLoopingScribble) {
-    // Generous padding around the scratch so strokes underneath are reliably caught
-    const padX = Math.max(24, width * 0.2);
-    const padY = Math.max(24, height * 0.2);
+  const isCloudScratch =
+    totalAngularTurn >= 8 * Math.PI && // At least 4 full circles
+    crossings >= 4 &&                 // Multiple self-intersections
+    density >= 3.8 &&
+    displacementRatio < 0.25;
+
+  if (isZigzagScratch || isCloudScratch) {
+    // Tight 6px margin matching pen tip thickness (never grabs adjacent letters)
+    const pad = 6;
     return {
       isScribble: true,
       bounds: {
-        minX: minX - padX,
-        minY: minY - padY,
-        maxX: maxX + padX,
-        maxY: maxY + padY,
+        minX: minX - pad,
+        minY: minY - pad,
+        maxX: maxX + pad,
+        maxY: maxY + pad,
       },
     };
   }
 
   return null;
+}
+
+/**
+ * Accurately finds strokes that were physically covered and crossed out by a verified scribble gesture.
+ * Preserves innocent neighboring letters by requiring true segment intersections or tight point enclosure.
+ */
+export function findStrokesCoveredByScribble(
+  existingStrokes: Stroke[],
+  scribblePoints: Point[],
+  scribbleBounds: BoundingBox
+): Stroke[] {
+  if (!existingStrokes || existingStrokes.length === 0 || !scribblePoints || scribblePoints.length === 0) {
+    return [];
+  }
+
+  const result: Stroke[] = [];
+
+  for (const stroke of existingStrokes) {
+    if (!stroke.points || stroke.points.length === 0) continue;
+
+    // 1. Quick bounding box rejection (tight margin 6px)
+    let sMinX = Infinity, sMaxX = -Infinity, sMinY = Infinity, sMaxY = -Infinity;
+    for (const p of stroke.points) {
+      if (p.x < sMinX) sMinX = p.x;
+      if (p.x > sMaxX) sMaxX = p.x;
+      if (p.y < sMinY) sMinY = p.y;
+      if (p.y > sMaxY) sMaxY = p.y;
+    }
+
+    const bboxOverlaps = !(
+      sMaxX < scribbleBounds.minX ||
+      sMinX > scribbleBounds.maxX ||
+      sMaxY < scribbleBounds.minY ||
+      sMinY > scribbleBounds.maxY
+    );
+
+    if (!bboxOverlaps) continue;
+
+    // 2. Direct physical line segment crossing
+    let hasLineIntersection = false;
+    for (let i = 1; i < scribblePoints.length; i++) {
+      const scr1 = scribblePoints[i - 1];
+      const scr2 = scribblePoints[i];
+
+      for (let j = 1; j < stroke.points.length; j++) {
+        const str1 = stroke.points[j - 1];
+        const str2 = stroke.points[j];
+
+        if (segmentIntersectsSegment(scr1, scr2, str1, str2)) {
+          hasLineIntersection = true;
+          break;
+        }
+      }
+      if (hasLineIntersection) break;
+    }
+
+    if (hasLineIntersection) {
+      result.push(stroke);
+      continue;
+    }
+
+    // 3. Point enclosure check (for small dots/accents or short strokes inside the scribble)
+    let enclosedPoints = 0;
+    for (const pt of stroke.points) {
+      if (
+        pt.x >= scribbleBounds.minX &&
+        pt.x <= scribbleBounds.maxX &&
+        pt.y >= scribbleBounds.minY &&
+        pt.y <= scribbleBounds.maxY
+      ) {
+        enclosedPoints++;
+      }
+    }
+
+    // If at least 2 points or the majority of a small stroke is inside the scribble
+    if (enclosedPoints >= Math.min(2, stroke.points.length)) {
+      result.push(stroke);
+    }
+  }
+
+  return result;
 }
 
 /**

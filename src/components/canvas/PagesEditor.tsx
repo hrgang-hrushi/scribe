@@ -5,7 +5,7 @@ import { getStroke } from 'perfect-freehand';
 import type { Page, Stroke, Point, ImageBlock, Tool, ToolSettings, PaperColor, NoteTemplate } from '@/lib/types';
 import { PAPER_THEMES } from '@/lib/types';
 import { drawTemplateBackground } from '@/lib/templates';
-import { detectScribble, strokeIntersectsBox, detectHoldShape, isPointInPolygon, type BoundingBox } from '@/lib/canvas-gestures';
+import { detectScribble, strokeIntersectsBox, findStrokesCoveredByScribble, detectHoldShape, isPointInPolygon, type BoundingBox } from '@/lib/canvas-gestures';
 import { Plus, Trash2, Copy } from 'lucide-react';
 import ImageElementOverlay from './ImageElementOverlay';
 
@@ -1249,7 +1249,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     if ((tool === 'pen' || tool === 'highlighter') && settings.scribbleToErase !== false) {
       const scribble = detectScribble(currentStroke.current);
       if (scribble) {
-        const removed = page.strokes.filter(s => strokeIntersectsBox(s, scribble.bounds));
+        const removed = findStrokesCoveredByScribble(page.strokes, currentStroke.current, scribble.bounds);
         if (removed.length > 0) {
           const removedIds = new Set(removed.map(s => s.id));
           page.strokes = page.strokes.filter(s => !removedIds.has(s.id));

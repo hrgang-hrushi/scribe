@@ -5,7 +5,7 @@ import { getStroke } from 'perfect-freehand';
 import type { Page, Stroke, Point, TextBox, ImageBlock, Tool, ToolSettings, PaperColor, NoteTemplate } from '@/lib/types';
 import { PAPER_THEMES } from '@/lib/types';
 import { drawTemplateBackground } from '@/lib/templates';
-import { detectScribble, strokeIntersectsBox, detectHoldShape, isPointInPolygon, type BoundingBox } from '@/lib/canvas-gestures';
+import { detectScribble, strokeIntersectsBox, findStrokesCoveredByScribble, detectHoldShape, isPointInPolygon, type BoundingBox } from '@/lib/canvas-gestures';
 import ImageElementOverlay from './ImageElementOverlay';
 
 function getSvgPathFromStroke(stroke: number[][]): string {
@@ -1467,7 +1467,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     if ((tool === 'pen' || tool === 'highlighter') && settings.scribbleToErase !== false) {
       const scribble = detectScribble(currentStroke.current);
       if (scribble) {
-        const removed = committedStrokes.current.filter(s => strokeIntersectsBox(s, scribble.bounds));
+        const removed = findStrokesCoveredByScribble(committedStrokes.current, currentStroke.current, scribble.bounds);
         if (removed.length > 0) {
           const removedIds = new Set(removed.map(s => s.id));
           committedStrokes.current = committedStrokes.current.filter(s => !removedIds.has(s.id));
