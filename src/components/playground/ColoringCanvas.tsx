@@ -560,13 +560,8 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
     if (e.pointerType === 'touch') {
       activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-      const inStylusSession =
-        hasStylusDevice.current ||
-        isPenActive.current ||
-        Date.now() - lastPenTime.current < 4500;
-
       // Multi-layer palm rejection:
-      if (isPalmTouch(e, inStylusSession)) {
+      if (isPalmTouch(e, isPenActive.current)) {
         e.preventDefault();
         return;
       }
@@ -596,8 +591,8 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
         return;
       }
 
-      // In stylus session, single touches from palm or resting fingers should NEVER draw or fill paint
-      if (inStylusSession) {
+      // When pen is actively drawing, single touches from palm or resting fingers should NEVER draw or fill paint
+      if (isPenActive.current) {
         e.preventDefault();
         return;
       }
@@ -695,12 +690,7 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
     }
 
     if (e.pointerType === 'touch') {
-      const inStylusSession =
-        hasStylusDevice.current ||
-        isPenActive.current ||
-        Date.now() - lastPenTime.current < 4500;
-
-      if (isPalmTouch(e, inStylusSession)) {
+      if (isPalmTouch(e, isPenActive.current)) {
         e.preventDefault();
         return;
       }
@@ -731,7 +721,7 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
         }
       }
 
-      if (inStylusSession && activeTouchesRef.current.size === 1) {
+      if (isPenActive.current && activeTouchesRef.current.size === 1) {
         e.preventDefault();
         return;
       }

@@ -903,15 +903,9 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     } else if (e.pointerType === 'touch') {
       activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-      // Stylus session detection: if stylus is active, paired, or used recently, ANY single touch is a resting palm!
-      const inStylusSession =
-        hasStylusDevice.current ||
-        isStylusMode.current ||
-        isPenActive.current ||
-        Date.now() - lastPenTime.current < 4500;
-
-      // Multi-Layer Palm Rejection (contact geometry, radius, resting edge zone)
-      if (isPalmTouch(e, inStylusSession)) {
+      // Multi-Layer Palm Rejection:
+      // If pen is actively drawing right now, reject simultaneous touch (resting palm)
+      if (isPalmTouch(e, isPenActive.current)) {
         e.preventDefault();
         return;
       }
@@ -922,15 +916,13 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         return;
       }
 
-      // 2. PALM REJECTION (Single Touch in Stylus Mode):
+      // 2. Single Touch Pan (when pen is not actively touching):
       if (activeTouchesRef.current.size === 1) {
-        if (inStylusSession) {
-          // Hand / palm resting on glass while writing: DROP COMPLETELY. Do NOT pan!
+        if (isPenActive.current) {
           e.preventDefault();
           return;
         }
 
-        // Non-stylus fallback (e.g. mouse or touch-only device without pen):
         if (tool !== 'ruler') {
           isPanningRef.current = true;
           lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
@@ -1153,14 +1145,9 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
 
     if (e.pointerType === 'touch') {
       activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      const inStylusSession =
-        hasStylusDevice.current ||
-        isStylusMode.current ||
-        isPenActive.current ||
-        Date.now() - lastPenTime.current < 4500;
 
       // Multi-Layer Palm Rejection:
-      if (isPalmTouch(e, inStylusSession)) {
+      if (isPalmTouch(e, isPenActive.current)) {
         e.preventDefault();
         return;
       }
@@ -1206,7 +1193,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
 
       // SINGLE TOUCH:
       if (activeTouchesRef.current.size === 1) {
-        if (inStylusSession) {
+        if (isPenActive.current) {
           // Hand resting on screen: DROP!
           e.preventDefault();
           return;

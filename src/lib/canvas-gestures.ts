@@ -714,35 +714,36 @@ export function getStrokeOptions(width: number, smoothing: number, toolType: str
 
 /**
  * Comprehensive Multi-Layer Palm Rejection Engine.
- * Evaluates contact patch dimensions, contact ellipse radius, temporal stylus proximity,
+ * Evaluates contact patch dimensions, contact ellipse radius, pen-active state,
  * and screen boundary resting zones to eliminate resting palms, wrists, and knuckle touches.
  */
 export function isPalmTouch(
   e: React.PointerEvent | PointerEvent,
-  inStylusSession: boolean
+  isPenActivelyTouching: boolean
 ): boolean {
   if (e.pointerType !== 'touch') return false;
 
-  // Layer 1: In active stylus session, any single touch is resting palm
-  if (inStylusSession) return true;
+  // Layer 1: If Apple Pencil is actively touching down on the screen right now, any simultaneous touch is 100% resting palm
+  if (isPenActivelyTouching) return true;
 
   // Layer 2: Hardware contact patch size (palm vs fingertip)
+  // Standard human fingertip is ~8-14px; flat palm or knuckle contact is > 22px
   const contactW = (e as any).width || 0;
   const contactH = (e as any).height || 0;
-  if (contactW > 20 || contactH > 20) return true;
+  if (contactW > 22 || contactH > 22) return true;
 
   // Layer 3: Contact ellipse radius
   const radiusX = (e as any).radiusX || 0;
   const radiusY = (e as any).radiusY || 0;
-  if (radiusX > 15 || radiusY > 15) return true;
+  if (radiusX > 18 || radiusY > 18) return true;
 
-  // Layer 4: Screen edge palm resting zone
+  // Layer 4: Screen edge palm resting zone with elevated contact patch
   if (typeof window !== 'undefined') {
     const vh = window.innerHeight;
     const vw = window.innerWidth;
     const isNearBottomEdge = e.clientY > vh - 90;
     const isNearBottomCorner = isNearBottomEdge && (e.clientX < 90 || e.clientX > vw - 90);
-    if (isNearBottomCorner && (contactW > 14 || contactH > 14)) return true;
+    if (isNearBottomCorner && (contactW > 16 || contactH > 16)) return true;
   }
 
   return false;

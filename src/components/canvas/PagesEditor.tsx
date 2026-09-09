@@ -18,7 +18,7 @@ import {
   snapRulerPoint,
   type BoundingBox,
 } from '@/lib/canvas-gestures';
-import { Plus, Trash2, Copy } from 'lucide-react';
+import { Plus, Trash2, Copy, Minus, Maximize2 } from 'lucide-react';
 import ImageElementOverlay from './ImageElementOverlay';
 
 function getSvgPathFromStroke(stroke: number[][]): string {
@@ -94,22 +94,112 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   const [croppingImageId, setCroppingImageId] = useState<string | null>(null);
   const [, setForceRender] = useState(0);
 
-  // Apple Pencil Priority, Bulletproof Palm Rejection & Two-Finger Smooth Scrolling
+  // Responsive Zoom State and Smooth Viewport Fitting
+  const [zoom, setZoom] = useState<number>(1.0);
+  const zoomRef = useRef<number>(1.0);
+  zoomRef.current = zoom;
+
+  // Apple Pencil Priority & Palm Rejection
   const lastPenTime = useRef(0);
   const isPenActive = useRef(false);
   const isStylusMode = useRef(false);
   const hasStylusDevice = useRef(false);
   const erasedStrokesThisDrag = useRef<Stroke[]>([]);
   const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const twoFingerStartMidY = useRef<number>(0);
-  const twoFingerStartScrollTop = useRef<number>(0);
+
+  // Pinch-to-Zoom & Two-Finger Pan Tracking
+  const isPinching = useRef(false);
+  const initialPinchDist = useRef<number>(0);
+  const initialPinchMid = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const initialPinchZoom = useRef<number>(1.0);
+  const initialPinchScroll = useRef<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  // Single-Finger Smooth Scrolling & Inertia (X & Y navigation)
   const isFingerScrolling = useRef(false);
   const touchStartY = useRef(0);
+  const touchStartX = useRef(0);
   const touchStartScrollTop = useRef(0);
+  const touchStartScrollLeft = useRef(0);
   const lastTouchY = useRef(0);
+  const lastTouchX = useRef(0);
   const lastTouchTime = useRef(0);
   const touchVelocityY = useRef(0);
+  const touchVelocityX = useRef(0);
   const momentumAnimFrame = useRef<number | null>(null);
+
+  // Auto-fit calculation (responsive page fit to screen width)
+  const calculateFitZoom = useCallback(() => {
+    if (!containerRef.current) return 1.0;
+    const availableWidth = containerRef.current.clientWidth;
+    if (!availableWidth) return 1.0;
+    const padding = availableWidth < 640 ? 24 : 48;
+    const targetWidth = availableWidth - padding;
+    const fit = targetWidth / PAGE_WIDTH;
+    return Math.min(1.0, Math.max(0.35, Math.round(fit * 100) / 100));
+  }, []);
+
+  const handleFitToScreen = useCallback(() => {
+    const fit = calculateFitZoom();
+    setZoom(fit);
+    zoomRef.current = fit;
+    if (containerRef.current) {
+      const maxScrollLeft = containerRef.current.scrollWidth - containerRef.current.clientWidth;
+      if (maxScrollLeft > 0) {
+        containerRef.current.scrollLeft = maxScrollLeft / 2;
+      }
+    }
+  }, [calculateFitZoom]);
+
+  const handleZoomChange = useCallback((nextZoom: number) => {
+    const clamped = Math.min(2.5, Math.max(0.35, Math.round(nextZoom * 100) / 100));
+    setZoom(clamped);
+    zoomRef.current = clamped;
+  }, []);
+
+  // Initial auto-fit on mount
+  useEffect(() => {
+    const initialFit = calculateFitZoom();
+    setZoom(initialFit);
+    zoomRef.current = initialFit;
+  }, [calculateFitZoom]);
+
+  // Trackpad pinch-to-zoom (Ctrl/Cmd + Wheel)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const factor = -e.deltaY * 0.004;
+        const current = zoomRef.current;
+        const next = Math.min(2.5, Math.max(0.35, Math.round((current + factor) * 100) / 100));
+        setZoom(next);
+        zoomRef.current = next;
+      }
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // Smooth scroll down to newly added page
+  const prevPagesCount = useRef(pages.length);
+  useEffect(() => {
+    if (pages.length > prevPagesCount.current) {
+      const lastPage = pages[pages.length - 1];
+      if (lastPage) {
+        setTimeout(() => {
+          const el = document.getElementById(`page-card-${lastPage.id}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setActivePageId(lastPage.id);
+          }
+        }, 80);
+      }
+    }
+    prevPagesCount.current = pages.length;
+  }, [pages.length, pages]);
 
   // Clear image selection when switching away from select/image/lasso tools
   useEffect(() => {
@@ -782,6 +872,198 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     };
   }
 
+  const handleTouchDown = useCallback((e: React.PointerEvent) => {
+    activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    // Reject if Apple Pencil is actively drawing ink on screen
+    if (isPenActive.current) {
+      e.preventDefault();
+      return;
+    }
+
+    // Hardware contact patch rejection (accidental palm/wrist)
+    if (isPalmTouch(e, false)) {
+      e.preventDefault();
+      return;
+    }
+
+    // 3+ touch slap rejection
+    if (activeTouchesRef.current.size >= 3) {
+      e.preventDefault();
+      return;
+    }
+
+    // Two finger gesture: start pinch to zoom & pan
+    if (activeTouchesRef.current.size === 2) {
+      const pts = Array.from(activeTouchesRef.current.values());
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if (dist < 25) {
+        e.preventDefault();
+        return;
+      }
+
+      if (momentumAnimFrame.current) {
+        cancelAnimationFrame(momentumAnimFrame.current);
+        momentumAnimFrame.current = null;
+      }
+      isFingerScrolling.current = false;
+
+      initialPinchDist.current = dist;
+      initialPinchMid.current = {
+        x: (pts[0].x + pts[1].x) / 2,
+        y: (pts[0].y + pts[1].y) / 2,
+      };
+      initialPinchZoom.current = zoomRef.current;
+      initialPinchScroll.current = {
+        top: containerRef.current?.scrollTop || 0,
+        left: containerRef.current?.scrollLeft || 0,
+      };
+      isPinching.current = true;
+      e.preventDefault();
+      return;
+    }
+
+    // Single finger touch: prepare for smooth scroll or tap
+    if (activeTouchesRef.current.size === 1) {
+      isPinching.current = false;
+      if (momentumAnimFrame.current) {
+        cancelAnimationFrame(momentumAnimFrame.current);
+        momentumAnimFrame.current = null;
+      }
+
+      touchStartY.current = e.clientY;
+      touchStartX.current = e.clientX;
+      touchStartScrollTop.current = containerRef.current?.scrollTop || 0;
+      touchStartScrollLeft.current = containerRef.current?.scrollLeft || 0;
+      lastTouchY.current = e.clientY;
+      lastTouchX.current = e.clientX;
+      lastTouchTime.current = Date.now();
+      touchVelocityY.current = 0;
+      touchVelocityX.current = 0;
+      isFingerScrolling.current = false;
+
+      try {
+        (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
+      } catch {}
+      return;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.PointerEvent) => {
+    activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (isPenActive.current) {
+      e.preventDefault();
+      return;
+    }
+
+    if (isPalmTouch(e, false)) {
+      e.preventDefault();
+      return;
+    }
+
+    if (activeTouchesRef.current.size >= 3) {
+      e.preventDefault();
+      return;
+    }
+
+    // Two-finger pinch to zoom & pan
+    if (activeTouchesRef.current.size === 2 && isPinching.current && containerRef.current) {
+      const pts = Array.from(activeTouchesRef.current.values());
+      const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      const currentMid = {
+        x: (pts[0].x + pts[1].x) / 2,
+        y: (pts[0].y + pts[1].y) / 2,
+      };
+
+      if (initialPinchDist.current > 20) {
+        const scale = currentDist / initialPinchDist.current;
+        const nextZoom = Math.min(2.5, Math.max(0.35, Math.round(initialPinchZoom.current * scale * 100) / 100));
+        setZoom(nextZoom);
+        zoomRef.current = nextZoom;
+
+        const dMidX = currentMid.x - initialPinchMid.current.x;
+        const dMidY = currentMid.y - initialPinchMid.current.y;
+        containerRef.current.scrollTop = initialPinchScroll.current.top - dMidY;
+        containerRef.current.scrollLeft = initialPinchScroll.current.left - dMidX;
+      }
+      e.preventDefault();
+      return;
+    }
+
+    // Single finger scroll
+    if (activeTouchesRef.current.size === 1 && containerRef.current) {
+      const dy = e.clientY - touchStartY.current;
+      const dx = e.clientX - touchStartX.current;
+
+      if (Math.hypot(dx, dy) > 6 || isFingerScrolling.current) {
+        isFingerScrolling.current = true;
+        containerRef.current.scrollTop = touchStartScrollTop.current - dy;
+        containerRef.current.scrollLeft = touchStartScrollLeft.current - dx;
+
+        const now = Date.now();
+        const dt = now - lastTouchTime.current;
+        if (dt > 0 && dt < 120) {
+          const vy = (e.clientY - lastTouchY.current) / dt;
+          const vx = (e.clientX - lastTouchX.current) / dt;
+          touchVelocityY.current = vy * 0.8 + touchVelocityY.current * 0.2;
+          touchVelocityX.current = vx * 0.8 + touchVelocityX.current * 0.2;
+        }
+        lastTouchY.current = e.clientY;
+        lastTouchX.current = e.clientX;
+        lastTouchTime.current = now;
+      }
+      e.preventDefault();
+      return;
+    }
+  }, []);
+
+  const handleTouchUp = useCallback((e: React.PointerEvent) => {
+    activeTouchesRef.current.delete(e.pointerId);
+    try {
+      (e.target as HTMLElement)?.releasePointerCapture(e.pointerId);
+    } catch {}
+
+    if (activeTouchesRef.current.size === 0) {
+      isPinching.current = false;
+      if (isFingerScrolling.current) {
+        isFingerScrolling.current = false;
+
+        let vy = touchVelocityY.current;
+        let vx = touchVelocityX.current;
+        if ((Math.abs(vy) > 0.1 || Math.abs(vx) > 0.1) && containerRef.current) {
+          const step = () => {
+            if (!containerRef.current || (Math.abs(vy) < 0.02 && Math.abs(vx) < 0.02)) {
+              momentumAnimFrame.current = null;
+              return;
+            }
+            containerRef.current.scrollTop -= vy * 16;
+            containerRef.current.scrollLeft -= vx * 16;
+            vy *= 0.94;
+            vx *= 0.94;
+            momentumAnimFrame.current = requestAnimationFrame(step);
+          };
+          momentumAnimFrame.current = requestAnimationFrame(step);
+        }
+      }
+    } else if (activeTouchesRef.current.size === 1) {
+      isPinching.current = false;
+      const remaining = Array.from(activeTouchesRef.current.values())[0];
+      if (remaining) {
+        touchStartY.current = remaining.y;
+        touchStartX.current = remaining.x;
+        touchStartScrollTop.current = containerRef.current?.scrollTop || 0;
+        touchStartScrollLeft.current = containerRef.current?.scrollLeft || 0;
+        lastTouchY.current = remaining.y;
+        lastTouchX.current = remaining.x;
+        lastTouchTime.current = Date.now();
+        touchVelocityY.current = 0;
+        touchVelocityX.current = 0;
+        isFingerScrolling.current = false;
+      }
+    }
+  }, []);
+
   function handlePointerDown(e: React.PointerEvent, pageId: string) {
     setActivePageId(pageId);
     setSelectedStrokes(null);
@@ -796,6 +1078,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
       // Instantly cancel any active scrolling / momentum inertia
       isFingerScrolling.current = false;
+      isPinching.current = false;
       if (momentumAnimFrame.current) {
         cancelAnimationFrame(momentumAnimFrame.current);
         momentumAnimFrame.current = null;
@@ -806,68 +1089,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
       } catch {}
     } else if (e.pointerType === 'touch') {
-      activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-      // Stylus session detection: if stylus is active, paired, or used recently, ANY single touch is a resting palm!
-      const inStylusSession =
-        hasStylusDevice.current ||
-        isStylusMode.current ||
-        isPenActive.current ||
-        Date.now() - lastPenTime.current < 4500;
-
-      // Multi-Layer Palm Rejection (contact geometry, radius, resting edge zone)
-      if (isPalmTouch(e, inStylusSession)) {
-        e.preventDefault();
-        return;
-      }
-
-      // Clustered 3+ touch slap rejection (palm dropping on screen)
-      if (activeTouchesRef.current.size >= 3) {
-        e.preventDefault();
-        return;
-      }
-
-      // 2. PALM REJECTION (Single Touch in Stylus Mode):
-      if (activeTouchesRef.current.size === 1) {
-        if (inStylusSession) {
-          // Hand / palm resting on glass while writing: DROP COMPLETELY. Do NOT scroll!
-          e.preventDefault();
-          return;
-        }
-
-        // Non-stylus fallback: wait for intentional vertical drag > 20px before scrolling
-        touchStartY.current = e.clientY;
-        touchStartScrollTop.current = containerRef.current?.scrollTop || 0;
-        lastTouchY.current = e.clientY;
-        lastTouchTime.current = Date.now();
-        isFingerScrolling.current = false;
-        return;
-      }
-
-      // 3. TWO-FINGER SCROLL GESTURE (Universal tablet standard across GoodNotes & Procreate):
-      if (activeTouchesRef.current.size === 2) {
-        const pts = Array.from(activeTouchesRef.current.values());
-        const touchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        if (touchDist < 45) {
-          // Palm crease/fold: reject
-          e.preventDefault();
-          return;
-        }
-
-        if (momentumAnimFrame.current) {
-          cancelAnimationFrame(momentumAnimFrame.current);
-          momentumAnimFrame.current = null;
-        }
-        twoFingerStartMidY.current = (pts[0].y + pts[1].y) / 2;
-        twoFingerStartScrollTop.current = containerRef.current?.scrollTop || 0;
-        lastTouchY.current = twoFingerStartMidY.current;
-        lastTouchTime.current = Date.now();
-        touchVelocityY.current = 0;
-        isFingerScrolling.current = true;
-        e.preventDefault();
-        return;
-      }
-
+      handleTouchDown(e);
       return;
     }
 
@@ -970,72 +1192,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
 
     if (e.pointerType === 'touch') {
-      activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      const inStylusSession =
-        hasStylusDevice.current ||
-        isStylusMode.current ||
-        isPenActive.current ||
-        Date.now() - lastPenTime.current < 4500;
-
-      // Multi-Layer Palm Rejection:
-      if (isPalmTouch(e, inStylusSession)) {
-        e.preventDefault();
-        return;
-      }
-
-      // Clustered 3+ touch slap rejection
-      if (activeTouchesRef.current.size >= 3) {
-        e.preventDefault();
-        return;
-      }
-
-      // TWO-FINGER SCROLL:
-      if (activeTouchesRef.current.size === 2 && containerRef.current) {
-        const pts = Array.from(activeTouchesRef.current.values());
-        const touchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        if (touchDist < 45) {
-          e.preventDefault();
-          return;
-        }
-
-        const currentMidY = (pts[0].y + pts[1].y) / 2;
-        const dy = currentMidY - twoFingerStartMidY.current;
-        containerRef.current.scrollTop = twoFingerStartScrollTop.current - dy;
-
-        const now = Date.now();
-        const dt = now - lastTouchTime.current;
-        if (dt > 0) {
-          touchVelocityY.current = (currentMidY - lastTouchY.current) / dt;
-        }
-        lastTouchY.current = currentMidY;
-        lastTouchTime.current = now;
-        e.preventDefault();
-        return;
-      }
-
-      // SINGLE TOUCH:
-      if (activeTouchesRef.current.size === 1) {
-        if (inStylusSession) {
-          // Hand resting on screen: DROP! DO NOT SCROLL!
-          e.preventDefault();
-          return;
-        }
-
-        // Non-stylus device: drag threshold > 20px
-        const totalDy = e.clientY - touchStartY.current;
-        if (Math.abs(totalDy) > 20 && containerRef.current) {
-          isFingerScrolling.current = true;
-          containerRef.current.scrollTop = touchStartScrollTop.current - totalDy;
-          const now = Date.now();
-          const dt = now - lastTouchTime.current;
-          if (dt > 0) {
-            touchVelocityY.current = (e.clientY - lastTouchY.current) / dt;
-          }
-          lastTouchY.current = e.clientY;
-          lastTouchTime.current = now;
-        }
-        return;
-      }
+      handleTouchMove(e);
       return;
     }
 
@@ -1302,27 +1459,27 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
 
     if (e.pointerType === 'touch') {
-      activeTouchesRef.current.delete(e.pointerId);
+      const wasScrolling = isFingerScrolling.current;
+      handleTouchUp(e);
 
-      if (activeTouchesRef.current.size === 0) {
-        if (isFingerScrolling.current) {
-          isFingerScrolling.current = false;
-          try {
-            (e.target as HTMLElement)?.releasePointerCapture(e.pointerId);
-          } catch {}
-
-          let velocity = touchVelocityY.current;
-          if (Math.abs(velocity) > 0.15 && containerRef.current) {
-            const step = () => {
-              if (!containerRef.current || Math.abs(velocity) < 0.01) {
-                momentumAnimFrame.current = null;
-                return;
-              }
-              containerRef.current.scrollTop -= velocity * 16;
-              velocity *= 0.93;
-              momentumAnimFrame.current = requestAnimationFrame(step);
-            };
-            momentumAnimFrame.current = requestAnimationFrame(step);
+      // If finger tapped without scrolling or pinching, handle tape toggle
+      if (!wasScrolling && !isPinching.current) {
+        const pos = getPointerPosOnPage(e, pageId);
+        if (tool === 'tape' || tool === 'select') {
+          const page = pageDataMap.current.get(pageId);
+          if (page) {
+            const clickedTape = page.strokes.find(s => {
+              if (s.tool !== 'tape') return false;
+              const radius = (s.width || 32) / 2 + 10;
+              return s.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) <= radius);
+            });
+            if (clickedTape) {
+              clickedTape.isRevealed = !clickedTape.isRevealed;
+              pageDataMap.current.set(pageId, { ...page });
+              if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(18);
+              redrawPage(pageId);
+              onSavePage(page);
+            }
           }
         }
       }
@@ -1610,187 +1767,204 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       <div
         ref={containerRef}
         onScroll={handleScroll}
+        onPointerDown={(e) => {
+          if (e.pointerType === 'touch') handleTouchDown(e);
+        }}
+        onPointerMove={(e) => {
+          if (e.pointerType === 'touch') handleTouchMove(e);
+        }}
+        onPointerUp={(e) => {
+          if (e.pointerType === 'touch') handleTouchUp(e);
+        }}
+        onPointerCancel={(e) => {
+          if (e.pointerType === 'touch') handleTouchUp(e);
+        }}
         className="w-full h-full overflow-y-auto overflow-x-auto p-4 md:p-8 flex flex-col items-center gap-8 no-scrollbar select-none"
         style={{
           background: 'var(--canvas-bg)',
-          touchAction: 'pan-y',
+          touchAction: 'none',
         }}
       >
-      {pages.map((page, index) => (
-        <div
-          key={page.id}
-          id={`page-card-${page.id}`}
-          onClick={() => setActivePageId(page.id)}
-          className={`relative flex flex-col items-center transition-shadow duration-200 rounded-[20px] ${
-            activePageId === page.id ? 'ring-2 ring-[var(--accent)]/40' : ''
-          }`}
-          style={{
-            width: PAGE_WIDTH,
-            height: PAGE_HEIGHT,
-            backgroundColor: activeTheme.bg,
-            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.12)',
-            flexShrink: 0,
-          }}
-        >
-          {/* Page Header Indicator */}
-          <div className="absolute -top-6 left-2 flex items-center gap-2">
-            <span
-              className="text-xs font-semibold px-2.5 py-0.5 rounded-full backdrop-blur-md"
-              style={{
-                background: 'var(--toolbar-bg)',
-                color: 'var(--text-muted)',
-                border: '1px solid var(--border)',
-              }}
-            >
-              Page {index + 1} of {pages.length}
-            </span>
-          </div>
+        <div className="flex flex-col items-center gap-8 w-fit min-w-full py-2">
+          {pages.map((page, index) => {
+            const displayWidth = Math.round(PAGE_WIDTH * zoom);
+            const displayHeight = Math.round(PAGE_HEIGHT * zoom);
+            return (
+              <div
+                key={page.id}
+                id={`page-card-${page.id}`}
+                onClick={() => setActivePageId(page.id)}
+                className={`relative flex flex-col items-center transition-shadow duration-200 rounded-[20px] ${
+                  activePageId === page.id ? 'ring-2 ring-[var(--accent)]/40' : ''
+                }`}
+                style={{
+                  width: displayWidth,
+                  height: displayHeight,
+                  backgroundColor: activeTheme.bg,
+                  boxShadow: '0 12px 36px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.12)',
+                  flexShrink: 0,
+                }}
+              >
+                {/* Page Header Indicator */}
+                <div className="absolute -top-6 left-2 flex items-center gap-2">
+                  <span
+                    className="text-xs font-semibold px-2.5 py-0.5 rounded-full backdrop-blur-md"
+                    style={{
+                      background: 'var(--toolbar-bg)',
+                      color: 'var(--text-muted)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    Page {index + 1} of {pages.length}
+                  </span>
+                </div>
 
-          {/* Delete Page Button (if more than 1 page) */}
-          {pages.length > 1 && onDeletePage && (
+                {/* Delete Page Button (if more than 1 page) */}
+                {pages.length > 1 && onDeletePage && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Delete Page ${index + 1}?`)) {
+                        onDeletePage(page.id);
+                      }
+                    }}
+                    title="Delete Page"
+                    className="absolute -top-6 right-2 w-6 h-6 rounded-full flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+
+                {/* Canvas Layers */}
+                <div className="relative w-full h-full rounded-[20px] overflow-hidden" style={{ backgroundColor: activeTheme.bg }}>
+                  {/* 1. Background Paper Canvas */}
+                  <canvas
+                    ref={el => {
+                      const item = pageRefs.current.get(page.id) || { bgCanvas: null, canvas: null, overlayCanvas: null };
+                      item.bgCanvas = el;
+                      pageRefs.current.set(page.id, item);
+                      if (el) {
+                        const dpr = window.devicePixelRatio || 1;
+                        el.width = PAGE_WIDTH * dpr;
+                        el.height = PAGE_HEIGHT * dpr;
+                        redrawPage(page.id);
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    style={{ zIndex: 1 }}
+                  />
+
+                  {/* 2. Document & Image Objects (Rendered UNDER ink in pen mode, and on top in select mode!) */}
+                  <div className="absolute inset-0 pointer-events-none" style={{ zIndex: (tool === 'select' || tool === 'image') ? 25 : 5 }}>
+                    {page.images?.map(img => (
+                      <ImageElementOverlay
+                        key={img.id}
+                        image={img}
+                        isSelected={selectedImage?.pageId === page.id && selectedImage?.imageId === img.id}
+                        onSelect={() => {
+                          setSelectedImage({ pageId: page.id, imageId: img.id });
+                        }}
+                        onUpdate={(updates) => handleUpdateImage(page.id, img.id, updates)}
+                        onDelete={() => handleDeleteImage(page.id, img.id)}
+                        onDuplicate={() => handleDuplicateImage(page.id, img.id)}
+                        zoom={zoom}
+                        tool={tool}
+                        isCropping={croppingImageId === img.id}
+                        onSetCropping={(c) => setCroppingImageId(c ? img.id : null)}
+                      />
+                    ))}
+                  </div>
+
+                  {/* 3. Main Ink Strokes Canvas (Draws handwriting ON TOP of the PDF!) */}
+                  <canvas
+                    ref={el => {
+                      const item = pageRefs.current.get(page.id) || { bgCanvas: null, canvas: null, overlayCanvas: null };
+                      item.canvas = el;
+                      pageRefs.current.set(page.id, item);
+                      if (el) {
+                        const dpr = window.devicePixelRatio || 1;
+                        el.width = PAGE_WIDTH * dpr;
+                        el.height = PAGE_HEIGHT * dpr;
+                        redrawPage(page.id);
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    style={{ zIndex: 10 }}
+                  />
+
+                  {/* 4. Interactive Overlay Canvas (Captures Pen, Pencil, Highlighter, Eraser!) */}
+                  <canvas
+                    ref={el => {
+                      const item = pageRefs.current.get(page.id) || { bgCanvas: null, canvas: null, overlayCanvas: null };
+                      item.overlayCanvas = el;
+                      pageRefs.current.set(page.id, item);
+                      if (el) {
+                        const dpr = window.devicePixelRatio || 1;
+                        el.width = PAGE_WIDTH * dpr;
+                        el.height = PAGE_HEIGHT * dpr;
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full select-none"
+                    style={{
+                      touchAction: 'none',
+                      zIndex: 15,
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none',
+                      WebkitTouchCallout: 'none',
+                    }}
+                    onPointerDown={(e) => handlePointerDown(e, page.id)}
+                    onPointerMove={(e) => handlePointerMove(e, page.id)}
+                    onPointerUp={(e) => handlePointerUp(e, page.id)}
+                    onPointerCancel={(e) => handlePointerUp(e, page.id)}
+                    onContextMenu={(e) => e.preventDefault()}
+                  />
+                </div>
+
+                {/* Floating Lasso Actions */}
+                {selectedStrokes && selectedStrokes.pageId === page.id && (
+                  <div
+                    className="absolute top-4 right-4 z-30 flex items-center gap-2 p-1.5 rounded-2xl glass-panel shadow-xl animate-fade-in"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={handleDuplicateSelected}
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 hover:bg-black/10 dark:hover:bg-white/10"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      <Copy size={14} /> Duplicate
+                    </button>
+                    <button
+                      onClick={handleDeleteSelected}
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-500/10 flex items-center gap-1.5"
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Seamless "Scroll to New Page" / "+ Add Page" Footer */}
+          <div className="w-full flex flex-col items-center justify-center py-10 pb-24 gap-3">
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (confirm(`Delete Page ${index + 1}?`)) {
-                  onDeletePage(page.id);
-                }
-              }}
-              title="Delete Page"
-              className="absolute -top-6 right-2 w-6 h-6 rounded-full flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <Trash2 size={13} />
-            </button>
-          )}
-
-          {/* Canvas Layers */}
-          <div className="relative w-full h-full rounded-[20px] overflow-hidden" style={{ backgroundColor: activeTheme.bg }}>
-            {/* 1. Background Paper Canvas */}
-            <canvas
-              ref={el => {
-                const item = pageRefs.current.get(page.id) || { bgCanvas: null, canvas: null, overlayCanvas: null };
-                item.bgCanvas = el;
-                pageRefs.current.set(page.id, item);
-                if (el) {
-                  const dpr = window.devicePixelRatio || 1;
-                  el.width = PAGE_WIDTH * dpr;
-                  el.height = PAGE_HEIGHT * dpr;
-                  redrawPage(page.id);
-                }
-              }}
-              className="absolute inset-0 w-full h-full pointer-events-none"
-              style={{ zIndex: 1 }}
-            />
-
-            {/* 2. Document & Image Objects (Rendered UNDER ink in pen mode, and on top in select mode!) */}
-            <div className="absolute inset-0 pointer-events-none" style={{ zIndex: (tool === 'select' || tool === 'image') ? 25 : 5 }}>
-              {page.images?.map(img => (
-                <ImageElementOverlay
-                  key={img.id}
-                  image={img}
-                  isSelected={selectedImage?.pageId === page.id && selectedImage?.imageId === img.id}
-                  onSelect={() => {
-                    setSelectedImage({ pageId: page.id, imageId: img.id });
-                  }}
-                  onUpdate={(updates) => handleUpdateImage(page.id, img.id, updates)}
-                  onDelete={() => handleDeleteImage(page.id, img.id)}
-                  onDuplicate={() => handleDuplicateImage(page.id, img.id)}
-                  zoom={1}
-                  tool={tool}
-                  isCropping={croppingImageId === img.id}
-                  onSetCropping={(c) => setCroppingImageId(c ? img.id : null)}
-                />
-              ))}
-            </div>
-
-            {/* 3. Main Ink Strokes Canvas (Draws handwriting ON TOP of the PDF!) */}
-            <canvas
-              ref={el => {
-                const item = pageRefs.current.get(page.id) || { bgCanvas: null, canvas: null, overlayCanvas: null };
-                item.canvas = el;
-                pageRefs.current.set(page.id, item);
-                if (el) {
-                  const dpr = window.devicePixelRatio || 1;
-                  el.width = PAGE_WIDTH * dpr;
-                  el.height = PAGE_HEIGHT * dpr;
-                  redrawPage(page.id);
-                }
-              }}
-              className="absolute inset-0 w-full h-full pointer-events-none"
-              style={{ zIndex: 10 }}
-            />
-
-            {/* 4. Interactive Overlay Canvas (Captures Pen, Pencil, Highlighter, Eraser!) */}
-            <canvas
-              ref={el => {
-                const item = pageRefs.current.get(page.id) || { bgCanvas: null, canvas: null, overlayCanvas: null };
-                item.overlayCanvas = el;
-                pageRefs.current.set(page.id, item);
-                if (el) {
-                  const dpr = window.devicePixelRatio || 1;
-                  el.width = PAGE_WIDTH * dpr;
-                  el.height = PAGE_HEIGHT * dpr;
-                }
-              }}
-              className="absolute inset-0 w-full h-full select-none"
+              onClick={onAddPage}
+              className="group px-6 py-3.5 rounded-full flex items-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-md"
               style={{
-                touchAction: 'none',
-                zIndex: 15,
-                WebkitUserSelect: 'none',
-                userSelect: 'none',
-                WebkitTouchCallout: 'none',
+                background: 'var(--accent)',
+                color: 'var(--bg-primary)',
               }}
-              onPointerDown={(e) => handlePointerDown(e, page.id)}
-              onPointerMove={(e) => handlePointerMove(e, page.id)}
-              onPointerUp={(e) => handlePointerUp(e, page.id)}
-              onPointerCancel={(e) => handlePointerUp(e, page.id)}
-              onPointerLeave={(e) => handlePointerUp(e, page.id)}
-              onContextMenu={(e) => e.preventDefault()}
-            />
-          </div>
-
-          {/* Floating Lasso Actions */}
-          {selectedStrokes && selectedStrokes.pageId === page.id && (
-            <div
-              className="absolute top-4 right-4 z-30 flex items-center gap-2 p-1.5 rounded-2xl glass-panel shadow-xl animate-fade-in"
-              onClick={e => e.stopPropagation()}
             >
-              <button
-                onClick={handleDuplicateSelected}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 hover:bg-black/10 dark:hover:bg-white/10"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                <Copy size={14} /> Duplicate
-              </button>
-              <button
-                onClick={handleDeleteSelected}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-500/10 flex items-center gap-1.5"
-              >
-                <Trash2 size={14} /> Delete
-              </button>
-            </div>
-          )}
+              <Plus size={18} className="transition-transform group-hover:rotate-90" />
+              <span>Add New Page</span>
+            </button>
+            <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              Scroll continuously or tap to add the next sheet
+            </p>
+          </div>
         </div>
-      ))}
-
-      {/* Seamless "Scroll to New Page" / "+ Add Page" Footer */}
-      <div className="w-full flex flex-col items-center justify-center py-10 pb-24 gap-3">
-        <button
-          onClick={onAddPage}
-          className="group px-6 py-3.5 rounded-full flex items-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-md"
-          style={{
-            background: 'var(--accent)',
-            color: 'var(--bg-primary)',
-          }}
-        >
-          <Plus size={18} className="transition-transform group-hover:rotate-90" />
-          <span>Add New Page</span>
-        </button>
-        <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-          Scroll continuously or tap to add the next sheet
-        </p>
       </div>
-    </div>
 
       {/* Top Blur Blend (Fades in smoothly when scrolling) */}
       <div
@@ -1852,6 +2026,62 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
           </div>
         </div>
       )}
+
+      {/* Floating Zoom Controls Pill (Zoom Out, Current %, Zoom In, Screen Fit) */}
+      <div
+        className="absolute bottom-6 left-6 z-40 flex items-center gap-1 px-3 py-1.5 rounded-full shadow-2xl backdrop-blur-xl border select-none transition-all"
+        style={{
+          background: theme === 'dark' ? 'rgba(24, 24, 34, 0.88)' : 'rgba(255, 255, 255, 0.90)',
+          color: 'var(--text-primary)',
+          borderColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.10)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.08)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={() => handleZoomChange(zoom - 0.1)}
+          disabled={zoom <= 0.35}
+          className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10 active:scale-90 transition-all disabled:opacity-30 disabled:pointer-events-none"
+          title="Zoom Out (−)"
+          aria-label="Zoom Out"
+        >
+          <Minus size={13} />
+        </button>
+
+        <button
+          type="button"
+          onClick={handleFitToScreen}
+          className="px-2 py-0.5 rounded-md text-xs font-semibold hover:bg-black/10 dark:hover:bg-white/10 transition-colors min-w-[44px] text-center"
+          title="Click to Fit to Screen"
+        >
+          {Math.round(zoom * 100)}%
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleZoomChange(zoom + 0.1)}
+          disabled={zoom >= 2.5}
+          className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10 active:scale-90 transition-all disabled:opacity-30 disabled:pointer-events-none"
+          title="Zoom In (+)"
+          aria-label="Zoom In"
+        >
+          <Plus size={13} />
+        </button>
+
+        <div className="w-[1px] h-3.5 bg-black/15 dark:bg-white/20 mx-0.5" />
+
+        <button
+          type="button"
+          onClick={handleFitToScreen}
+          className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 hover:bg-black/10 dark:hover:bg-white/10 active:scale-95 transition-all"
+          title="Fit Page to Screen Width"
+        >
+          <Maximize2 size={12} />
+          <span>Fit</span>
+        </button>
+      </div>
     </div>
   );
 });
