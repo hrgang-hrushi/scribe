@@ -113,13 +113,18 @@ export default function Toolbar({
         {/* Settings Slider Panel */}
         {showSettings && (
           <div
-            className={`rounded-2xl p-4 glass-panel shadow-2xl z-50 min-w-[250px] ${
+            className={`rounded-2xl p-4 shadow-2xl z-50 min-w-[250px] border border-[var(--border)] ${
               !isVertical
                 ? 'mb-2 animate-slide-up'
                 : isLeft
                 ? 'absolute left-full ml-3 top-0 animate-fade-in'
                 : 'absolute right-full mr-3 top-0 animate-fade-in'
             }`}
+            style={{
+              background: 'var(--toolbar-bg)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+            }}
           >
             <div className="flex flex-col gap-3">
               <div>
@@ -223,11 +228,16 @@ export default function Toolbar({
 
         {/* Main Toolbar Body (Switches seamlessly between flex-row and flex-col) */}
         <div
-          className={`flex items-center shadow-2xl glass-panel transition-all ${
+          className={`flex items-center shadow-2xl transition-all border border-[var(--border)] ${
             isVertical
-              ? 'flex-col gap-1.5 py-3 px-2 rounded-2xl border border-black/10 dark:border-white/10'
-              : 'flex-row gap-1.5 px-3 py-2 rounded-2xl border border-black/10 dark:border-white/10'
+              ? 'flex-col gap-1.5 py-3 px-2 rounded-2xl'
+              : 'flex-row gap-1.5 px-3 py-2 rounded-2xl'
           }`}
+          style={{
+            background: 'var(--toolbar-bg)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+          }}
         >
           {/* Subtle Drag Grip Indicator */}
           <div
@@ -299,13 +309,14 @@ export default function Toolbar({
                 {/* Shapes Submenu */}
                 {t.id === 'shapes' && activeTool === 'shapes' && (
                   <div
-                    className={`flex items-center gap-1 p-1 rounded-xl shadow-xl border glass-panel z-50 ${
+                    className={`flex items-center gap-1 p-1 rounded-xl shadow-xl border border-[var(--border)] z-50 ${
                       !isVertical
                         ? 'absolute bottom-full mb-3 left-1/2 -translate-x-1/2 animate-slide-up flex-row'
                         : isLeft
                         ? 'absolute left-full ml-3 top-1/2 -translate-y-1/2 animate-fade-in flex-col'
                         : 'absolute right-full mr-3 top-1/2 -translate-y-1/2 animate-fade-in flex-col'
                     }`}
+                    style={{ background: 'var(--toolbar-bg)' }}
                   >
                     {(['rect', 'circle', 'triangle', 'line', 'arrow'] as const).map(shapeType => (
                       <button
@@ -427,13 +438,14 @@ export default function Toolbar({
               
               {showMoreMenu && (
                 <div
-                  className={`w-48 flex flex-col p-2 rounded-2xl shadow-xl border glass-panel z-50 ${
+                  className={`w-48 flex flex-col p-2 rounded-2xl shadow-xl border border-[var(--border)] z-50 ${
                     !isVertical
                       ? 'absolute bottom-full mb-3 right-0 animate-slide-up'
                       : isLeft
                       ? 'absolute left-full ml-3 bottom-0 animate-fade-in'
                       : 'absolute right-full mr-3 bottom-0 animate-fade-in'
                   }`}
+                  style={{ background: 'var(--toolbar-bg)' }}
                 >
                   <button 
                     onClick={() => { setShowMoreMenu(false); onAction?.('import'); }}
@@ -452,11 +464,12 @@ export default function Toolbar({
                     </button>
                     {showExportMenu && (
                       <div
-                        className={`w-32 flex flex-col p-2 rounded-2xl shadow-xl border glass-panel z-50 ${
+                        className={`w-32 flex flex-col p-2 rounded-2xl shadow-xl border border-[var(--border)] z-50 ${
                           isLeft
                             ? 'absolute bottom-0 left-full ml-2 animate-fade-in'
                             : 'absolute bottom-0 right-full mr-2 animate-fade-in'
                         }`}
+                        style={{ background: 'var(--toolbar-bg)' }}
                       >
                         <button 
                           onClick={() => { setShowMoreMenu(false); setShowExportMenu(false); onAction?.('export-pdf'); }}

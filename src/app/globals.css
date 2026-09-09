@@ -1,37 +1,37 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #EEEEEE;
-  --bg-secondary: rgba(255, 255, 255, 0.5);
-  --bg-tertiary: rgba(255, 255, 255, 0.7);
-  --text-primary: #000000;
+  --bg-primary: #F4F4F4;
+  --bg-secondary: #EBEBEB;
+  --bg-tertiary: #E0E0E0;
+  --text-primary: #1A1A1A;
   --text-secondary: #555555;
   --text-muted: #888888;
-  --accent: #000000;
-  --accent-hover: #222222;
-  --border: rgba(0, 0, 0, 0.15);
-  --shadow: 0 4px 12px rgba(0,0,0,0.05);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.08);
+  --accent: #1A1A1A;
+  --accent-hover: #333333;
+  --border: #DCDCDC;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08);
   --canvas-bg: #F4F4F4;
-  --toolbar-bg: rgba(255, 255, 255, 0.2);
-  --card-bg: rgba(255, 255, 255, 0.2);
+  --toolbar-bg: #FFFFFF;
+  --card-bg: #FFFFFF;
 }
 
 [data-theme="dark"] {
-  --bg-primary: #101010;
-  --bg-secondary: rgba(35, 35, 35, 0.5);
-  --bg-tertiary: rgba(50, 50, 50, 0.6);
-  --text-primary: #FFFFFF;
-  --text-secondary: #BBBBBB;
-  --text-muted: #888888;
-  --accent: #FFFFFF;
-  --accent-hover: #DDDDDD;
-  --border: rgba(255, 255, 255, 0.15);
-  --shadow: 0 4px 12px rgba(0,0,0,0.3);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.5);
+  --bg-primary: #141414;
+  --bg-secondary: #1F1F1F;
+  --bg-tertiary: #2A2A2A;
+  --text-primary: #F4F4F4;
+  --text-secondary: #AAAAAA;
+  --text-muted: #777777;
+  --accent: #F4F4F4;
+  --accent-hover: #CCCCCC;
+  --border: #2D2D2D;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
   --canvas-bg: #141414;
-  --toolbar-bg: rgba(20, 20, 20, 0.3);
-  --card-bg: rgba(20, 20, 20, 0.3);
+  --toolbar-bg: #1F1F1F;
+  --card-bg: #1F1F1F;
 }
 
 * {
@@ -65,9 +65,9 @@ html, body {
 }
 
 .glass-panel {
-  background: var(--bg-secondary) !important;
-  backdrop-filter: blur(48px) saturate(120%);
-  -webkit-backdrop-filter: blur(48px) saturate(120%);
+  background: var(--toolbar-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
 }

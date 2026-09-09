@@ -109,6 +109,14 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   const touchVelocityY = useRef(0);
   const momentumAnimFrame = useRef<number | null>(null);
 
+  // Clear image selection when switching away from select/image/lasso tools
+  useEffect(() => {
+    if (tool !== 'select' && tool !== 'image' && tool !== 'lasso') {
+      setSelectedImage(null);
+      setCroppingImageId(null);
+    }
+  }, [tool]);
+
   useEffect(() => {
     return () => {
       if (momentumAnimFrame.current) {
@@ -362,7 +370,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     const centerY = (bounds.minY + bounds.maxY) / 2;
     const radius = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 2;
     const startTime = performance.now();
-    const duration = 160;
+    const duration = 280;
 
     function anim(now: number) {
       const elapsed = now - startTime;
@@ -372,12 +380,35 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
       if (progress < 1) {
         ctx.save();
+
+        // Inner flash ring
+        const flashRadius = Math.max(14, radius * (0.6 + progress * 0.6));
         ctx.beginPath();
-        ctx.arc(centerX, centerY, Math.max(12, radius * (0.8 + progress * 0.4)), 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(239, 68, 68, ${0.45 * (1 - progress)})`;
-        ctx.lineWidth = Math.max(1, 3 * (1 - progress));
-        ctx.setLineDash([5, 5]);
+        ctx.arc(centerX, centerY, flashRadius, 0, Math.PI * 2);
+        const flashAlpha = 0.5 * (1 - progress);
+        ctx.fillStyle = `rgba(239, 68, 68, ${flashAlpha * 0.3})`;
+        ctx.fill();
+
+        // Outer dashed ring expanding outward
+        const ringRadius = Math.max(16, radius * (0.8 + progress * 0.5));
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${0.6 * (1 - progress)})`;
+        ctx.lineWidth = Math.max(2, 3.5 * (1 - progress));
+        ctx.setLineDash([6, 4]);
         ctx.stroke();
+
+        // Subtle radial wipe hint
+        if (progress < 0.5) {
+          const wipeRadius = radius * 1.5 * (progress * 2);
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, wipeRadius, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${0.15 * (1 - progress * 2)})`;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([]);
+          ctx.stroke();
+        }
+
         ctx.restore();
         requestAnimationFrame(anim);
       }
@@ -1117,19 +1148,16 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
           pushPageUndo(pageId, { type: 'delete', strokes: removed });
           pageDataMap.current.set(pageId, { ...page });
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate([25, 40, 20]);
+            navigator.vibrate([15, 30, 25, 20, 15]);
           }
           currentStroke.current = [];
           clearOverlay();
           playEraseEffect(pageId, scribble.bounds);
           redrawPage(pageId);
           onSavePage(page);
-        } else {
-          // ALWAYS discard scribble strokes so no stray scratch ink is left
-          currentStroke.current = [];
-          clearOverlay();
+          return;
         }
-        return;
+        // If nothing was underneath, it's NOT an erase gesture — fall through to commit as normal handwriting!
       }
     }
 

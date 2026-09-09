@@ -113,7 +113,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     const centerY = (bounds.minY + bounds.maxY) / 2;
     const radius = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 2;
     const startTime = performance.now();
-    const duration = 160;
+    const duration = 280;
 
     function anim(now: number) {
       const elapsed = now - startTime;
@@ -126,12 +126,35 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         ctx.save();
         ctx.translate(panRef.current.x, panRef.current.y);
         ctx.scale(zoomRef.current, zoomRef.current);
+
+        // Inner flash ring
+        const flashRadius = Math.max(14, radius * (0.6 + progress * 0.6));
         ctx.beginPath();
-        ctx.arc(centerX, centerY, Math.max(12, radius * (0.8 + progress * 0.4)), 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(239, 68, 68, ${0.45 * (1 - progress)})`;
-        ctx.lineWidth = Math.max(1, (3 / zoomRef.current) * (1 - progress));
-        ctx.setLineDash([5, 5]);
+        ctx.arc(centerX, centerY, flashRadius, 0, Math.PI * 2);
+        const flashAlpha = 0.5 * (1 - progress);
+        ctx.fillStyle = `rgba(239, 68, 68, ${flashAlpha * 0.3})`;
+        ctx.fill();
+
+        // Outer dashed ring expanding outward
+        const ringRadius = Math.max(16, radius * (0.8 + progress * 0.5));
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${0.6 * (1 - progress)})`;
+        ctx.lineWidth = Math.max(2, (3.5 / zoomRef.current) * (1 - progress));
+        ctx.setLineDash([6, 4]);
         ctx.stroke();
+
+        // Subtle radial wipe hint
+        if (progress < 0.5) {
+          const wipeRadius = radius * 1.5 * (progress * 2);
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, wipeRadius, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${0.15 * (1 - progress * 2)})`;
+          ctx.lineWidth = 1 / zoomRef.current;
+          ctx.setLineDash([]);
+          ctx.stroke();
+        }
+
         ctx.restore();
         requestAnimationFrame(anim);
       }
@@ -550,6 +573,14 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       console.error('Error grouping PDF pages:', err);
     }
   }
+
+  // Clear image selection when switching away from select/image/lasso tools
+  useEffect(() => {
+    if (tool !== 'select' && tool !== 'image' && tool !== 'lasso') {
+      setSelectedImageIds([]);
+      setCroppingImageId(null);
+    }
+  }, [tool]);
 
   // Keyboard Shortcuts for Selected Objects (Delete, Cmd+D, Shift+C, Cmd+L, Cmd+G)
   useEffect(() => {
@@ -1442,19 +1473,16 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
           committedStrokes.current = committedStrokes.current.filter(s => !removedIds.has(s.id));
           pushCanvasUndo({ type: 'delete', strokes: removed });
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate([25, 40, 20]);
+            navigator.vibrate([15, 30, 25, 20, 15]);
           }
           currentStroke.current = [];
           clearOverlay();
           playCanvasEraseEffect(scribble.bounds);
           redrawAll();
           triggerSave();
-        } else {
-          // ALWAYS discard scribble strokes so no stray scratch ink is left
-          currentStroke.current = [];
-          clearOverlay();
+          return;
         }
-        return;
+        // If nothing was underneath, it's NOT an erase gesture — fall through to commit as normal handwriting!
       }
     }
 
@@ -1756,7 +1784,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       {/* Floating Lasso Actions */}
       {selectedStrokes.length > 0 && (
         <div
-          className="absolute top-6 right-6 z-30 flex items-center gap-2 p-1.5 rounded-2xl glass-panel shadow-2xl animate-fade-in pointer-events-auto"
+          className="absolute top-6 right-6 z-30 flex items-center gap-2 p-1.5 rounded-2xl shadow-2xl animate-fade-in pointer-events-auto border border-[var(--border)]"
+          style={{ background: 'var(--toolbar-bg)' }}
           onClick={e => e.stopPropagation()}
         >
           <span className="text-xs font-semibold px-2 py-1" style={{ color: 'var(--text-muted)' }}>
@@ -1815,7 +1844,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       {/* Floating Multi-Selection Action Bar for Images / PDF Pages */}
       {selectedImageIds.length > 1 && (
         <div
-          className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 p-1.5 rounded-2xl glass-panel shadow-2xl animate-fade-in pointer-events-auto border border-black/10 dark:border-white/10"
+          className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 p-1.5 rounded-2xl shadow-2xl animate-fade-in pointer-events-auto border border-[var(--border)]"
+          style={{ background: 'var(--toolbar-bg)' }}
           onClick={e => e.stopPropagation()}
         >
           <span className="text-xs font-bold px-2 py-1 text-[var(--text-muted)]">
