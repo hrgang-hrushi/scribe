@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { getAllClasses, getNotesForClass, searchAll } from '@/lib/db';
 import type { Note } from '@/lib/types';
 import { useRouter } from 'next/navigation';
+import { modalBackdropVariants, modalContentVariants } from '@/lib/motion';
 
 interface TagFilterProps {
   onClose: () => void;
@@ -48,15 +49,20 @@ export default function TagFilter({ onClose }: TagFilterProps) {
   }
 
   return (
-    <div
+    <motion.div
+      variants={modalBackdropVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
       style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
+        variants={modalContentVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
         className="w-full max-w-md rounded-2xl overflow-hidden max-h-[80vh] flex flex-col glass-panel shadow-2xl border border-black/10 dark:border-white/10"
         onClick={e => e.stopPropagation()}
       >
@@ -98,7 +104,7 @@ export default function TagFilter({ onClose }: TagFilterProps) {
           )}
         </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }
 

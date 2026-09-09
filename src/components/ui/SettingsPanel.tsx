@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { File, AlignJustify, Grid3X3, CircleDot, LayoutTemplate, Sun, Moon, Stethoscope, Cpu, Code2, Rocket, Layers } from 'lucide-react';
 import type { AppSettings, NoteTemplate } from '@/lib/types';
 import { TEMPLATE_METADATA, TemplateMeta } from '@/lib/templates';
+import { modalBackdropVariants, modalContentVariants } from '@/lib/motion';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -53,14 +55,21 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
   }
 
   return (
-    <div
+    <motion.div
+      variants={modalBackdropVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
       style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}
       onClick={onClose}
     >
-      <div
+      <motion.div
+        variants={modalContentVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
         className="w-full max-w-md rounded-2xl overflow-hidden max-h-[80vh] overflow-y-auto glass-panel"
-        
         onClick={e => e.stopPropagation()}
       >
         <div className="p-6">
@@ -273,7 +282,7 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

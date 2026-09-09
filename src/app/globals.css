@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@theme {
+  --default-transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  --default-transition-duration: 350ms;
+  --ease-fluid: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-s-curve: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
 :root {
   --bg-primary: #F4F4F4;
   --bg-secondary: #EBEBEB;
@@ -106,11 +114,16 @@ html, body {
   scrollbar-width: none;
 }
 
+:where([class*="transition-"], [class*="transition"]) {
+  transition-timing-function: var(--ease-fluid);
+  transition-duration: 350ms;
+}
+
 .gradient-card {
   position: relative;
   overflow: hidden;
   border-radius: 20px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.35s var(--ease-fluid), box-shadow 0.35s var(--ease-fluid);
 }
 
 .gradient-card::before {
@@ -135,7 +148,7 @@ html, body {
 }
 
 .toolbar-pill {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.38s var(--ease-fluid);
 }
 
 .toolbar-pill.collapsed {
@@ -151,21 +164,39 @@ html, body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes popIn {
+  0% { opacity: 0; transform: scale(0.94) translateY(6px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 .animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.35s var(--ease-fluid) both;
 }
 
 .animate-slide-up {
-  animation: slideUp 0.3s ease-out;
+  animation: slideUp 0.4s var(--ease-fluid) both;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.4s var(--ease-fluid) both;
+}
+
+.animate-pop-in {
+  animation: popIn 0.38s var(--ease-fluid) both;
 }
 
 .sticky-date-header {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { AnimatePresence } from 'framer-motion';
 import { getPagesForNote, updatePage, updateNote, db, addPage } from '@/lib/db';
 import type { Note, Page, Tool, ToolSettings, PaperColor } from '@/lib/types';
 import { INK_COLORS, PAPER_THEMES } from '@/lib/types';
@@ -619,23 +620,27 @@ export default function NotePage() {
       )}
 
       {/* Settings Modal */}
-      {showSettings && (
-        <SettingsPanel
-          onClose={() => setShowSettings(false)}
-          currentNoteTemplate={note?.template}
-          onUpdateCurrentNoteTemplate={async t => {
-            if (note) {
-              await updateNote(noteId, { template: t });
-              setNote({ ...note, template: t });
-            }
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {showSettings && (
+          <SettingsPanel
+            onClose={() => setShowSettings(false)}
+            currentNoteTemplate={note?.template}
+            onUpdateCurrentNoteTemplate={async t => {
+              if (note) {
+                await updateNote(noteId, { template: t });
+                setNote({ ...note, template: t });
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Flashcards Modal */}
-      {showFlashcards && (
-        <FlashcardMode noteId={noteId} onClose={() => setShowFlashcards(false)} />
-      )}
+      <AnimatePresence>
+        {showFlashcards && (
+          <FlashcardMode noteId={noteId} onClose={() => setShowFlashcards(false)} />
+        )}
+      </AnimatePresence>
 
       {/* Playground Sensory Break Modal */}
       <PlaygroundModal

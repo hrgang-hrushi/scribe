@@ -7,6 +7,7 @@ import type { Note, PaperColor } from '@/lib/types';
 import { PAPER_THEMES } from '@/lib/types';
 import { createNote } from '@/lib/db';
 import { useRouter } from 'next/navigation';
+import { modalBackdropVariants, modalContentVariants } from '@/lib/motion';
 
 interface CreateNoteModalProps {
   classId: string;
@@ -67,17 +68,19 @@ export default function CreateNoteModal({
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      variants={modalBackdropVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6"
       style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)' }}
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.94, y: 10, opacity: 0 }}
-        animate={{ scale: 1, y: 0, opacity: 1 }}
-        exit={{ scale: 0.94, y: 10, opacity: 0 }}
+        variants={modalContentVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
         className="w-full max-w-lg rounded-[28px] p-6 md:p-8 shadow-2xl glass-panel relative overflow-hidden"
         onClick={e => e.stopPropagation()}
       >

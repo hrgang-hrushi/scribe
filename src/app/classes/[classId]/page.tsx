@@ -270,7 +270,7 @@ export default function ClassPage() {
             <div 
               key={note.id} 
               onClick={() => router.push(`/notes/${note.id}`)}
-              className="p-5 rounded-[24px] cursor-pointer group transition-colors shadow-sm"
+              className="p-5 rounded-[24px] cursor-pointer group transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm"
               style={{ background: 'var(--bg-primary)' }}
             >
               <div className="flex items-center justify-between mb-2">

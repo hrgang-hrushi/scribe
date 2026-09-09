@@ -26,7 +26,7 @@ export default function BreakLockModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in select-none">
-      <div className="relative w-full max-w-md p-6 rounded-3xl glass-panel shadow-2xl border border-white/20 dark:border-white/10 text-white flex flex-col items-center text-center animate-slide-up">
+      <div className="relative w-full max-w-md p-6 rounded-3xl glass-panel shadow-2xl border border-white/20 dark:border-white/10 text-white flex flex-col items-center text-center animate-pop-in">
         {/* Glowing Icon */}
         <div className="relative mb-4 flex items-center justify-center">
           <div className="absolute inset-0 rounded-full bg-amber-400/30 blur-xl animate-pulse" />

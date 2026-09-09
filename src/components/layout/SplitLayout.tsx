@@ -3,15 +3,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { fluidSpring } from '@/lib/motion';
 
 export type SplitPosition = 'left' | 'right';
 
-const fluidSpringTransition = {
-  type: 'spring' as const,
-  stiffness: 300,
-  damping: 30,
-  mass: 0.8,
-};
+const fluidSpringTransition = fluidSpring;
 
 export interface SplitLayoutProps {
   isSplit: boolean;

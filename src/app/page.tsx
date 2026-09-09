@@ -12,6 +12,7 @@ import FlashcardMode from '@/components/ui/FlashcardMode';
 import PomodoroTimer from '@/components/ui/PomodoroTimer';
 import CreateNoteModal from '@/components/ui/CreateNoteModal';
 import PlaygroundModal from '@/components/playground/PlaygroundModal';
+import { modalBackdropVariants, modalContentVariants, fluidSpring } from '@/lib/motion';
 
 export default function Home() {
   const [classes, setClasses] = useState<ClassItem[]>([]);
@@ -188,9 +189,9 @@ export default function Home() {
             {classes.map((cls, i) => (
               <motion.div
                 key={cls.id}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
+                transition={{ ...fluidSpring, delay: i * 0.04 }}
               >
                 <div
                   className="rounded-[28px] p-5 sm:p-6 flex flex-col justify-between cursor-pointer group min-h-[140px] transition-transform hover:-translate-y-1 shadow-sm relative overflow-hidden glass-panel"
@@ -356,17 +357,19 @@ export default function Home() {
       <AnimatePresence>
         {showCreate && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            variants={modalBackdropVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             className="fixed inset-0 z-50 flex items-center justify-center p-6"
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}
             onClick={() => setShowCreate(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              variants={modalContentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
               className="w-full max-w-sm rounded-[32px] p-8 shadow-2xl glass-panel"
               onClick={e => e.stopPropagation()}
             >
