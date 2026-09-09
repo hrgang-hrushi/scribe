@@ -730,27 +730,27 @@ export function isPalmTouch(
   // Layer 1: If Apple Pencil is actively touching down right now, any simultaneous touch is 100% resting palm
   if (isPenActivelyTouching) return true;
 
-  // Layer 2: Post-stroke handwriting guard.
-  // When writing with an Apple Pencil, the pencil tip hovers or lifts for 100-1800ms between letters/words.
-  // The palm remains rested on the glass. Reject all touches during this active handwriting window.
-  if (lastPenTime > 0 && Date.now() - lastPenTime < 1800) {
+  // Layer 2: Inter-stroke handwriting pause guard (within 450ms of pencil lift).
+  // When writing with an Apple Pencil, the pencil tip lifts for 50-300ms between letters/words.
+  // The palm remains rested on the glass. Protect against micro-movements during this window.
+  if (lastPenTime > 0 && Date.now() - lastPenTime < 450) {
     return true;
   }
 
-  // Layer 3: Contact patch dimensions & ellipse radius (iPad Retina digitizer)
-  // A genuine fingertip tap on iPad is ~14-22px (radius ~7-11px).
-  // A resting hypothenar palm, wrist, or side of pinky is > 24px wide or radius > 12px.
+  // Layer 3: Flat palm or wrist contact dimensions (iPad Retina digitizer).
+  // A normal fingertip on iPad is ~25-45px wide (radius ~12-22px).
+  // A resting hypothenar palm, wrist, or side of pinky is > 65px wide or radius > 32px.
   const contactW = (e as any).width || 0;
   const contactH = (e as any).height || 0;
-  if (contactW > 24 || contactH > 24) return true;
+  if (contactW > 65 || contactH > 65) return true;
 
   const radiusX = (e as any).radiusX || 0;
   const radiusY = (e as any).radiusY || 0;
-  if (radiusX > 12 || radiusY > 12) return true;
+  if (radiusX > 32 || radiusY > 32) return true;
 
-  // Layer 4: Contact patch area (width * height > 550 or radius area > 140)
-  if (contactW > 0 && contactH > 0 && contactW * contactH > 550) return true;
-  if (radiusX > 0 && radiusY > 0 && radiusX * radiusY > 140) return true;
+  // Layer 4: Contact patch area (resting palm area > 2800px² or ellipse area > 700px²)
+  if (contactW > 0 && contactH > 0 && contactW * contactH > 2800) return true;
+  if (radiusX > 0 && radiusY > 0 && radiusX * radiusY > 700) return true;
 
   return false;
 }

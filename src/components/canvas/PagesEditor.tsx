@@ -109,23 +109,11 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   const isPenActive = useRef(false);
   const isStylusMode = useRef(false);
   const hasStylusDevice = useRef(false);
-  const [isStylusUser, setIsStylusUser] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('scribe_has_stylus') === 'true';
-    }
-    return false;
-  });
 
   const markStylusActive = useCallback(() => {
     hasStylusDevice.current = true;
     isStylusMode.current = true;
-    if (!isStylusUser) {
-      setIsStylusUser(true);
-      try {
-        localStorage.setItem('scribe_has_stylus', 'true');
-      } catch {}
-    }
-  }, [isStylusUser]);
+  }, []);
 
   const erasedStrokesThisDrag = useRef<Stroke[]>([]);
   const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
@@ -166,68 +154,65 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     let isPinching = false;
 
     const onTouchStart = (e: TouchEvent) => {
+      // 1. TWO-FINGER PINCH-TO-ZOOM & PAN: Always top priority for dual-touch gestures!
+      if (e.touches.length === 2) {
+        const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
+        if (!hasStylus) {
+          isPinching = true;
+          const t1 = e.touches[0];
+          const t2 = e.touches[1];
+          pinchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+          pinchStartZoom = zoomRef.current;
+          pinchStartMid = {
+            x: (t1.clientX + t2.clientX) / 2,
+            y: (t1.clientY + t2.clientY) / 2,
+          };
+          pinchStartScroll = {
+            top: container.scrollTop,
+            left: container.scrollLeft,
+          };
+          e.preventDefault();
+          return;
+        }
+      }
+
       const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
-      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 1800);
-
-      // Check if any touch contact matches palm geometry (landing on screen before pencil, or resting hand)
-      const hasPalmContact = Array.from(e.touches).some((t: any) => {
-        if (t.touchType === 'stylus') return false;
-        const rx = t.radiusX || 0;
-        const ry = t.radiusY || 0;
-        const w = (t as any).width || 0;
-        const h = (t as any).height || 0;
-        return rx > 12 || ry > 12 || w > 24 || h > 24 || (rx * ry > 140) || (w * h > 550);
-      });
-
       if (hasStylus) {
         markStylusActive();
       }
 
-      // Layer 1 & 2 & 3: Kill accidental scrolling dead in its tracks when writing or palm is down
-      if (hasStylus || isWritingWindow || hasPalmContact) {
+      // 2. WHILE APPLE PENCIL IS ON GLASS: All touches are resting palm
+      if (hasStylus || isPenActive.current) {
         e.preventDefault();
         return;
       }
 
-      if (e.touches.length === 2) {
-        isPinching = true;
-        const t1 = e.touches[0];
-        const t2 = e.touches[1];
-        pinchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-        pinchStartZoom = zoomRef.current;
-        pinchStartMid = {
-          x: (t1.clientX + t2.clientX) / 2,
-          y: (t1.clientY + t2.clientY) / 2,
-        };
-        pinchStartScroll = {
-          top: container.scrollTop,
-          left: container.scrollLeft,
-        };
+      // 3. INTER-STROKE WRITING PAUSE: Guard 450ms after pencil lift between letters/words
+      const isInterStrokePause = lastPenTime.current > 0 && (Date.now() - lastPenTime.current < 450);
+      if (isInterStrokePause && e.touches.length === 1) {
         e.preventDefault();
+        return;
       }
-    };
 
-    const onTouchMove = (e: TouchEvent) => {
-      const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
-      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 1800);
-
-      const hasPalmContact = Array.from(e.touches).some((t: any) => {
-        if (t.touchType === 'stylus') return false;
+      // 4. FLAT PALM SLAP: Contact patch dimensions of a flat hand/wrist
+      const hasFlatPalm = Array.from(e.touches).some((t: any) => {
         const rx = t.radiusX || 0;
         const ry = t.radiusY || 0;
         const w = (t as any).width || 0;
         const h = (t as any).height || 0;
-        return rx > 12 || ry > 12 || w > 24 || h > 24 || (rx * ry > 140) || (w * h > 550);
+        return rx > 32 || ry > 32 || w > 65 || h > 65 || (w > 0 && h > 0 && w * h > 2800);
       });
-
-      // Prevent scroll gesture while writing with Apple Pencil or resting palm
-      if (hasStylus || isWritingWindow || hasPalmContact) {
+      if (hasFlatPalm || e.touches.length >= 3) {
         e.preventDefault();
         return;
       }
 
+      // 5. Deliberate single-finger scroll: Allow normal touch to scroll natively with 120Hz momentum!
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      // 1. TWO-FINGER PINCH-TO-ZOOM & PAN:
       if (e.touches.length === 2 && isPinching && pinchStartDist > 10) {
-        // Prevent browser viewport zoom and handle page pinch zoom
         e.preventDefault();
 
         const t1 = e.touches[0];
@@ -240,7 +225,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         setZoom(newZoom);
         zoomRef.current = newZoom;
 
-        // Two-finger pan: follow the touch midpoint
+        // Two-finger pan: follow touch midpoint
         const currentMid = {
           x: (t1.clientX + t2.clientX) / 2,
           y: (t1.clientY + t2.clientY) / 2,
@@ -249,7 +234,34 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         const dY = currentMid.y - pinchStartMid.y;
         container.scrollTop = pinchStartScroll.top - dY;
         container.scrollLeft = pinchStartScroll.left - dX;
+        return;
       }
+
+      const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
+      if (hasStylus || isPenActive.current) {
+        e.preventDefault();
+        return;
+      }
+
+      const isInterStrokePause = lastPenTime.current > 0 && (Date.now() - lastPenTime.current < 450);
+      if (isInterStrokePause && e.touches.length === 1) {
+        e.preventDefault();
+        return;
+      }
+
+      const hasFlatPalm = Array.from(e.touches).some((t: any) => {
+        const rx = t.radiusX || 0;
+        const ry = t.radiusY || 0;
+        const w = (t as any).width || 0;
+        const h = (t as any).height || 0;
+        return rx > 32 || ry > 32 || w > 65 || h > 65 || (w > 0 && h > 0 && w * h > 2800);
+      });
+      if (hasFlatPalm || e.touches.length >= 3) {
+        e.preventDefault();
+        return;
+      }
+
+      // Single finger deliberate drag scrolls natively!
     };
 
     const onTouchEnd = (e: TouchEvent) => {
@@ -1002,7 +1014,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       } catch {}
     } else if (e.pointerType === 'touch') {
       const isPalm = isPalmTouch(e, isPenActive.current, lastPenTime.current);
-      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 1800);
+      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 450);
 
       if (isPalm || isWritingWindow) {
         // Resting palm or touch during active handwriting session: REJECT COMPLETELY!
@@ -1114,7 +1126,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
     if (e.pointerType === 'touch') {
       const isPalm = isPalmTouch(e, isPenActive.current, lastPenTime.current);
-      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 1800);
+      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 450);
       if (isPalm || isWritingWindow) {
         e.preventDefault();
         e.stopPropagation();
@@ -1835,7 +1847,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
                     }}
                     className="absolute inset-0 w-full h-full select-none"
                     style={{
-                      touchAction: (isStylusUser && tool !== 'select' && tool !== 'text') ? 'none' : 'pan-x pan-y',
+                      touchAction: 'pan-x pan-y',
                       zIndex: 15,
                       WebkitUserSelect: 'none',
                       userSelect: 'none',

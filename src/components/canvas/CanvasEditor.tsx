@@ -918,7 +918,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
 
       // 2. Single Touch Pan (when pen is not actively touching and not within writing window):
       if (activeTouchesRef.current.size === 1) {
-        if (isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 1800)) {
+        if (isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 450)) {
           e.preventDefault();
           return;
         }
