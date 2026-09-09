@@ -111,71 +111,6 @@ export default function SplitLayout({
     );
   }
 
-  const sidecarPane = (
-    <div
-      style={{
-        width: isLandscape ? `${ratio * 100}%` : '100%',
-        height: isLandscape ? '100%' : `${ratio * 100}%`,
-      }}
-      className="relative flex flex-col overflow-hidden bg-[var(--bg-primary)] transition-[width,height] duration-75"
-    >
-      {sidecar}
-    </div>
-  );
-
-  const mainPane = (
-    <div
-      style={{
-        width: isLandscape ? `${(1 - ratio) * 100}%` : '100%',
-        height: isLandscape ? '100%' : `${(1 - ratio) * 100}%`,
-      }}
-      className="relative flex flex-col overflow-hidden flex-1"
-    >
-      {main}
-    </div>
-  );
-
-  const dividerBar = (
-    <div
-      onPointerDown={handlePointerDown}
-      onDoubleClick={handleDoubleClick}
-      title="Drag to resize split view (Double-click for 50/50 | Click icon to swap sides)"
-      className={`group relative flex items-center justify-center transition-colors z-30 touch-none select-none ${
-        isLandscape
-          ? 'w-2.5 hover:w-3.5 cursor-col-resize hover:bg-blue-500/20 active:bg-blue-500/40 border-l border-r border-[var(--border)]'
-          : 'h-2.5 hover:h-3.5 cursor-row-resize hover:bg-blue-500/20 active:bg-blue-500/40 border-t border-b border-[var(--border)]'
-      }`}
-      style={{ background: 'var(--bg-secondary)' }}
-    >
-      {/* Grip Handle Pill */}
-      <div
-        className={`rounded-full transition-transform group-hover:scale-110 ${
-          isLandscape ? 'w-1 h-8' : 'h-1 w-8'
-        }`}
-        style={{ background: 'var(--border)' }}
-      />
-
-      {/* Quick Swap Sides Button on Divider Bar */}
-      {onTogglePosition && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onTogglePosition();
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          title={
-            isLandscape
-              ? (position === 'left' ? 'Move reference to right side' : 'Move reference to left side')
-              : (position === 'left' ? 'Move reference to bottom' : 'Move reference to top')
-          }
-          className="absolute p-1 rounded-full bg-[var(--toolbar-bg)] border border-[var(--border)] shadow-md text-[var(--text-secondary)] hover:text-blue-500 hover:scale-110 opacity-0 group-hover:opacity-100 transition-all z-40"
-        >
-          <ArrowLeftRight size={11} className={isLandscape ? '' : 'rotate-90'} />
-        </button>
-      )}
-    </div>
-  );
-
   return (
     <div
       ref={containerRef}
@@ -186,19 +121,75 @@ export default function SplitLayout({
         isLandscape ? 'flex-row' : 'flex-col'
       }`}
     >
-      {position === 'left' ? (
-        <>
-          {sidecarPane}
-          {dividerBar}
-          {mainPane}
-        </>
-      ) : (
-        <>
-          {mainPane}
-          {dividerBar}
-          {sidecarPane}
-        </>
-      )}
+      {/* Sidecar Pane (Reference PDF) */}
+      <div
+        key="split-sidecar-pane"
+        style={{
+          width: isLandscape ? `${ratio * 100}%` : '100%',
+          height: isLandscape ? '100%' : `${ratio * 100}%`,
+          order: position === 'left' ? 1 : 3,
+        }}
+        className="relative flex flex-col overflow-hidden bg-[var(--bg-primary)] transition-[width,height] duration-75"
+      >
+        {sidecar}
+      </div>
+
+      {/* Draggable Divider Bar */}
+      <div
+        key="split-divider-bar"
+        onPointerDown={handlePointerDown}
+        onDoubleClick={handleDoubleClick}
+        title="Drag to resize split view (Double-click for 50/50 | Click icon to swap sides)"
+        className={`group relative flex items-center justify-center transition-colors z-30 touch-none select-none ${
+          isLandscape
+            ? 'w-2.5 hover:w-3.5 cursor-col-resize hover:bg-blue-500/20 active:bg-blue-500/40 border-l border-r border-[var(--border)]'
+            : 'h-2.5 hover:h-3.5 cursor-row-resize hover:bg-blue-500/20 active:bg-blue-500/40 border-t border-b border-[var(--border)]'
+        }`}
+        style={{
+          order: 2,
+          background: 'var(--bg-secondary)',
+        }}
+      >
+        {/* Grip Handle Pill */}
+        <div
+          className={`rounded-full transition-transform group-hover:scale-110 ${
+            isLandscape ? 'w-1 h-8' : 'h-1 w-8'
+          }`}
+          style={{ background: 'var(--border)' }}
+        />
+
+        {/* Quick Swap Sides Button on Divider Bar */}
+        {onTogglePosition && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePosition();
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            title={
+              isLandscape
+                ? (position === 'left' ? 'Move reference to right side' : 'Move reference to left side')
+                : (position === 'left' ? 'Move reference to bottom' : 'Move reference to top')
+            }
+            className="absolute p-1 rounded-full bg-[var(--toolbar-bg)] border border-[var(--border)] shadow-md text-[var(--text-secondary)] hover:text-blue-500 hover:scale-110 opacity-0 group-hover:opacity-100 transition-all z-40"
+          >
+            <ArrowLeftRight size={11} className={isLandscape ? '' : 'rotate-90'} />
+          </button>
+        )}
+      </div>
+
+      {/* Main Workspace Pane (Notebook Pages / Canvas) */}
+      <div
+        key="split-main-pane"
+        style={{
+          width: isLandscape ? `${(1 - ratio) * 100}%` : '100%',
+          height: isLandscape ? '100%' : `${(1 - ratio) * 100}%`,
+          order: position === 'left' ? 3 : 1,
+        }}
+        className="relative flex flex-col overflow-hidden flex-1"
+      >
+        {main}
+      </div>
     </div>
   );
 }

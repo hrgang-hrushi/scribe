@@ -22,17 +22,24 @@ export interface SplitPdfViewerProps {
   onTogglePosition?: () => void;
 }
 
+// Persistent in-memory session cache for loaded PDF reference so it survives side-swapping & view toggles
+let cachedPdfDoc: any = null;
+let cachedFileName: string = '';
+let cachedCurrentPage: number = 1;
+let cachedNumPages: number = 0;
+let cachedZoom: number = 1.0;
+
 export default function SplitPdfViewer({
   onClose,
   onInsertToNote,
   position = 'left',
   onTogglePosition,
 }: SplitPdfViewerProps) {
-  const [pdfDoc, setPdfDoc] = useState<any>(null);
-  const [fileName, setFileName] = useState<string>('');
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [numPages, setNumPages] = useState<number>(0);
-  const [zoom, setZoom] = useState<number>(1.0);
+  const [pdfDoc, setPdfDoc] = useState<any>(() => cachedPdfDoc);
+  const [fileName, setFileName] = useState<string>(() => cachedFileName);
+  const [currentPage, setCurrentPage] = useState<number>(() => cachedCurrentPage || 1);
+  const [numPages, setNumPages] = useState<number>(() => cachedNumPages || 0);
+  const [zoom, setZoom] = useState<number>(() => cachedZoom || 1.0);
   const [loading, setLoading] = useState<boolean>(false);
   const [inserting, setInserting] = useState<boolean>(false);
   const [canScrollUp, setCanScrollUp] = useState<boolean>(false);
@@ -42,6 +49,17 @@ export default function SplitPdfViewer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<any>(null);
+
+  // Synchronize active state with cache
+  useEffect(() => {
+    if (pdfDoc) {
+      cachedPdfDoc = pdfDoc;
+      cachedFileName = fileName;
+      cachedCurrentPage = currentPage;
+      cachedNumPages = numPages;
+      cachedZoom = zoom;
+    }
+  }, [pdfDoc, fileName, currentPage, numPages, zoom]);
 
   const handlePdfScroll = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -62,6 +80,12 @@ export default function SplitPdfViewer({
       pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
       const doc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+      cachedPdfDoc = doc;
+      cachedFileName = file.name;
+      cachedNumPages = doc.numPages;
+      cachedCurrentPage = 1;
+      cachedZoom = 1.0;
+
       setPdfDoc(doc);
       setNumPages(doc.numPages);
       setCurrentPage(1);
