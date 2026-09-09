@@ -153,11 +153,30 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     let pinchStartScroll = { top: 0, left: 0 };
     let isPinching = false;
 
+    const isPalmTouchObject = (t: Touch) => {
+      const rx = t.radiusX || 0;
+      const ry = t.radiusY || 0;
+      const w = (t as any).width || 0;
+      const h = (t as any).height || 0;
+      return rx > 28 || ry > 28 || w > 55 || h > 55 || (w > 0 && h > 0 && w * h > 2200) || (rx > 0 && ry > 0 && rx * ry > 600);
+    };
+
     const onTouchStart = (e: TouchEvent) => {
-      // 1. TWO-FINGER PINCH-TO-ZOOM & PAN: Always top priority for dual-touch gestures!
+      const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
+      if (hasStylus) {
+        markStylusActive();
+      }
+
+      // 1. WHILE APPLE PENCIL IS ON GLASS: All finger touches are resting palm
+      if (hasStylus || isPenActive.current) {
+        e.preventDefault();
+        return;
+      }
+
+      // 2. TWO-FINGER PINCH-TO-ZOOM & PAN:
       if (e.touches.length === 2) {
-        const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
-        if (!hasStylus) {
+        const hasPalm = Array.from(e.touches).some(isPalmTouchObject);
+        if (!hasPalm) {
           isPinching = true;
           const t1 = e.touches[0];
           const t2 = e.touches[1];
@@ -176,41 +195,23 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         }
       }
 
-      const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
-      if (hasStylus) {
-        markStylusActive();
+      // 3. FLAT PALM SLAP OR 3+ TOUCH REST:
+      const hasPalm = Array.from(e.touches).some(isPalmTouchObject);
+      if (hasPalm || e.touches.length >= 3) {
+        e.preventDefault();
+        return;
       }
 
-      // 2. WHILE APPLE PENCIL IS ON GLASS: All touches are resting palm
+      // 4. Normal single-finger touch: Allow native 120Hz momentum scrolling!
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
       if (hasStylus || isPenActive.current) {
         e.preventDefault();
         return;
       }
 
-      // 3. INTER-STROKE WRITING PAUSE: Guard 450ms after pencil lift between letters/words
-      const isInterStrokePause = lastPenTime.current > 0 && (Date.now() - lastPenTime.current < 450);
-      if (isInterStrokePause && e.touches.length === 1) {
-        e.preventDefault();
-        return;
-      }
-
-      // 4. FLAT PALM SLAP: Contact patch dimensions of a flat hand/wrist
-      const hasFlatPalm = Array.from(e.touches).some((t: any) => {
-        const rx = t.radiusX || 0;
-        const ry = t.radiusY || 0;
-        const w = (t as any).width || 0;
-        const h = (t as any).height || 0;
-        return rx > 32 || ry > 32 || w > 65 || h > 65 || (w > 0 && h > 0 && w * h > 2800);
-      });
-      if (hasFlatPalm || e.touches.length >= 3) {
-        e.preventDefault();
-        return;
-      }
-
-      // 5. Deliberate single-finger scroll: Allow normal touch to scroll natively with 120Hz momentum!
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
       // 1. TWO-FINGER PINCH-TO-ZOOM & PAN:
       if (e.touches.length === 2 && isPinching && pinchStartDist > 10) {
         e.preventDefault();
@@ -222,46 +223,38 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         const newZoom = Math.min(2.5, Math.max(0.35, Math.round(pinchStartZoom * scale * 100) / 100));
 
         hasUserZoomedRef.current = true;
-        setZoom(newZoom);
-        zoomRef.current = newZoom;
 
-        // Two-finger pan: follow touch midpoint
+        if (Math.abs(newZoom - zoomRef.current) >= 0.008) {
+          zoomRef.current = newZoom;
+          setZoom(newZoom);
+        }
+
+        // Focal zoom calculation keeps the content point under the fingers stationary
+        const containerRect = container.getBoundingClientRect();
         const currentMid = {
           x: (t1.clientX + t2.clientX) / 2,
           y: (t1.clientY + t2.clientY) / 2,
         };
-        const dX = currentMid.x - pinchStartMid.x;
-        const dY = currentMid.y - pinchStartMid.y;
-        container.scrollTop = pinchStartScroll.top - dY;
-        container.scrollLeft = pinchStartScroll.left - dX;
+        const focalX = pinchStartMid.x - containerRect.left;
+        const focalY = pinchStartMid.y - containerRect.top;
+        const contentX = (pinchStartScroll.left + focalX) / pinchStartZoom;
+        const contentY = (pinchStartScroll.top + focalY) / pinchStartZoom;
+        const panShiftX = currentMid.x - pinchStartMid.x;
+        const panShiftY = currentMid.y - pinchStartMid.y;
+
+        container.scrollLeft = contentX * newZoom - focalX - panShiftX;
+        container.scrollTop = contentY * newZoom - focalY - panShiftY;
         return;
       }
 
-      const hasStylus = Array.from(e.touches).some((t: any) => t.touchType === 'stylus');
-      if (hasStylus || isPenActive.current) {
+      // 2. Reject palm movement
+      const hasPalm = Array.from(e.touches).some(isPalmTouchObject);
+      if (hasPalm || e.touches.length >= 3) {
         e.preventDefault();
         return;
       }
 
-      const isInterStrokePause = lastPenTime.current > 0 && (Date.now() - lastPenTime.current < 450);
-      if (isInterStrokePause && e.touches.length === 1) {
-        e.preventDefault();
-        return;
-      }
-
-      const hasFlatPalm = Array.from(e.touches).some((t: any) => {
-        const rx = t.radiusX || 0;
-        const ry = t.radiusY || 0;
-        const w = (t as any).width || 0;
-        const h = (t as any).height || 0;
-        return rx > 32 || ry > 32 || w > 65 || h > 65 || (w > 0 && h > 0 && w * h > 2800);
-      });
-      if (hasFlatPalm || e.touches.length >= 3) {
-        e.preventDefault();
-        return;
-      }
-
-      // Single finger deliberate drag scrolls natively!
+      // 3. Normal single-finger touch: scrolls natively!
     };
 
     const onTouchEnd = (e: TouchEvent) => {
@@ -1014,15 +1007,14 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       } catch {}
     } else if (e.pointerType === 'touch') {
       const isPalm = isPalmTouch(e, isPenActive.current, lastPenTime.current);
-      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 450);
 
-      if (isPalm || isWritingWindow) {
-        // Resting palm or touch during active handwriting session: REJECT COMPLETELY!
+      if (isPenActive.current || isPalm) {
+        // Resting palm or touch while pencil is actively writing: REJECT COMPLETELY!
         e.preventDefault();
         e.stopPropagation();
         return;
       }
-      // Record touch start position to detect quick tap vs deliberate scroll on pointerup
+      // Clean fingertip touch: allow native scrolling / gesture bubbling!
       touchStartClient.current = { x: e.clientX, y: e.clientY };
       return;
     }
@@ -1126,8 +1118,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
     if (e.pointerType === 'touch') {
       const isPalm = isPalmTouch(e, isPenActive.current, lastPenTime.current);
-      const isWritingWindow = isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 450);
-      if (isPalm || isWritingWindow) {
+      if (isPenActive.current || isPalm) {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -1714,7 +1705,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         }}
       >
         <div
-          className={`flex flex-col items-center gap-8 md:gap-10 w-fit min-w-full transition-all duration-300 ${
+          className={`flex flex-col items-center gap-8 md:gap-10 w-fit min-w-full transition-[padding] duration-300 ease-out ${
             toolbarPosition === 'top'
               ? focusMode
                 ? 'pt-16 md:pt-20 pb-20 px-4 md:px-8'
@@ -1786,9 +1777,11 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
                       pageRefs.current.set(page.id, item);
                       if (el) {
                         const dpr = window.devicePixelRatio || 1;
-                        el.width = PAGE_WIDTH * dpr;
-                        el.height = PAGE_HEIGHT * dpr;
-                        redrawPage(page.id);
+                        if (el.width !== PAGE_WIDTH * dpr || el.height !== PAGE_HEIGHT * dpr) {
+                          el.width = PAGE_WIDTH * dpr;
+                          el.height = PAGE_HEIGHT * dpr;
+                          redrawPage(page.id);
+                        }
                       }
                     }}
                     className="absolute inset-0 w-full h-full pointer-events-none"
@@ -1824,9 +1817,11 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
                       pageRefs.current.set(page.id, item);
                       if (el) {
                         const dpr = window.devicePixelRatio || 1;
-                        el.width = PAGE_WIDTH * dpr;
-                        el.height = PAGE_HEIGHT * dpr;
-                        redrawPage(page.id);
+                        if (el.width !== PAGE_WIDTH * dpr || el.height !== PAGE_HEIGHT * dpr) {
+                          el.width = PAGE_WIDTH * dpr;
+                          el.height = PAGE_HEIGHT * dpr;
+                          redrawPage(page.id);
+                        }
                       }
                     }}
                     className="absolute inset-0 w-full h-full pointer-events-none"
@@ -1841,8 +1836,10 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
                       pageRefs.current.set(page.id, item);
                       if (el) {
                         const dpr = window.devicePixelRatio || 1;
-                        el.width = PAGE_WIDTH * dpr;
-                        el.height = PAGE_HEIGHT * dpr;
+                        if (el.width !== PAGE_WIDTH * dpr || el.height !== PAGE_HEIGHT * dpr) {
+                          el.width = PAGE_WIDTH * dpr;
+                          el.height = PAGE_HEIGHT * dpr;
+                        }
                       }
                     }}
                     className="absolute inset-0 w-full h-full select-none"

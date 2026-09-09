@@ -730,27 +730,28 @@ export function isPalmTouch(
   // Layer 1: If Apple Pencil is actively touching down right now, any simultaneous touch is 100% resting palm
   if (isPenActivelyTouching) return true;
 
-  // Layer 2: Inter-stroke handwriting pause guard (within 450ms of pencil lift).
-  // When writing with an Apple Pencil, the pencil tip lifts for 50-300ms between letters/words.
-  // The palm remains rested on the glass. Protect against micro-movements during this window.
-  if (lastPenTime > 0 && Date.now() - lastPenTime < 450) {
-    return true;
-  }
-
-  // Layer 3: Flat palm or wrist contact dimensions (iPad Retina digitizer).
-  // A normal fingertip on iPad is ~25-45px wide (radius ~12-22px).
-  // A resting hypothenar palm, wrist, or side of pinky is > 65px wide or radius > 32px.
   const contactW = (e as any).width || 0;
   const contactH = (e as any).height || 0;
-  if (contactW > 65 || contactH > 65) return true;
-
   const radiusX = (e as any).radiusX || 0;
   const radiusY = (e as any).radiusY || 0;
-  if (radiusX > 32 || radiusY > 32) return true;
 
-  // Layer 4: Contact patch area (resting palm area > 2800px² or ellipse area > 700px²)
-  if (contactW > 0 && contactH > 0 && contactW * contactH > 2800) return true;
-  if (radiusX > 0 && radiusY > 0 && radiusX * radiusY > 700) return true;
+  // Layer 2: Flat palm or wrist contact dimensions (iPad Retina digitizer).
+  // A normal fingertip on iPad is ~10-20px radius (width ~20-40px).
+  // A resting hypothenar palm, wrist, or side of pinky is > 55px wide or radius > 28px.
+  if (contactW > 55 || contactH > 55) return true;
+  if (radiusX > 28 || radiusY > 28) return true;
+  if (contactW > 0 && contactH > 0 && contactW * contactH > 2200) return true;
+  if (radiusX > 0 && radiusY > 0 && radiusX * radiusY > 600) return true;
+
+  // Layer 3: Inter-stroke handwriting pause guard (within 450ms of pencil lift).
+  // During pen lifts between letters/words, palm remains rested on glass.
+  // Reject intermediate/relaxed hand contact patches (>18px radius or >38px width),
+  // but allow deliberate small fingertips (<18px radius) to scroll/pinch immediately!
+  if (lastPenTime > 0 && Date.now() - lastPenTime < 450) {
+    if (radiusX > 18 || radiusY > 18 || contactW > 38 || contactH > 38) {
+      return true;
+    }
+  }
 
   return false;
 }
