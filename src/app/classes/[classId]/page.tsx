@@ -18,6 +18,7 @@ export default function ClassPage() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
+  const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
 
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -62,10 +63,9 @@ export default function ClassPage() {
   }
 
   async function handleDeleteNote(id: string) {
-    if (confirm('Delete this note?')) {
-      await deleteNote(id);
-      loadData();
-    }
+    await deleteNote(id);
+    setConfirmDeleteNoteId(null);
+    loadData();
   }
 
   async function handleRenameNote(id: string) {
@@ -270,14 +270,51 @@ export default function ClassPage() {
             <div 
               key={note.id} 
               onClick={() => router.push(`/notes/${note.id}`)}
-              className="p-5 rounded-[24px] cursor-pointer group transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm"
+              className="p-5 rounded-[24px] cursor-pointer group transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm relative"
               style={{ background: 'var(--bg-primary)' }}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
                   {new Date(note.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 </span>
-                <svg className="opacity-0 group-hover:opacity-100 transition-opacity" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+
+                {confirmDeleteNoteId === note.id ? (
+                  <div className="flex items-center gap-1.5 animate-fade-in" onClick={e => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteNote(note.id);
+                      }}
+                      className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-sm"
+                    >
+                      Delete?
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDeleteNoteId(null);
+                      }}
+                      className="px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--bg-tertiary)] hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDeleteNoteId(note.id);
+                    }}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors opacity-70 group-hover:opacity-100"
+                    title="Delete Note"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                  </button>
+                )}
               </div>
               <h4 className="text-base sm:text-lg font-bold truncate" style={{ color: 'var(--text-primary)' }}>
                 {note.title || 'Untitled Note'}

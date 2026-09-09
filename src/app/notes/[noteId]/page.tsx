@@ -226,7 +226,7 @@ export default function NotePage() {
     setShowPaperMenu(false);
   }
 
-  const handleToolbarAction = async (action: 'export-pdf' | 'export-png' | 'import' | 'clear') => {
+  const handleToolbarAction = async (action: 'export-pdf' | 'export-png' | 'import' | 'clear' | 'delete-page') => {
     if (action === 'export-pdf') {
       await handleExportPdf();
     } else if (action === 'export-png') {
@@ -254,8 +254,13 @@ export default function NotePage() {
       };
       input.click();
     } else if (action === 'clear') {
-      if (confirm('Clear the current sheet?')) {
-        editorRef.current?.clear();
+      editorRef.current?.clear();
+    } else if (action === 'delete-page') {
+      if (pages.length > 1) {
+        const pageToDelete = pages[currentPage] || pages[0];
+        if (pageToDelete) {
+          await handleDeletePage(pageToDelete.id);
+        }
       }
     }
   };
@@ -276,6 +281,10 @@ export default function NotePage() {
     if (pages.length <= 1) return;
     await db.pages.delete(pageId);
     const updated = pages.filter(p => p.id !== pageId);
+    for (let i = 0; i < updated.length; i++) {
+      updated[i].order = i;
+      await db.pages.update(updated[i].id, { order: i });
+    }
     setPages(updated);
     if (currentPage >= updated.length) {
       setCurrentPage(Math.max(0, updated.length - 1));

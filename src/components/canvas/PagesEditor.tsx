@@ -54,6 +54,7 @@ export interface PagesEditorRef {
   undo: () => void;
   redo: () => void;
   clear: () => void;
+  deleteActivePage?: () => void;
   importMedia: (file: File) => void;
   scrollToPage: (index: number) => void;
   toggleAllTape: (reveal: boolean) => void;
@@ -96,6 +97,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   const [selectedStrokes, setSelectedStrokes] = useState<{ pageId: string; strokeIds: string[] } | null>(null);
   const [selectedImage, setSelectedImage] = useState<{ pageId: string; imageId: string } | null>(null);
   const [croppingImageId, setCroppingImageId] = useState<string | null>(null);
+  const [confirmDeletePageId, setConfirmDeletePageId] = useState<string | null>(null);
   const [, setForceRender] = useState(0);
 
   // Responsive Zoom State and Smooth Viewport Fitting
@@ -553,14 +555,21 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         return;
       }
 
-      if (!selectedImage) return;
-
-      // 1. Delete or Backspace
+      // 1. Delete or Backspace (Deletes lasso selected strokes or selected image)
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault();
-        handleDeleteImage(selectedImage.pageId, selectedImage.imageId);
-        return;
+        if (selectedStrokes) {
+          e.preventDefault();
+          handleDeleteSelected();
+          return;
+        }
+        if (selectedImage) {
+          e.preventDefault();
+          handleDeleteImage(selectedImage.pageId, selectedImage.imageId);
+          return;
+        }
       }
+
+      if (!selectedImage) return;
 
       // 2. Cmd + D / Ctrl + D
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
@@ -592,7 +601,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedImage]);
+  }, [selectedImage, selectedStrokes]);
 
   // Per-page local stroke caches and history stacks for high-speed fluid 120fps rendering
   const pageDataMap = useRef<Map<string, Page>>(new Map());
@@ -605,23 +614,39 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     redoActions.current.set(pageId, []);
   }, []);
 
-  // Initialize and sync page data
+  // Initialize and sync page data (with automatic cleanup of deleted pages)
   useEffect(() => {
+    const currentIds = new Set(pages.map(p => p.id));
+
+    // 1. Purge deleted pages from local maps and canvas references
+    for (const id of Array.from(pageDataMap.current.keys())) {
+      if (!currentIds.has(id)) {
+        pageDataMap.current.delete(id);
+        undoActions.current.delete(id);
+        redoActions.current.delete(id);
+        pageRefs.current.delete(id);
+      }
+    }
+
+    // 2. Sync remaining pages into local data map
     pages.forEach(p => {
       pageDataMap.current.set(p.id, { ...p });
       if (!undoActions.current.has(p.id)) undoActions.current.set(p.id, []);
       if (!redoActions.current.has(p.id)) redoActions.current.set(p.id, []);
     });
-    if (!activePageId && pages.length > 0) {
+
+    // 3. Keep activePageId valid if active page was deleted
+    if (pages.length > 0 && (!activePageId || !currentIds.has(activePageId))) {
       setActivePageId(pages[0].id);
     }
-    // Redraw all pages immediately and after canvases mount
+
+    // 4. Redraw all pages immediately and after canvases mount
     pages.forEach(p => redrawPage(p.id));
     const timer = setTimeout(() => {
       pages.forEach(p => redrawPage(p.id));
     }, 60);
     return () => clearTimeout(timer);
-  }, [pages, template, paperColor]);
+  }, [pages, template, paperColor, activePageId]);
 
   const activeTheme = PAPER_THEMES[paperColor] || PAPER_THEMES.navy;
 
@@ -866,6 +891,11 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       redrawPage(activePageId);
       onSavePage(page);
     },
+    deleteActivePage: () => {
+      if (pages.length > 1 && onDeletePage && activePageId) {
+        onDeletePage(activePageId);
+      }
+    },
     toggleAllTape: (reveal: boolean) => {
       const page = pageDataMap.current.get(activePageId);
       if (!page) return;
@@ -1073,9 +1103,15 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         e.stopPropagation();
         return;
       }
-      // Clean fingertip touch: allow native scrolling / gesture bubbling!
-      touchStartClient.current = { x: e.clientX, y: e.clientY };
-      return;
+
+      // If user selected Eraser or Lasso, let finger touch perform the action!
+      if (tool === 'eraser' || tool === 'lasso') {
+        e.preventDefault();
+      } else {
+        // Clean fingertip touch on pen/highlighter: allow native scrolling / gesture bubbling!
+        touchStartClient.current = { x: e.clientX, y: e.clientY };
+        return;
+      }
     }
 
     const pos = getPointerPosOnPage(e, pageId);
@@ -1180,8 +1216,15 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       if (isPenActive.current || isPalm) {
         e.preventDefault();
         e.stopPropagation();
+        return;
       }
-      return;
+
+      // If user is actively erasing or lassoing with finger, let it proceed!
+      if ((tool === 'eraser' || tool === 'lasso') && (isDrawing.current || isLassoing.current)) {
+        e.preventDefault();
+      } else {
+        return;
+      }
     }
 
     if (!isDrawing.current && !isLassoing.current) return;
@@ -1447,32 +1490,37 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
 
     if (e.pointerType === 'touch') {
-      // If finger lifted with < 10px total displacement, it was a quick tap
-      const dist = Math.hypot(
-        e.clientX - touchStartClient.current.x,
-        e.clientY - touchStartClient.current.y
-      );
-      if (dist < 10) {
-        const pos = getPointerPosOnPage(e, pageId);
-        if (tool === 'tape' || tool === 'select') {
-          const page = pageDataMap.current.get(pageId);
-          if (page) {
-            const clickedTape = page.strokes.find(s => {
-              if (s.tool !== 'tape') return false;
-              const radius = (s.width || 32) / 2 + 10;
-              return s.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) <= radius);
-            });
-            if (clickedTape) {
-              clickedTape.isRevealed = !clickedTape.isRevealed;
-              pageDataMap.current.set(pageId, { ...page });
-              if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(18);
-              redrawPage(pageId);
-              onSavePage(page);
+      // If we were actively erasing or lassoing with touch, proceed to commit!
+      if (isDrawing.current || isLassoing.current) {
+        // Fall through to commit logic below!
+      } else {
+        // If finger lifted with < 10px total displacement, it was a quick tap
+        const dist = Math.hypot(
+          e.clientX - touchStartClient.current.x,
+          e.clientY - touchStartClient.current.y
+        );
+        if (dist < 10) {
+          const pos = getPointerPosOnPage(e, pageId);
+          if (tool === 'tape' || tool === 'select') {
+            const page = pageDataMap.current.get(pageId);
+            if (page) {
+              const clickedTape = page.strokes.find(s => {
+                if (s.tool !== 'tape') return false;
+                const radius = (s.width || 32) / 2 + 10;
+                return s.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) <= radius);
+              });
+              if (clickedTape) {
+                clickedTape.isRevealed = !clickedTape.isRevealed;
+                pageDataMap.current.set(pageId, { ...page });
+                if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(18);
+                redrawPage(pageId);
+                onSavePage(page);
+              }
             }
           }
         }
+        return;
       }
-      return;
     }
 
     if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
@@ -1795,36 +1843,76 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
                   flexShrink: 0,
                 }}
               >
-                {/* Page Header Indicator */}
-                <div className="absolute -top-6 left-2 flex items-center gap-2">
-                  <span
-                    className="text-xs font-semibold px-2.5 py-0.5 rounded-full backdrop-blur-md"
-                    style={{
-                      background: 'var(--toolbar-bg)',
-                      color: 'var(--text-muted)',
-                      border: '1px solid var(--border)',
-                    }}
-                  >
-                    Page {index + 1} of {pages.length}
-                  </span>
-                </div>
+                {/* Page Header Bar (Page indicator + Touch-friendly Delete Sheet Action) */}
+                <div 
+                  className="absolute -top-9 left-2 right-2 flex items-center justify-between pointer-events-auto select-none"
+                  onPointerDown={e => e.stopPropagation()}
+                  onTouchStart={e => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-md shadow-sm"
+                      style={{
+                        background: 'var(--toolbar-bg)',
+                        color: activePageId === page.id ? 'var(--text-primary)' : 'var(--text-muted)',
+                        border: activePageId === page.id ? '1px solid var(--accent)' : '1px solid var(--border)',
+                      }}
+                    >
+                      Page {index + 1} of {pages.length}
+                    </span>
+                  </div>
 
-                {/* Delete Page Button (if more than 1 page) */}
-                {pages.length > 1 && onDeletePage && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm(`Delete Page ${index + 1}?`)) {
-                        onDeletePage(page.id);
-                      }
-                    }}
-                    title="Delete Page"
-                    className="absolute -top-6 right-2 w-6 h-6 rounded-full flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
+                  {pages.length > 1 && onDeletePage && (
+                    confirmDeletePageId === page.id ? (
+                      <div className="flex items-center gap-1.5 animate-fade-in" onPointerDown={e => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeletePageId(null);
+                            onDeletePage(page.id);
+                          }}
+                          className="px-3 py-1 rounded-full text-xs font-bold bg-red-500 text-white hover:bg-red-600 transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                        >
+                          <Trash2 size={13} />
+                          Delete Sheet {index + 1}?
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeletePageId(null);
+                          }}
+                          className="px-2.5 py-1 rounded-full text-xs font-medium backdrop-blur-md hover:bg-black/10 dark:hover:bg-white/10 transition-colors shadow-sm"
+                          style={{
+                            background: 'var(--toolbar-bg)',
+                            color: 'var(--text-muted)',
+                            border: '1px solid var(--border)',
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeletePageId(page.id);
+                        }}
+                        className="h-7 px-3 rounded-full flex items-center gap-1.5 text-xs font-medium backdrop-blur-md text-red-500/85 hover:text-red-500 hover:bg-red-500/10 transition-all shadow-sm active:scale-95"
+                        style={{
+                          background: 'var(--toolbar-bg)',
+                          border: '1px solid var(--border)',
+                        }}
+                        title={`Delete Page ${index + 1}`}
+                      >
+                        <Trash2 size={13} />
+                        <span>Delete Sheet</span>
+                      </button>
+                    )
+                  )}
+                </div>
 
                 {/* Canvas Layers */}
                 <div className="relative w-full h-full rounded-[20px] overflow-hidden" style={{ backgroundColor: activeTheme.bg }}>
@@ -1921,9 +2009,12 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
                 {selectedStrokes && selectedStrokes.pageId === page.id && (
                   <div
                     className="absolute top-4 right-4 z-30 flex items-center gap-2 p-1.5 rounded-2xl glass-panel shadow-xl animate-fade-in"
+                    onPointerDown={e => e.stopPropagation()}
+                    onTouchStart={e => e.stopPropagation()}
                     onClick={e => e.stopPropagation()}
                   >
                     <button
+                      type="button"
                       onClick={handleDuplicateSelected}
                       className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 hover:bg-black/10 dark:hover:bg-white/10"
                       style={{ color: 'var(--text-primary)' }}
@@ -1931,10 +2022,20 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
                       <Copy size={14} /> Duplicate
                     </button>
                     <button
+                      type="button"
                       onClick={handleDeleteSelected}
                       className="px-3 py-1.5 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-500/10 flex items-center gap-1.5"
                     >
                       <Trash2 size={14} /> Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStrokes(null)}
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs hover:bg-black/10 dark:hover:bg-white/10"
+                      style={{ color: 'var(--text-muted)' }}
+                      title="Deselect"
+                    >
+                      ✕
                     </button>
                   </div>
                 )}

@@ -2004,6 +2004,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         <div
           className="absolute top-6 right-6 z-30 flex items-center gap-2 p-1.5 rounded-2xl shadow-2xl animate-fade-in pointer-events-auto border border-[var(--border)]"
           style={{ background: 'var(--toolbar-bg)' }}
+          onPointerDown={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
         >
           <span className="text-xs font-semibold px-2 py-1" style={{ color: 'var(--text-muted)' }}>
