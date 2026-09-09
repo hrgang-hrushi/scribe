@@ -35,10 +35,21 @@ export default function SplitPdfViewer({
   const [zoom, setZoom] = useState<number>(1.0);
   const [loading, setLoading] = useState<boolean>(false);
   const [inserting, setInserting] = useState<boolean>(false);
+  const [canScrollUp, setCanScrollUp] = useState<boolean>(false);
+  const [canScrollDown, setCanScrollDown] = useState<boolean>(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<any>(null);
+
+  const handlePdfScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    setCanScrollUp(scrollTop > 8);
+    setCanScrollDown(scrollHeight - scrollTop - clientHeight > 8);
+  }, []);
 
   // Load PDF from File
   const loadPdfFromFile = useCallback(async (file: File) => {
@@ -270,36 +281,70 @@ export default function SplitPdfViewer({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-[var(--bg-secondary)] relative">
-        {loading && (
-          <div className="flex flex-col items-center gap-2 text-sm text-[var(--text-secondary)]">
-            <Loader2 size={24} className="animate-spin text-blue-500" />
-            <span>Rendering PDF document...</span>
-          </div>
-        )}
-
-        {!loading && !pdfDoc && (
-          <div className="flex flex-col items-center justify-center text-center p-6 max-w-sm">
-            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 mb-3">
-              <BookOpen size={24} />
+      <div className="flex-1 relative overflow-hidden bg-[var(--bg-secondary)]">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handlePdfScroll}
+          className="w-full h-full overflow-auto p-4 flex items-center justify-center relative"
+        >
+          {loading && (
+            <div className="flex flex-col items-center gap-2 text-sm text-[var(--text-secondary)]">
+              <Loader2 size={24} className="animate-spin text-blue-500" />
+              <span>Rendering PDF document...</span>
             </div>
-            <h4 className="text-sm font-bold mb-1">Sidecar PDF Reference</h4>
-            <p className="text-xs text-[var(--text-secondary)] mb-4">
-              Open course lecture slides, research papers, or textbooks side-by-side with your Scribe notebook.
-            </p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md flex items-center gap-2"
-            >
-              <FileUp size={15} />
-              <span>Select PDF File</span>
-            </button>
-          </div>
-        )}
+          )}
 
-        <div className={`shadow-2xl rounded-lg overflow-hidden border border-[var(--border)] ${!pdfDoc || loading ? 'hidden' : 'block'}`}>
-          <canvas ref={canvasRef} />
+          {!loading && !pdfDoc && (
+            <div className="flex flex-col items-center justify-center text-center p-6 max-w-sm">
+              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 mb-3">
+                <BookOpen size={24} />
+              </div>
+              <h4 className="text-sm font-bold mb-1">Sidecar PDF Reference</h4>
+              <p className="text-xs text-[var(--text-secondary)] mb-4">
+                Open course lecture slides, research papers, or textbooks side-by-side with your Scribe notebook.
+              </p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md flex items-center gap-2"
+              >
+                <FileUp size={15} />
+                <span>Select PDF File</span>
+              </button>
+            </div>
+          )}
+
+          <div className={`shadow-2xl rounded-lg overflow-hidden border border-[var(--border)] ${!pdfDoc || loading ? 'hidden' : 'block'}`}>
+            <canvas ref={canvasRef} />
+          </div>
         </div>
+
+        {/* Top Blur Blend (Fades in when scrolling) */}
+        <div
+          className={`pointer-events-none absolute top-0 left-0 right-0 h-10 z-20 transition-opacity duration-300 ${
+            canScrollUp ? 'opacity-100' : 'opacity-0'
+          }`}
+          style={{
+            background: 'linear-gradient(to bottom, var(--bg-secondary) 0%, transparent 100%)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            maskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
+          }}
+        />
+
+        {/* Bottom Blur Blend (Fades in when scrolling) */}
+        <div
+          className={`pointer-events-none absolute bottom-0 left-0 right-0 h-10 z-20 transition-opacity duration-300 ${
+            canScrollDown ? 'opacity-100' : 'opacity-0'
+          }`}
+          style={{
+            background: 'linear-gradient(to top, var(--bg-secondary) 0%, transparent 100%)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            maskImage: 'linear-gradient(to top, black 30%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to top, black 30%, transparent 100%)',
+          }}
+        />
       </div>
     </div>
   );

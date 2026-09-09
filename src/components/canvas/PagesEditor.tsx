@@ -125,6 +125,114 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     };
   }, []);
 
+  // Scroll metrics, blur-blend vignettes, and floating blurred scrollbar pill
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [thumbHeight, setThumbHeight] = useState(0);
+  const [thumbTop, setThumbTop] = useState(0);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isDraggingThumb = useRef(false);
+  const dragStartY = useRef(0);
+  const dragStartScrollTop = useRef(0);
+
+  const updateScrollMetrics = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const maxScroll = scrollHeight - clientHeight;
+
+    const hasScrollableContent = maxScroll > 8;
+    setCanScrollUp(hasScrollableContent && scrollTop > 8);
+    setCanScrollDown(hasScrollableContent && scrollTop < maxScroll - 8);
+
+    if (maxScroll > 0) {
+      const progress = Math.min(Math.max(scrollTop / maxScroll, 0), 1);
+      setScrollProgress(progress);
+
+      const trackPadding = 40;
+      const availableTrack = Math.max(clientHeight - trackPadding, 80);
+      const calculatedHeight = Math.max(36, Math.min(140, (clientHeight / scrollHeight) * availableTrack));
+      setThumbHeight(calculatedHeight);
+      setThumbTop(progress * (availableTrack - calculatedHeight) + 20);
+    } else {
+      setScrollProgress(0);
+      setThumbHeight(0);
+    }
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    updateScrollMetrics();
+    setIsScrolling(true);
+
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (!isDraggingThumb.current) {
+        setIsScrolling(false);
+      }
+    }, 1200);
+  }, [updateScrollMetrics]);
+
+  useEffect(() => {
+    updateScrollMetrics();
+    const el = containerRef.current;
+    if (!el) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateScrollMetrics();
+    });
+    resizeObserver.observe(el);
+
+    return () => {
+      resizeObserver.disconnect();
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, [pages.length, updateScrollMetrics]);
+
+  const handleThumbPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    isDraggingThumb.current = true;
+    setIsScrolling(true);
+    dragStartY.current = e.clientY;
+    dragStartScrollTop.current = containerRef.current?.scrollTop || 0;
+    (e.target as HTMLElement)?.setPointerCapture(e.pointerId);
+  };
+
+  const handleThumbPointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingThumb.current || !containerRef.current) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const el = containerRef.current;
+    const { scrollHeight, clientHeight } = el;
+    const maxScroll = scrollHeight - clientHeight;
+    const trackPadding = 40;
+    const availableTrack = Math.max(clientHeight - trackPadding, 80);
+    const maxThumbTravel = availableTrack - thumbHeight;
+
+    if (maxThumbTravel > 0) {
+      const deltaY = e.clientY - dragStartY.current;
+      const scrollDelta = (deltaY / maxThumbTravel) * maxScroll;
+      el.scrollTop = dragStartScrollTop.current + scrollDelta;
+    }
+  };
+
+  const handleThumbPointerUp = (e: React.PointerEvent) => {
+    if (isDraggingThumb.current) {
+      isDraggingThumb.current = false;
+      try {
+        (e.target as HTMLElement)?.releasePointerCapture(e.pointerId);
+      } catch {}
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = setTimeout(() => {
+        setIsScrolling(false);
+      }, 1200);
+    }
+  };
+
   function handleUpdateImage(pageId: string, imageId: string, updates: Partial<ImageBlock>) {
     const page = pageDataMap.current.get(pageId);
     if (!page) return;
@@ -1239,14 +1347,16 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full overflow-y-auto overflow-x-auto p-4 md:p-8 flex flex-col items-center gap-8 no-scrollbar select-none"
-      style={{
-        background: 'var(--canvas-bg)',
-        touchAction: 'pan-y',
-      }}
-    >
+    <div className="relative w-full h-full overflow-hidden select-none">
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="w-full h-full overflow-y-auto overflow-x-auto p-4 md:p-8 flex flex-col items-center gap-8 no-scrollbar select-none"
+        style={{
+          background: 'var(--canvas-bg)',
+          touchAction: 'pan-y',
+        }}
+      >
       {pages.map((page, index) => (
         <div
           key={page.id}
@@ -1421,6 +1531,69 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
           Scroll continuously or tap to add the next sheet
         </p>
       </div>
+    </div>
+
+      {/* Top Blur Blend (Fades in smoothly when scrolling) */}
+      <div
+        className={`pointer-events-none absolute top-0 left-0 right-0 h-16 z-20 transition-opacity duration-300 ${
+          canScrollUp ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          background: 'linear-gradient(to bottom, var(--canvas-bg) 0%, color-mix(in srgb, var(--canvas-bg) 75%, transparent) 45%, transparent 100%)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          maskImage: 'linear-gradient(to bottom, black 35%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, black 35%, transparent 100%)',
+        }}
+      />
+
+      {/* Bottom Blur Blend (Fades in smoothly when scrolling) */}
+      <div
+        className={`pointer-events-none absolute bottom-0 left-0 right-0 h-16 z-20 transition-opacity duration-300 ${
+          canScrollDown ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          background: 'linear-gradient(to top, var(--canvas-bg) 0%, color-mix(in srgb, var(--canvas-bg) 75%, transparent) 45%, transparent 100%)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          maskImage: 'linear-gradient(to top, black 35%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to top, black 35%, transparent 100%)',
+        }}
+      />
+
+      {/* Custom Blurred Scrollbar Pill with 100% Transparent Background */}
+      {thumbHeight > 0 && (
+        <div
+          className={`absolute right-2 top-0 bottom-0 w-6 z-30 pointer-events-none flex flex-col items-center transition-opacity duration-300 ${
+            isScrolling ? 'opacity-100' : 'opacity-0 hover:opacity-100'
+          }`}
+          style={{ background: 'transparent' }}
+        >
+          <div
+            onPointerDown={handleThumbPointerDown}
+            onPointerMove={handleThumbPointerMove}
+            onPointerUp={handleThumbPointerUp}
+            onPointerCancel={handleThumbPointerUp}
+            className="pointer-events-auto cursor-grab active:cursor-grabbing group relative w-2.5 hover:w-3.5 active:w-3.5 transition-[width,transform] duration-150 rounded-full flex items-center justify-center shadow-lg"
+            style={{
+              transform: `translateY(${thumbTop}px)`,
+              height: `${thumbHeight}px`,
+              background: 'color-mix(in srgb, var(--text-primary) 24%, transparent)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: '1px solid color-mix(in srgb, var(--text-primary) 18%, transparent)',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+            }}
+            title={`Scroll to navigate pages (${Math.round(scrollProgress * 100)}%)`}
+          >
+            {/* Pill Center Grip */}
+            <div
+              className="w-0.5 h-3 rounded-full transition-colors"
+              style={{ background: 'color-mix(in srgb, var(--text-primary) 40%, transparent)' }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 });

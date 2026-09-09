@@ -76,6 +76,24 @@ html, body {
   height: 100%;
 }
 
+/* Universal translucent blurred scrollbar pill with 100% transparent background */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-primary) 22%, transparent);
+  border-radius: 9999px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-primary) 38%, transparent);
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
