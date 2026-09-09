@@ -1906,31 +1906,79 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         </div>
       </div>
 
-      {/* Top Blur Blend (Fades in smoothly when scrolling) */}
+      {/* Top Blur Blend (Silky Apple-grade progressive fade) */}
       <div
-        className={`pointer-events-none absolute top-0 left-0 right-0 h-16 z-20 transition-opacity duration-300 ${
+        className={`pointer-events-none absolute top-0 left-0 right-0 h-24 md:h-32 z-20 transition-opacity duration-300 ease-out ${
           canScrollUp ? 'opacity-100' : 'opacity-0'
         }`}
         style={{
-          background: 'linear-gradient(to bottom, var(--canvas-bg) 0%, color-mix(in srgb, var(--canvas-bg) 75%, transparent) 45%, transparent 100%)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          maskImage: 'linear-gradient(to bottom, black 35%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, black 35%, transparent 100%)',
+          background: `linear-gradient(to bottom, 
+            var(--canvas-bg) 0%, 
+            color-mix(in srgb, var(--canvas-bg) 96%, transparent) 12%,
+            color-mix(in srgb, var(--canvas-bg) 88%, transparent) 24%,
+            color-mix(in srgb, var(--canvas-bg) 75%, transparent) 38%,
+            color-mix(in srgb, var(--canvas-bg) 56%, transparent) 54%,
+            color-mix(in srgb, var(--canvas-bg) 35%, transparent) 70%,
+            color-mix(in srgb, var(--canvas-bg) 15%, transparent) 85%,
+            transparent 100%)`,
+          backdropFilter: 'blur(20px) saturate(180%) contrast(102%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%) contrast(102%)',
+          maskImage: `linear-gradient(to bottom, 
+            rgba(0, 0, 0, 1) 0%, 
+            rgba(0, 0, 0, 0.96) 12%,
+            rgba(0, 0, 0, 0.88) 24%,
+            rgba(0, 0, 0, 0.75) 38%,
+            rgba(0, 0, 0, 0.56) 54%,
+            rgba(0, 0, 0, 0.35) 70%,
+            rgba(0, 0, 0, 0.15) 85%,
+            rgba(0, 0, 0, 0) 100%)`,
+          WebkitMaskImage: `linear-gradient(to bottom, 
+            rgba(0, 0, 0, 1) 0%, 
+            rgba(0, 0, 0, 0.96) 12%,
+            rgba(0, 0, 0, 0.88) 24%,
+            rgba(0, 0, 0, 0.75) 38%,
+            rgba(0, 0, 0, 0.56) 54%,
+            rgba(0, 0, 0, 0.35) 70%,
+            rgba(0, 0, 0, 0.15) 85%,
+            rgba(0, 0, 0, 0) 100%)`,
         }}
       />
 
-      {/* Bottom Blur Blend (Fades in smoothly when scrolling) */}
+      {/* Bottom Blur Blend (Silky Apple-grade progressive fade) */}
       <div
-        className={`pointer-events-none absolute bottom-0 left-0 right-0 h-16 z-20 transition-opacity duration-300 ${
+        className={`pointer-events-none absolute bottom-0 left-0 right-0 h-24 md:h-32 z-20 transition-opacity duration-300 ease-out ${
           canScrollDown ? 'opacity-100' : 'opacity-0'
         }`}
         style={{
-          background: 'linear-gradient(to top, var(--canvas-bg) 0%, color-mix(in srgb, var(--canvas-bg) 75%, transparent) 45%, transparent 100%)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          maskImage: 'linear-gradient(to top, black 35%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to top, black 35%, transparent 100%)',
+          background: `linear-gradient(to top, 
+            var(--canvas-bg) 0%, 
+            color-mix(in srgb, var(--canvas-bg) 96%, transparent) 12%,
+            color-mix(in srgb, var(--canvas-bg) 88%, transparent) 24%,
+            color-mix(in srgb, var(--canvas-bg) 75%, transparent) 38%,
+            color-mix(in srgb, var(--canvas-bg) 56%, transparent) 54%,
+            color-mix(in srgb, var(--canvas-bg) 35%, transparent) 70%,
+            color-mix(in srgb, var(--canvas-bg) 15%, transparent) 85%,
+            transparent 100%)`,
+          backdropFilter: 'blur(20px) saturate(180%) contrast(102%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%) contrast(102%)',
+          maskImage: `linear-gradient(to top, 
+            rgba(0, 0, 0, 1) 0%, 
+            rgba(0, 0, 0, 0.96) 12%,
+            rgba(0, 0, 0, 0.88) 24%,
+            rgba(0, 0, 0, 0.75) 38%,
+            rgba(0, 0, 0, 0.56) 54%,
+            rgba(0, 0, 0, 0.35) 70%,
+            rgba(0, 0, 0, 0.15) 85%,
+            rgba(0, 0, 0, 0) 100%)`,
+          WebkitMaskImage: `linear-gradient(to top, 
+            rgba(0, 0, 0, 1) 0%, 
+            rgba(0, 0, 0, 0.96) 12%,
+            rgba(0, 0, 0, 0.88) 24%,
+            rgba(0, 0, 0, 0.75) 38%,
+            rgba(0, 0, 0, 0.56) 54%,
+            rgba(0, 0, 0, 0.35) 70%,
+            rgba(0, 0, 0, 0.15) 85%,
+            rgba(0, 0, 0, 0) 100%)`,
         }}
       />
 
