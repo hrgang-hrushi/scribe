@@ -686,20 +686,18 @@ export default function NotePage() {
       )}
 
       {/* Settings Modal */}
-      <AnimatePresence>
-        {showSettings && (
-          <SettingsPanel
-            onClose={() => setShowSettings(false)}
-            currentNoteTemplate={note?.template}
-            onUpdateCurrentNoteTemplate={async t => {
-              if (note) {
-                await updateNote(noteId, { template: t });
-                setNote({ ...note, template: t });
-              }
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {showSettings && (
+        <SettingsPanel
+          onClose={() => setShowSettings(false)}
+          currentNoteTemplate={note?.template}
+          onUpdateCurrentNoteTemplate={async t => {
+            if (note) {
+              await updateNote(noteId, { template: t });
+              setNote({ ...note, template: t });
+            }
+          }}
+        />
+      )}
 
       {/* Flashcards Modal */}
       <AnimatePresence>

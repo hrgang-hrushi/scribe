@@ -175,11 +175,11 @@ export default function Toolbar({
             className={`rounded-2xl p-4 shadow-2xl z-50 min-w-[250px] border border-[var(--border)] ${
               !isVertical
                 ? isTop
-                  ? 'mt-2 animate-slide-down'
-                  : 'mb-2 animate-slide-up'
+                  ? 'mt-2'
+                  : 'mb-2'
                 : isLeft
-                ? 'absolute left-full ml-3 top-0 animate-fade-in'
-                : 'absolute right-full mr-3 top-0 animate-fade-in'
+                ? 'absolute left-full ml-3 top-0'
+                : 'absolute right-full mr-3 top-0'
             }`}
             style={{
               background: 'var(--toolbar-bg)',
