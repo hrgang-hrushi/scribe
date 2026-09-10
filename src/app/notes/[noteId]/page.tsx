@@ -194,7 +194,8 @@ export default function NotePage() {
       });
       if (note) await updateNote(noteId, {});
       setSaveStatus('saved');
-    } catch {
+    } catch (err) {
+      console.error('Failed to save page:', err);
       setSaveStatus('offline');
     }
   }

@@ -35,25 +35,26 @@ function getSvgPathFromStroke(stroke: number[][]): string {
   return d.join(' ');
 }
 
+const strokePathCache = new WeakMap<Stroke, Path2D>();
+const shapePathCache = new WeakMap<Stroke, Path2D>();
+
 function getStrokePath(stroke: Stroke, smoothing: number): Path2D {
-  if ((stroke as any)._path2d) {
-    return (stroke as any)._path2d;
-  }
+  const cached = strokePathCache.get(stroke);
+  if (cached) return cached;
   const options = getStrokeOptions(stroke.width, smoothing, stroke.tool);
   const outlinePoints = getStroke(stroke.points.map(p => [p.x, p.y, p.pressure]), options);
   const path = new Path2D(getSvgPathFromStroke(outlinePoints));
-  (stroke as any)._path2d = path;
+  strokePathCache.set(stroke, path);
   return path;
 }
 
 function getShapePath(stroke: Stroke): Path2D | null {
   const shape = (stroke as any).shape as { type: string; path: string } | undefined;
   if (!shape) return null;
-  if ((stroke as any)._shapePath2d) {
-    return (stroke as any)._shapePath2d;
-  }
+  const cached = shapePathCache.get(stroke);
+  if (cached) return cached;
   const path = new Path2D(shape.path);
-  (stroke as any)._shapePath2d = path;
+  shapePathCache.set(stroke, path);
   return path;
 }
 

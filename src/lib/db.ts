@@ -100,11 +100,27 @@ export async function deleteNote(id: string): Promise<void> {
 }
 
 export async function getPagesForNote(noteId: string): Promise<Page[]> {
-  return db.pages.where('noteId').equals(noteId).sortBy('order');
+  const pages = await db.pages.where('noteId').equals(noteId).sortBy('order');
+  return pages.map(p => ({
+    ...p,
+    strokes: p.strokes
+      ? p.strokes.map(s => {
+          const { _path2d, _shapePath2d, ...rest } = s as any;
+          return rest;
+        })
+      : [],
+  }));
 }
 
 export async function updatePage(id: string, updates: Partial<Page>): Promise<void> {
-  await db.pages.update(id, updates);
+  const sanitized = { ...updates };
+  if (sanitized.strokes) {
+    sanitized.strokes = sanitized.strokes.map(s => {
+      const { _path2d, _shapePath2d, ...rest } = s as any;
+      return rest;
+    });
+  }
+  await db.pages.update(id, sanitized);
 }
 
 export async function addPage(noteId: string, order?: number): Promise<Page> {
