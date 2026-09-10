@@ -653,7 +653,12 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
 
     // 2. Sync remaining pages into local data map
     pages.forEach(p => {
-      pageDataMap.current.set(p.id, { ...p });
+      const existing = pageDataMap.current.get(p.id);
+      if (!existing) {
+        pageDataMap.current.set(p.id, { ...p });
+      } else if (existing.strokes.length === 0 && p.strokes && p.strokes.length > 0) {
+        pageDataMap.current.set(p.id, { ...p });
+      }
       if (!undoActions.current.has(p.id)) undoActions.current.set(p.id, []);
       if (!redoActions.current.has(p.id)) redoActions.current.set(p.id, []);
     });
@@ -1081,6 +1086,11 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
           setActivePageId(targetPage.id);
         }
+      }
+    },
+    saveAll: () => {
+      for (const page of pageDataMap.current.values()) {
+        onSavePage(page);
       }
     }
   }));

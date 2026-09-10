@@ -1,4 +1,4 @@
-const CACHE_NAME = 'scribe-v1';
+const CACHE_NAME = 'scribe-v3';
 const urlsToCache = [
   '/',
   '/manifest.json',
@@ -15,7 +15,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       if (self.registration.navigationPreload) {
-        await self.registration.navigationPreload.disable();
+        try {
+          await self.registration.navigationPreload.disable();
+        } catch {}
       }
       const names = await caches.keys();
       await Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)));
@@ -25,6 +27,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // 1. Navigation requests: Network-first, fall back to cached shell
   if (event.request.mode === 'navigate') {
     event.respondWith(
       (async () => {
@@ -37,13 +40,30 @@ self.addEventListener('fetch', (event) => {
         } catch {
           const cached = await caches.match(event.request);
           if (cached) return cached;
-          return caches.match('/') || Response.error();
+          return (await caches.match('/')) || Response.error();
         }
       })()
     );
     return;
   }
 
+  // 2. Next.js chunks & scripts: ALWAYS Network-first to prevent stale code bugs
+  if (event.request.url.includes('/_next/') || event.request.url.includes('/api/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // 3. Static assets: Cache-first with network fallback
   event.respondWith(
     caches.match(event.request).then((response) => {
       if (response) return response;

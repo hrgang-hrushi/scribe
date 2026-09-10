@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { ClassItem, Note, Page } from './types';
+import type { ClassItem, Note, Page, Stroke, TextBox, ImageBlock } from './types';
 
 class ScribeDatabase extends Dexie {
   classes!: EntityTable<ClassItem, 'id'>;
@@ -99,28 +99,94 @@ export async function deleteNote(id: string): Promise<void> {
   await db.notes.delete(id);
 }
 
+export function sanitizeStroke(s: any): Stroke {
+  return {
+    id: String(s.id || crypto.randomUUID()),
+    tool: s.tool || 'pen',
+    color: String(s.color || '#ffffff'),
+    width: Number.isFinite(s.width) ? s.width : 2,
+    opacity: Number.isFinite(s.opacity) ? s.opacity : 1,
+    points: Array.isArray(s.points)
+      ? s.points.map((p: any) => ({
+          x: Number.isFinite(p.x) ? p.x : 0,
+          y: Number.isFinite(p.y) ? p.y : 0,
+          pressure: Number.isFinite(p.pressure) ? p.pressure : 0.5,
+          t: Number.isFinite(p.t) ? p.t : Date.now(),
+        }))
+      : [],
+    isRevealed: Boolean(s.isRevealed),
+    ...(s.shape ? { shape: { type: String(s.shape.type), path: String(s.shape.path) } } : {}),
+  };
+}
+
+export function sanitizeTextBox(tb: any): TextBox {
+  return {
+    id: String(tb.id || crypto.randomUUID()),
+    x: Number.isFinite(tb.x) ? tb.x : 0,
+    y: Number.isFinite(tb.y) ? tb.y : 0,
+    width: Number.isFinite(tb.width) ? tb.width : 100,
+    height: Number.isFinite(tb.height) ? tb.height : 40,
+    text: String(tb.text || ''),
+    fontSize: Number.isFinite(tb.fontSize) ? tb.fontSize : 16,
+    fontFamily: String(tb.fontFamily || 'var(--font-aileron)'),
+    bold: Boolean(tb.bold),
+    italic: Boolean(tb.italic),
+    underline: Boolean(tb.underline),
+  };
+}
+
+export function sanitizeImageBlock(img: any): ImageBlock {
+  return {
+    id: String(img.id || crypto.randomUUID()),
+    x: Number.isFinite(img.x) ? img.x : 0,
+    y: Number.isFinite(img.y) ? img.y : 0,
+    width: Number.isFinite(img.width) ? img.width : 100,
+    height: Number.isFinite(img.height) ? img.height : 100,
+    src: String(img.src || ''),
+    originalSrc: img.originalSrc ? String(img.originalSrc) : undefined,
+    locked: Boolean(img.locked),
+  };
+}
+
 export async function getPagesForNote(noteId: string): Promise<Page[]> {
   const pages = await db.pages.where('noteId').equals(noteId).sortBy('order');
   return pages.map(p => ({
     ...p,
-    strokes: p.strokes
-      ? p.strokes.map(s => {
-          const { _path2d, _shapePath2d, ...rest } = s as any;
-          return rest;
-        })
-      : [],
+    strokes: Array.isArray(p.strokes) ? p.strokes.map(sanitizeStroke) : [],
+    textBoxes: Array.isArray(p.textBoxes) ? p.textBoxes.map(sanitizeTextBox) : [],
+    images: Array.isArray(p.images) ? p.images.map(sanitizeImageBlock) : [],
   }));
 }
 
 export async function updatePage(id: string, updates: Partial<Page>): Promise<void> {
-  const sanitized = { ...updates };
-  if (sanitized.strokes) {
-    sanitized.strokes = sanitized.strokes.map(s => {
-      const { _path2d, _shapePath2d, ...rest } = s as any;
-      return rest;
-    });
+  if (!id) return;
+  const sanitized: Partial<Page> = {};
+  if (updates.strokes) {
+    sanitized.strokes = updates.strokes.map(sanitizeStroke);
   }
-  await db.pages.update(id, sanitized);
+  if (updates.textBoxes) {
+    sanitized.textBoxes = updates.textBoxes.map(sanitizeTextBox);
+  }
+  if (updates.images) {
+    sanitized.images = updates.images.map(sanitizeImageBlock);
+  }
+  if (updates.order !== undefined) sanitized.order = updates.order;
+  if (updates.backgroundPdfPage !== undefined) sanitized.backgroundPdfPage = updates.backgroundPdfPage;
+
+  const count = await db.pages.update(id, sanitized);
+  if (count === 0) {
+    const existing = await db.pages.get(id);
+    if (!existing) {
+      await db.pages.put({
+        id,
+        noteId: updates.noteId || '',
+        order: updates.order ?? 0,
+        strokes: sanitized.strokes || [],
+        textBoxes: sanitized.textBoxes || [],
+        images: sanitized.images || [],
+      });
+    }
+  }
 }
 
 export async function addPage(noteId: string, order?: number): Promise<Page> {

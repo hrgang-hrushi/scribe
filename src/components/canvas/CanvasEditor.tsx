@@ -416,6 +416,9 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         };
         reader.readAsDataURL(file);
       }
+    },
+    saveAll: () => {
+      triggerSave();
     }
   }));
 

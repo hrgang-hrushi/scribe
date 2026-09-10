@@ -60,6 +60,7 @@ export default function NotePage() {
   const [showFlashcards, setShowFlashcards] = useState(false);
   const [showPaperMenu, setShowPaperMenu] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'offline'>('saved');
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -185,17 +186,23 @@ export default function NotePage() {
   }
 
   async function handleSave(pageData: Page) {
+    if (!pageData || !pageData.id) return;
     setSaveStatus('saving');
+    setSaveError(null);
     try {
       await updatePage(pageData.id, {
         strokes: pageData.strokes,
         textBoxes: pageData.textBoxes,
         images: pageData.images,
       });
-      if (note) await updateNote(noteId, {});
+      if (noteId) {
+        await updateNote(noteId, {}).catch(e => console.warn('updateNote non-fatal:', e));
+      }
       setSaveStatus('saved');
-    } catch (err) {
+    } catch (err: any) {
+      const errorMsg = err?.message || err?.name || String(err);
       console.error('Failed to save page:', err);
+      setSaveError(errorMsg);
       setSaveStatus('offline');
     }
   }
@@ -209,8 +216,12 @@ export default function NotePage() {
   }
 
   async function handleManualSave() {
-    if (pages[currentPage]) {
+    if (editorRef.current?.saveAll) {
+      editorRef.current.saveAll();
+    } else if (pages[currentPage]) {
       await handleSave(pages[currentPage]);
+    } else if (pages.length > 0) {
+      await handleSave(pages[0]);
     }
   }
 
@@ -396,28 +407,49 @@ export default function NotePage() {
           {/* Right: Actions */}
           <div className="flex items-center gap-1.5 md:gap-2">
             {/* Save indicator */}
-            <span
-              className="text-xs px-2.5 py-1 rounded-md font-medium"
-              style={{
-                color:
-                  saveStatus === 'saved'
-                    ? '#22c55e'
-                    : saveStatus === 'saving'
-                    ? '#f59e0b'
-                    : '#ef4444',
-              }}
-            >
-              {saveStatus === 'saved' ? (
-                <>
-                  <Check size={13} className="inline mr-1" />
-                  Saved
-                </>
-              ) : saveStatus === 'saving' ? (
-                'Saving...'
-              ) : (
-                'Offline'
-              )}
-            </span>
+            {saveStatus === 'saved' ? (
+              <span
+                className="text-xs px-2.5 py-1 rounded-md font-medium flex items-center"
+                style={{ color: '#22c55e' }}
+              >
+                <Check size={13} className="inline mr-1" />
+                Saved
+              </span>
+            ) : saveStatus === 'saving' ? (
+              <span
+                className="text-xs px-2.5 py-1 rounded-md font-medium"
+                style={{ color: '#f59e0b' }}
+              >
+                Saving...
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  alert(
+                    saveError
+                      ? `Storage Status: Could not write changes to local storage.\n\nError: ${saveError}\n\nTap OK to retry saving now.`
+                      : 'Storage Status: Offline.\n\nTap OK to retry saving now.'
+                  );
+                  handleManualSave();
+                }}
+                className="text-xs px-2.5 py-1 rounded-md font-medium flex items-center gap-1.5 cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                style={{
+                  color: '#ef4444',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                }}
+                title={saveError ? `Offline: ${saveError} (Tap to view details and retry)` : 'Offline (Tap to retry)'}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444] animate-pulse inline-block" />
+                Offline
+                {saveError && (
+                  <span className="text-[10px] opacity-75 max-w-[80px] truncate hidden sm:inline">
+                    ({saveError})
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* Paper Theme Selector */}
             <div className="relative">
