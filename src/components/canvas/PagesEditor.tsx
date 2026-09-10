@@ -35,6 +35,28 @@ function getSvgPathFromStroke(stroke: number[][]): string {
   return d.join(' ');
 }
 
+function getStrokePath(stroke: Stroke, smoothing: number): Path2D {
+  if ((stroke as any)._path2d) {
+    return (stroke as any)._path2d;
+  }
+  const options = getStrokeOptions(stroke.width, smoothing, stroke.tool);
+  const outlinePoints = getStroke(stroke.points.map(p => [p.x, p.y, p.pressure]), options);
+  const path = new Path2D(getSvgPathFromStroke(outlinePoints));
+  (stroke as any)._path2d = path;
+  return path;
+}
+
+function getShapePath(stroke: Stroke): Path2D | null {
+  const shape = (stroke as any).shape as { type: string; path: string } | undefined;
+  if (!shape) return null;
+  if ((stroke as any)._shapePath2d) {
+    return (stroke as any)._shapePath2d;
+  }
+  const path = new Path2D(shape.path);
+  (stroke as any)._shapePath2d = path;
+  return path;
+}
+
 export interface PagesEditorProps {
   pages: Page[];
   template?: NoteTemplate | string;
@@ -730,9 +752,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       return;
     }
 
-    const options = getStrokeOptions(stroke.width, settings.smoothing, stroke.tool);
-    const outlinePoints = getStroke(stroke.points.map(p => [p.x, p.y, p.pressure]), options);
-    const path = new Path2D(getSvgPathFromStroke(outlinePoints));
+    const path = getStrokePath(stroke, settings.smoothing);
 
     ctx.save();
     if (stroke.tool === 'eraser') {
@@ -748,15 +768,14 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   }
 
   function drawShapeToContext(ctx: CanvasRenderingContext2D, stroke: Stroke) {
-    const shape = (stroke as any).shape as { type: string; path: string };
-    if (!shape) return;
+    const p = getShapePath(stroke);
+    if (!p) return;
     ctx.save();
     ctx.strokeStyle = stroke.color;
     ctx.lineWidth = stroke.width;
     ctx.globalAlpha = stroke.opacity;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    const p = new Path2D(shape.path);
     ctx.stroke(p);
     ctx.restore();
   }

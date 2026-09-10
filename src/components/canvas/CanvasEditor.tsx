@@ -34,6 +34,62 @@ function getSvgPathFromStroke(stroke: number[][]): string {
   return d.join(' ');
 }
 
+function getStrokePath(stroke: Stroke, smoothing: number): Path2D {
+  if ((stroke as any)._path2d) {
+    return (stroke as any)._path2d;
+  }
+  const options = getStrokeOptions(stroke.width, smoothing, stroke.tool);
+  const outlinePoints = getStroke(stroke.points.map(p => [p.x, p.y, p.pressure]), options);
+  const path = new Path2D(getSvgPathFromStroke(outlinePoints));
+  (stroke as any)._path2d = path;
+  return path;
+}
+
+function getShapePath(stroke: Stroke): Path2D | null {
+  const shape = (stroke as any).shape as { type: string; path: string } | undefined;
+  if (!shape) return null;
+  if ((stroke as any)._shapePath2d) {
+    return (stroke as any)._shapePath2d;
+  }
+  const path = new Path2D(shape.path);
+  (stroke as any)._shapePath2d = path;
+  return path;
+}
+
+function createGridTile(type: string, lineColor: string, dotColor: string, dpr: number): HTMLCanvasElement {
+  const tile = document.createElement('canvas');
+  const size = 40;
+  tile.width = size * dpr;
+  tile.height = size * dpr;
+  const ctx = tile.getContext('2d');
+  if (!ctx) return tile;
+  ctx.scale(dpr, dpr);
+
+  if (type === 'dotted') {
+    ctx.fillStyle = dotColor;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (type === 'grid') {
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, size);
+    ctx.lineTo(size, size);
+    ctx.moveTo(size, 0);
+    ctx.lineTo(size, size);
+    ctx.stroke();
+  } else if (type === 'ruled' || type === 'cornell') {
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, size);
+    ctx.lineTo(size, size);
+    ctx.stroke();
+  }
+  return tile;
+}
+
 interface CanvasEditorProps {
   page: Page;
   template?: NoteTemplate | string;
@@ -69,6 +125,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const worldOverlayRef = useRef<HTMLDivElement>(null);
   const isDrawing = useRef(false);
   const isPanningRef = useRef(false);
   const lastTouchPanRef = useRef<{x: number, y: number} | null>(null);
@@ -80,7 +137,6 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   const committedImages = useRef<ImageBlock[]>([...page.images]);
   const panRef = useRef({ x: 0, y: 0 });
   const zoomRef = useRef(1);
-  const lastPinchDist = useRef(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPenTime = useRef(0);
   const isPenActive = useRef(false);
@@ -89,8 +145,18 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   const erasedStrokesThisDrag = useRef<Stroke[]>([]);
   const holdStartPos = useRef<Point | null>(null);
   const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const twoFingerStartMid = useRef<{ x: number; y: number } | null>(null);
-  const twoFingerStartPan = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Two-Finger Pinch & Pan State
+  const isPinchingRef = useRef(false);
+  const pinchStartDistRef = useRef(0);
+  const pinchStartZoomRef = useRef(1.0);
+  const pinchStartPanRef = useRef({ x: 0, y: 0 });
+  const pinchStartMidRef = useRef({ x: 0, y: 0 });
+  const lastPinchEndTimeRef = useRef(0);
+
+  // Background pattern cache & redraw requestAnimationFrame
+  const patternCacheRef = useRef<Map<string, CanvasPattern>>(new Map());
+  const redrawRafRef = useRef<number | null>(null);
 
   // Lasso states
   const lassoPolygon = useRef<Point[]>([]);
@@ -675,12 +741,18 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     return () => window.removeEventListener('resize', resize);
   }, []);
 
-  useEffect(() => {
-    redrawAll();
-  }, [template, theme, paperColor]);
+  const updateWorldOverlayTransform = useCallback(() => {
+    if (worldOverlayRef.current) {
+      worldOverlayRef.current.style.transform = `translate3d(${panRef.current.x}px, ${panRef.current.y}px, 0) scale(${zoomRef.current})`;
+    }
+  }, []);
+
+  const syncCanvasTransform = useCallback(() => {
+    setCanvasTransform({ x: panRef.current.x, y: panRef.current.y, zoom: zoomRef.current });
+  }, []);
 
   const redrawAll = useCallback(() => {
-    setCanvasTransform({ x: panRef.current.x, y: panRef.current.y, zoom: zoomRef.current });
+    updateWorldOverlayTransform();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -704,10 +776,6 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         bgCtx.fillRect(0, 0, bgCanvas.width / dpr, bgCanvas.height / dpr);
 
         if (template !== 'blank') {
-          bgCtx.save();
-          bgCtx.translate(panRef.current.x, panRef.current.y);
-          bgCtx.scale(zoomRef.current, zoomRef.current);
-
           const isDiscipline =
             template.startsWith('med_') ||
             template.startsWith('cs_') ||
@@ -716,6 +784,10 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
             template === 'circuit_logic';
 
           if (isDiscipline) {
+            bgCtx.save();
+            bgCtx.translate(panRef.current.x, panRef.current.y);
+            bgCtx.scale(zoomRef.current, zoomRef.current);
+
             const sheetW = 960;
             const sheetH = 1360;
             const sheetX = 60;
@@ -735,43 +807,41 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
             bgCtx.translate(sheetX, sheetY);
             drawTemplateBackground(bgCtx, template as NoteTemplate, sheetW, sheetH, activePaperTheme);
             bgCtx.restore();
+            bgCtx.restore();
           } else {
-            const vpX = -panRef.current.x / zoomRef.current;
-            const vpY = -panRef.current.y / zoomRef.current;
-            const vpW = (bgCanvas.width / dpr) / zoomRef.current;
-            const vpH = (bgCanvas.height / dpr) / zoomRef.current;
-            
-            bgCtx.strokeStyle = activePaperTheme.lineColor;
-            bgCtx.fillStyle = activePaperTheme.dotColor;
-            bgCtx.lineWidth = 1 / zoomRef.current;
-            bgCtx.beginPath();
-            
-            const startX = Math.floor(vpX / 40) * 40;
-            const startY = Math.floor(vpY / 40) * 40;
-            
-            if (template === 'ruled' || template === 'cornell') {
-              for (let y = startY; y < vpY + vpH; y += 40) {
-                bgCtx.moveTo(vpX, y); bgCtx.lineTo(vpX + vpW, y);
+            const cacheKey = `${template}-${activePaperTheme.lineColor}-${activePaperTheme.dotColor}-${dpr}`;
+            let pattern = patternCacheRef.current.get(cacheKey);
+            if (!pattern) {
+              const tile = createGridTile(template, activePaperTheme.lineColor, activePaperTheme.dotColor, dpr);
+              const pat = bgCtx.createPattern(tile, 'repeat');
+              if (pat) {
+                patternCacheRef.current.set(cacheKey, pat);
+                pattern = pat;
               }
+            }
+
+            if (pattern) {
+              const matrix = new DOMMatrix();
+              matrix.translateSelf(panRef.current.x, panRef.current.y);
+              matrix.scaleSelf(zoomRef.current, zoomRef.current);
+              pattern.setTransform(matrix);
+              bgCtx.fillStyle = pattern;
+              bgCtx.fillRect(0, 0, bgCanvas.width / dpr, bgCanvas.height / dpr);
+
               if (template === 'cornell') {
-                bgCtx.moveTo(startX + 120, vpY); bgCtx.lineTo(startX + 120, vpY + vpH);
+                bgCtx.save();
+                bgCtx.translate(panRef.current.x, panRef.current.y);
+                bgCtx.scale(zoomRef.current, zoomRef.current);
+                bgCtx.strokeStyle = activePaperTheme.lineColor;
+                bgCtx.lineWidth = 1 / zoomRef.current;
+                bgCtx.beginPath();
+                bgCtx.moveTo(120, -100000);
+                bgCtx.lineTo(120, 100000);
+                bgCtx.stroke();
+                bgCtx.restore();
               }
-              bgCtx.stroke();
-            } else if (template === 'grid') {
-              for (let y = startY; y < vpY + vpH; y += 40) { bgCtx.moveTo(vpX, y); bgCtx.lineTo(vpX + vpW, y); }
-              for (let x = startX; x < vpX + vpW; x += 40) { bgCtx.moveTo(x, vpY); bgCtx.lineTo(x, vpY + vpH); }
-              bgCtx.stroke();
-            } else if (template === 'dotted') {
-              for (let y = startY; y < vpY + vpH; y += 40) {
-                for (let x = startX; x < vpX + vpW; x += 40) {
-                  bgCtx.moveTo(x, y);
-                  bgCtx.arc(x, y, 1.4 / zoomRef.current, 0, Math.PI * 2);
-                }
-              }
-              bgCtx.fill();
             }
           }
-          bgCtx.restore();
         }
       }
     }
@@ -795,7 +865,23 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     });
 
     ctx.restore();
-  }, [template, theme, paperColor]);
+  }, [template, theme, paperColor, updateWorldOverlayTransform]);
+
+  const requestRedraw = useCallback(() => {
+    if (redrawRafRef.current !== null) return;
+    redrawRafRef.current = requestAnimationFrame(() => {
+      redrawRafRef.current = null;
+      redrawAll();
+    });
+  }, [redrawAll]);
+
+  useEffect(() => {
+    return () => {
+      if (redrawRafRef.current !== null) {
+        cancelAnimationFrame(redrawRafRef.current);
+      }
+    };
+  }, []);
 
   function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
     if ((stroke as any).shape) return; // Shapes drawn separately
@@ -830,40 +916,31 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       return;
     }
 
-    const options = getStrokeOptions(stroke.width, settings.smoothing, stroke.tool);
-    const outlinePoints = getStroke(stroke.points.map(p => [p.x, p.y, p.pressure]), options);
-    const path = new Path2D(getSvgPathFromStroke(outlinePoints));
+    const path = getStrokePath(stroke, settings.smoothing);
 
+    ctx.save();
     if (stroke.tool === 'eraser') {
-      ctx.save();
       ctx.globalCompositeOperation = 'destination-out';
       ctx.fillStyle = 'rgba(0,0,0,1)';
       ctx.fill(path);
-      ctx.restore();
     } else {
-      ctx.save();
       ctx.globalAlpha = stroke.tool === 'highlighter' ? 0.35 : stroke.opacity;
       ctx.fillStyle = stroke.color;
       ctx.fill(path);
-      ctx.restore();
     }
+    ctx.restore();
   }
 
   function drawShapeStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
-    const shape = (stroke as any).shape as { type: string; path: string };
-    if (!shape) return;
+    const p = getShapePath(stroke);
+    if (!p) return;
     ctx.save();
     ctx.strokeStyle = stroke.color;
     ctx.lineWidth = stroke.width;
     ctx.globalAlpha = stroke.opacity;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    const p = new Path2D(shape.path);
-    if (shape.type === 'rect' || shape.type === 'circle') {
-      ctx.stroke(p);
-    } else {
-      ctx.stroke(p);
-    }
+    ctx.stroke(p);
     ctx.restore();
   }
 
@@ -904,7 +981,6 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       // Multi-Layer Palm Rejection:
-      // If pen is actively drawing or was recently writing, reject touch (resting palm)
       if (isPalmTouch(e, isPenActive.current, lastPenTime.current)) {
         e.preventDefault();
         return;
@@ -916,42 +992,52 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         return;
       }
 
-      // 2. Single Touch Pan (when pen is not actively touching and not within writing window):
+      // TWO-FINGER PINCH & PAN GESTURE START:
+      if (activeTouchesRef.current.size === 2) {
+        const pts = Array.from(activeTouchesRef.current.values());
+        const touchDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        if (touchDist >= 25) {
+          isPinchingRef.current = true;
+          pinchStartDistRef.current = touchDist;
+          pinchStartZoomRef.current = zoomRef.current;
+          pinchStartPanRef.current = { ...panRef.current };
+          pinchStartMidRef.current = {
+            x: (pts[0].x + pts[1].x) / 2,
+            y: (pts[0].y + pts[1].y) / 2,
+          };
+          isPanningRef.current = false;
+          lastTouchPanRef.current = null;
+        }
+        e.preventDefault();
+        return;
+      }
+
+      // SINGLE TOUCH:
       if (activeTouchesRef.current.size === 1) {
+        // Prevent palm drag while writing or during pencil lift pause
         if (isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 450)) {
           e.preventDefault();
           return;
         }
 
-        if (tool !== 'ruler') {
+        // Allow finger erasing and lassoing:
+        if (tool === 'eraser' || tool === 'lasso') {
+          // let fall through to tool logic below
+        } else if (tool === 'select') {
           isPanningRef.current = true;
           lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
           return;
-        }
-      }
-
-      // 3. TWO-FINGER PINCH & PAN GESTURE:
-      if (activeTouchesRef.current.size === 2) {
-        const pts = Array.from(activeTouchesRef.current.values());
-        const touchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        if (touchDist < 45) {
-          // Palm crease/fold: reject
+        } else if (!hasStylusDevice.current) {
+          // If no stylus device detected, allow single-finger canvas pan
+          isPanningRef.current = true;
+          lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
+          return;
+        } else {
+          // Stylus active on device: ignore single touch in drawing mode to protect resting palm!
           e.preventDefault();
           return;
         }
-
-        twoFingerStartMid.current = {
-          x: (pts[0].x + pts[1].x) / 2,
-          y: (pts[0].y + pts[1].y) / 2,
-        };
-        twoFingerStartPan.current = { ...panRef.current };
-        lastPinchDist.current = touchDist;
-        isPanningRef.current = true;
-        e.preventDefault();
-        return;
       }
-
-      return;
     }
     if (tool === 'select') {
       const pos = getPointerPos(e);
@@ -1147,66 +1233,79 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       activeTouchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       // Multi-Layer Palm Rejection:
-      if (isPalmTouch(e, isPenActive.current, lastPenTime.current)) {
+      if (isPalmTouch(e, isPenActive.current, lastPenTime.current) || activeTouchesRef.current.size >= 3) {
         e.preventDefault();
         return;
       }
 
-      // Clustered 3+ touch slap rejection
-      if (activeTouchesRef.current.size >= 3) {
-        e.preventDefault();
-        return;
-      }
-
-      // TWO-FINGER PAN & PINCH ZOOM:
+      // TWO-FINGER PAN & PINCH ZOOM GESTURE:
       if (activeTouchesRef.current.size === 2) {
+        e.preventDefault();
         const pts = Array.from(activeTouchesRef.current.values());
-        const touchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        if (touchDist < 45) {
-          e.preventDefault();
+        const touchDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+
+        if (!isPinchingRef.current || pinchStartDistRef.current < 25) {
+          isPinchingRef.current = true;
+          pinchStartDistRef.current = Math.max(touchDist, 25);
+          pinchStartZoomRef.current = zoomRef.current;
+          pinchStartPanRef.current = { ...panRef.current };
+          pinchStartMidRef.current = {
+            x: (pts[0].x + pts[1].x) / 2,
+            y: (pts[0].y + pts[1].y) / 2,
+          };
           return;
         }
+
+        const scale = touchDist / pinchStartDistRef.current;
+        const newZoom = Math.min(5.0, Math.max(0.25, pinchStartZoomRef.current * scale));
+        zoomRef.current = newZoom;
+
+        // Mathematical Focal-Point Preservation (The point under fingers stays 100% locked):
+        const startMid = pinchStartMidRef.current;
+        const startPan = pinchStartPanRef.current;
+        const startZoom = pinchStartZoomRef.current;
+        const worldX = (startMid.x - startPan.x) / startZoom;
+        const worldY = (startMid.y - startPan.y) / startZoom;
 
         const currentMid = {
           x: (pts[0].x + pts[1].x) / 2,
           y: (pts[0].y + pts[1].y) / 2,
         };
-        if (twoFingerStartMid.current) {
-          const dx = currentMid.x - twoFingerStartMid.current.x;
-          const dy = currentMid.y - twoFingerStartMid.current.y;
-          panRef.current.x = twoFingerStartPan.current.x + dx;
-          panRef.current.y = twoFingerStartPan.current.y + dy;
-        }
+        panRef.current.x = currentMid.x - worldX * newZoom;
+        panRef.current.y = currentMid.y - worldY * newZoom;
 
-        // Pinch zoom
-        if (lastPinchDist.current > 0 && touchDist > 0) {
-          const factor = touchDist / lastPinchDist.current;
-          const newZoom = Math.min(3, Math.max(0.3, zoomRef.current * factor));
-          zoomRef.current = newZoom;
-          lastPinchDist.current = touchDist;
-        }
-
-        redrawAll();
-        e.preventDefault();
+        updateWorldOverlayTransform();
+        requestRedraw();
         return;
       }
 
       // SINGLE TOUCH:
       if (activeTouchesRef.current.size === 1) {
-        if (isPenActive.current) {
-          // Hand resting on screen: DROP!
+        // Prevent scroll/pan jump if 1 finger remains right after pinch end
+        if (Date.now() - lastPinchEndTimeRef.current < 200) {
           e.preventDefault();
           return;
         }
-        if (isPanningRef.current && lastTouchPanRef.current) {
+
+        if (isPenActive.current || (lastPenTime.current > 0 && Date.now() - lastPenTime.current < 450)) {
+          e.preventDefault();
+          return;
+        }
+
+        if (tool === 'eraser' || tool === 'lasso') {
+          // let fall through to tool drawing below
+        } else if (isPanningRef.current && lastTouchPanRef.current) {
           const dx = e.clientX - lastTouchPanRef.current.x;
           const dy = e.clientY - lastTouchPanRef.current.y;
           panRef.current.x += dx;
           panRef.current.y += dy;
           lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
-          redrawAll();
+          updateWorldOverlayTransform();
+          requestRedraw();
+          return;
+        } else {
+          return;
         }
-        return;
       }
       return;
     }
@@ -1218,7 +1317,8 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         panRef.current.x += dx;
         panRef.current.y += dy;
         lastTouchPanRef.current = { x: e.clientX, y: e.clientY };
-        redrawAll();
+        updateWorldOverlayTransform();
+        requestRedraw();
       }
       return;
     }
@@ -1500,14 +1600,19 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     if (e.pointerType === 'touch') {
       activeTouchesRef.current.delete(e.pointerId);
       if (activeTouchesRef.current.size < 2) {
-        twoFingerStartMid.current = null;
-        lastPinchDist.current = 0;
+        if (isPinchingRef.current) {
+          isPinchingRef.current = false;
+          lastPinchEndTimeRef.current = Date.now();
+        }
       }
       if (activeTouchesRef.current.size === 0) {
         isPanningRef.current = false;
         lastTouchPanRef.current = null;
+        syncCanvasTransform();
       }
-      return;
+      if (tool !== 'eraser' && tool !== 'lasso') {
+        return;
+      }
     }
 
     if (tool === 'select') {
@@ -1805,55 +1910,51 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     triggerSave();
   }
 
-  // Pinch to zoom
-  function handleTouchStart(e: React.TouchEvent) {
-    if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      lastPinchDist.current = Math.sqrt(dx * dx + dy * dy);
-    }
-  }
-
-  function handleTouchMove(e: React.TouchEvent) {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (lastPinchDist.current > 0) {
-        const scale = dist / lastPinchDist.current;
-        zoomRef.current = Math.min(5, Math.max(0.25, zoomRef.current * scale));
-        redrawAll();
-      }
-      lastPinchDist.current = dist;
-    }
-  }
-
-  function handleTouchEnd() {
-    lastPinchDist.current = 0;
-  }
-
-  // Two-finger tap = undo
+  // Two-finger tap = undo (deliberate stationary tap only)
   useEffect(() => {
-    let lastTap = 0;
-    let touchCount = 0;
-    const handleTouch = (e: TouchEvent) => {
-      touchCount = e.touches.length;
+    let twoTouchStartTime = 0;
+    let startPos1 = { x: 0, y: 0 };
+    let startPos2 = { x: 0, y: 0 };
+    let hasMovedSignificantly = false;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        twoTouchStartTime = Date.now();
+        startPos1 = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        startPos2 = { x: e.touches[1].clientX, y: e.touches[1].clientY };
+        hasMovedSignificantly = false;
+      }
     };
-    const handleTouchEndEvent = (e: TouchEvent) => {
-      if (touchCount === 2 && e.changedTouches.length === 2) {
-        const now = Date.now();
-        if (now - lastTap < 300) {
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && twoTouchStartTime > 0) {
+        const d1 = Math.hypot(e.touches[0].clientX - startPos1.x, e.touches[0].clientY - startPos1.y);
+        const d2 = Math.hypot(e.touches[1].clientX - startPos2.x, e.touches[1].clientY - startPos2.y);
+        if (d1 > 12 || d2 > 12) {
+          hasMovedSignificantly = true;
+        }
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (twoTouchStartTime > 0) {
+        const duration = Date.now() - twoTouchStartTime;
+        twoTouchStartTime = 0;
+        if (!hasMovedSignificantly && !isPinchingRef.current && duration < 250 && e.changedTouches.length >= 1) {
           onUndo();
         }
-        lastTap = now;
       }
     };
-    document.addEventListener('touchstart', handleTouch);
-    document.addEventListener('touchend', handleTouchEndEvent);
+
+    const container = containerRef.current;
+    if (!container) return;
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: true });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
     return () => {
-      document.removeEventListener('touchstart', handleTouch);
-      document.removeEventListener('touchend', handleTouchEndEvent);
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
     };
   }, [onUndo]);
 
@@ -1864,10 +1965,12 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
 
       {/* 2. World-space Document / Image & Text Layer (Rendered underneath ink in pen mode, and on top in select mode!) */}
       <div
+        ref={worldOverlayRef}
         className="absolute inset-0 pointer-events-none"
         style={{
-          transform: `translate(${canvasTransform.x}px, ${canvasTransform.y}px) scale(${canvasTransform.zoom})`,
+          transform: `translate3d(${canvasTransform.x}px, ${canvasTransform.y}px, 0) scale(${canvasTransform.zoom})`,
           transformOrigin: '0 0',
+          willChange: 'transform',
           zIndex: (tool === 'select' || tool === 'image') ? 25 : 5,
         }}
       >
@@ -1984,18 +2087,26 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         onPointerCancel={handlePointerUp}
         onPointerLeave={handlePointerUp}
         onContextMenu={(e) => e.preventDefault()}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
         onWheel={(e) => {
           if (e.ctrlKey || e.metaKey) {
-            const scale = Math.exp(-e.deltaY * 0.01);
-            zoomRef.current = Math.min(5, Math.max(0.25, zoomRef.current * scale));
+            e.preventDefault();
+            const rect = overlayCanvasRef.current?.getBoundingClientRect();
+            const cursorX = rect ? e.clientX - rect.left : e.clientX;
+            const cursorY = rect ? e.clientY - rect.top : e.clientY;
+            const scale = Math.exp(-e.deltaY * 0.005);
+            const oldZoom = zoomRef.current;
+            const newZoom = Math.min(5, Math.max(0.25, oldZoom * scale));
+            const worldX = (cursorX - panRef.current.x) / oldZoom;
+            const worldY = (cursorY - panRef.current.y) / oldZoom;
+            panRef.current.x = cursorX - worldX * newZoom;
+            panRef.current.y = cursorY - worldY * newZoom;
+            zoomRef.current = newZoom;
           } else {
             panRef.current.x -= e.deltaX;
             panRef.current.y -= e.deltaY;
           }
-          redrawAll();
+          updateWorldOverlayTransform();
+          requestRedraw();
         }}
       />
 
@@ -2016,11 +2127,13 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
               const newStrokes: Stroke[] = [];
               committedStrokes.current.forEach(s => {
                 if (selectedStrokes.includes(s.id)) {
-                  newStrokes.push({
+                  const copy = {
                     ...s,
                     id: crypto.randomUUID(),
                     points: s.points.map(p => ({ ...p, x: p.x + 30, y: p.y + 30 })),
-                  });
+                  };
+                  delete (copy as any)._path2d;
+                  newStrokes.push(copy);
                 }
               });
               committedStrokes.current = [...committedStrokes.current, ...newStrokes];
