@@ -2,20 +2,7 @@ import { jsPDF } from 'jspdf';
 import type { Page, PaperColor } from './types';
 import { PAPER_THEMES } from './types';
 import { getStroke } from 'perfect-freehand';
-
-function getSvgPathFromStroke(stroke: number[][]): string {
-  if (stroke.length === 0) return '';
-  const d = stroke.reduce(
-    (acc, [x0, y0], i, arr) => {
-      const [x1, y1] = arr[(i + 1) % arr.length];
-      acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
-      return acc;
-    },
-    ['M', ...stroke[0], 'Q']
-  );
-  d.push('Z');
-  return d.join(' ');
-}
+import { getStrokeOptions, renderStrokeToPath2D } from './canvas-gestures';
 
 // Helper to load HTMLImageElement asynchronously
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -95,9 +82,9 @@ async function renderPageToCanvas(page: Page, width: number, height: number, pap
     }
 
     if (stroke.points.length > 0) {
-      const options = { size: stroke.width, thinning: 0.5, smoothing: 0.5, streamline: 0.5 };
+      const options = getStrokeOptions(stroke.width, 0.5, stroke.tool, true);
       const outlinePoints = getStroke(stroke.points.map(p => [p.x, p.y, p.pressure]), options);
-      const path = new Path2D(getSvgPathFromStroke(outlinePoints));
+      const path = renderStrokeToPath2D(outlinePoints);
       ctx.save();
       ctx.globalAlpha = stroke.tool === 'highlighter' ? 0.35 : stroke.opacity;
       ctx.fillStyle = stroke.color;

@@ -16,33 +16,21 @@ import {
   getStrokeOptions,
   isPalmTouch,
   snapRulerPoint,
+  renderStrokeToPath2D,
+  getSvgPathFromStroke,
   type BoundingBox,
 } from '@/lib/canvas-gestures';
 import ImageElementOverlay from './ImageElementOverlay';
 
-function getSvgPathFromStroke(stroke: number[][]): string {
-  if (stroke.length === 0) return '';
-  const d = stroke.reduce(
-    (acc, [x0, y0], i, arr) => {
-      const [x1, y1] = arr[(i + 1) % arr.length];
-      acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
-      return acc;
-    },
-    ['M', ...stroke[0], 'Q']
-  );
-  d.push('Z');
-  return d.join(' ');
-}
-
 const strokePathCache = new WeakMap<Stroke, Path2D>();
 const shapePathCache = new WeakMap<Stroke, Path2D>();
 
-function getStrokePath(stroke: Stroke, smoothing: number): Path2D {
+function getStrokePath(stroke: Stroke, smoothing: number, isComplete: boolean = false): Path2D {
   const cached = strokePathCache.get(stroke);
   if (cached) return cached;
-  const options = getStrokeOptions(stroke.width, smoothing, stroke.tool);
+  const options = getStrokeOptions(stroke.width, smoothing, stroke.tool, isComplete);
   const outlinePoints = getStroke(stroke.points.map(p => [p.x, p.y, p.pressure]), options);
-  const path = new Path2D(getSvgPathFromStroke(outlinePoints));
+  const path = renderStrokeToPath2D(outlinePoints);
   strokePathCache.set(stroke, path);
   return path;
 }
@@ -146,6 +134,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   const erasedStrokesThisDrag = useRef<Stroke[]>([]);
   const holdStartPos = useRef<Point | null>(null);
   const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const activeCanvasRect = useRef<{ left: number; top: number; panX: number; panY: number; zoom: number } | null>(null);
 
   // Two-Finger Pinch & Pan State
   const isPinchingRef = useRef(false);
@@ -328,7 +317,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       }
 
       // Draw strokes
-      committedStrokes.current.forEach(s => drawStroke(ctx, s));
+      committedStrokes.current.forEach(s => drawStroke(ctx, s, true));
       ctx.restore();
 
       return canvas.toDataURL('image/png');
@@ -853,7 +842,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     // 1. Draw Highlighters underneath (so math notes and pen ink stay 100% visible!)
     committedStrokes.current.forEach(stroke => {
       if (stroke.tool === 'highlighter') {
-        drawStroke(ctx, stroke);
+        drawStroke(ctx, stroke, true);
       }
     });
 
@@ -863,7 +852,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         if ((stroke as any).shape) {
           drawShapeStroke(ctx, stroke);
         } else {
-          drawStroke(ctx, stroke);
+          drawStroke(ctx, stroke, true);
         }
       }
     });
@@ -887,7 +876,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     };
   }, []);
 
-  function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
+  function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke, isComplete: boolean = false) {
     if ((stroke as any).shape) return; // Shapes drawn separately
 
     if (stroke.tool === 'tape') {
@@ -920,7 +909,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       return;
     }
 
-    const path = getStrokePath(stroke, settings.smoothing);
+    const path = getStrokePath(stroke, settings.smoothing, isComplete);
 
     ctx.save();
     if (stroke.tool === 'eraser') {
@@ -949,12 +938,22 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
   }
 
   function getPointerPos(e: React.PointerEvent | PointerEvent): Point {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0, pressure: 0.5, t: Date.now() };
-    const rect = canvas.getBoundingClientRect();
+    let r = activeCanvasRect.current;
+    if (!r) {
+      const canvas = canvasRef.current;
+      if (!canvas) return { x: 0, y: 0, pressure: 0.5, t: Date.now() };
+      const rect = canvas.getBoundingClientRect();
+      r = {
+        left: rect.left,
+        top: rect.top,
+        panX: panRef.current.x,
+        panY: panRef.current.y,
+        zoom: zoomRef.current,
+      };
+    }
     return {
-      x: (e.clientX - rect.left - panRef.current.x) / zoomRef.current,
-      y: (e.clientY - rect.top - panRef.current.y) / zoomRef.current,
+      x: (e.clientX - r.left - r.panX) / r.zoom,
+      y: (e.clientY - r.top - r.panY) / r.zoom,
       pressure: calibratePressure(e.pressure, e.pointerType),
       t: Date.now(),
     };
@@ -968,6 +967,18 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       setCroppingImageId(null);
     }
     setSelectedStrokes([]);
+
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      activeCanvasRect.current = {
+        left: rect.left,
+        top: rect.top,
+        panX: panRef.current.x,
+        panY: panRef.current.y,
+        zoom: zoomRef.current,
+      };
+    }
 
     // 1. APPLE PENCIL: 100% Top-Level Hardware Priority
     if (e.pointerType === 'pen') {
@@ -1566,13 +1577,23 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         ? settings.highlighterColor
         : settings.penColor;
 
+      // Predictive inking for Apple Pencil (sub-10ms perceived latency)
+      let displayPoints = currentStroke.current;
+      if (e.pointerType === 'pen' && (e.nativeEvent as any).getPredictedEvents) {
+        const predictedEvents: PointerEvent[] = (e.nativeEvent as any).getPredictedEvents();
+        if (predictedEvents && predictedEvents.length > 0) {
+          const predictedPoints = predictedEvents.map(ev => getPointerPos(ev));
+          displayPoints = [...currentStroke.current, ...predictedPoints];
+        }
+      }
+
       const tempStroke: Stroke = {
         id: '',
         tool: tool as 'pen' | 'highlighter' | 'eraser' | 'tape',
         color: strokeColor,
         width: strokeWidth,
         opacity: tool === 'tape' ? 0.95 : tool === 'highlighter' ? 0.35 : settings.penOpacity,
-        points: currentStroke.current,
+        points: displayPoints,
         isRevealed: false,
       };
 
@@ -1582,17 +1603,18 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
           mainCtx.save();
           mainCtx.translate(panRef.current.x, panRef.current.y);
           mainCtx.scale(zoomRef.current, zoomRef.current);
-          drawStroke(mainCtx, tempStroke);
+          drawStroke(mainCtx, tempStroke, false);
           mainCtx.restore();
         }
       } else {
-        drawStroke(ctx, tempStroke);
+        drawStroke(ctx, tempStroke, false);
       }
       ctx.restore();
     }
   }
 
   function handlePointerUp(e: React.PointerEvent) {
+    activeCanvasRect.current = null;
     if (e.pointerType === 'pen') {
       isPenActive.current = false;
       lastPenTime.current = Date.now();
@@ -1784,9 +1806,15 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
       return;
     }
 
-    if (currentStroke.current.length < 2) {
+    if (currentStroke.current.length === 0) {
       clearOverlay();
       return;
+    }
+
+    if (currentStroke.current.length === 1) {
+      const p = currentStroke.current[0];
+      // Synthesize a sub-pixel pair so single taps produce a crisp, perfectly round ink dot (i, j, decimals, punctuation)
+      currentStroke.current.push({ ...p, x: p.x + 0.1, y: p.y + 0.1 });
     }
 
     // 4. Scribble to Erase (GoodNotes signature scratch-out!)

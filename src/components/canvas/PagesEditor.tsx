@@ -16,34 +16,22 @@ import {
   getStrokeOptions,
   isPalmTouch,
   snapRulerPoint,
+  renderStrokeToPath2D,
+  getSvgPathFromStroke,
   type BoundingBox,
 } from '@/lib/canvas-gestures';
 import { Plus, Trash2, Copy } from 'lucide-react';
 import ImageElementOverlay from './ImageElementOverlay';
 
-function getSvgPathFromStroke(stroke: number[][]): string {
-  if (stroke.length === 0) return '';
-  const d = stroke.reduce(
-    (acc, [x0, y0], i, arr) => {
-      const [x1, y1] = arr[(i + 1) % arr.length];
-      acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
-      return acc;
-    },
-    ['M', ...stroke[0], 'Q']
-  );
-  d.push('Z');
-  return d.join(' ');
-}
-
 const strokePathCache = new WeakMap<Stroke, Path2D>();
 const shapePathCache = new WeakMap<Stroke, Path2D>();
 
-function getStrokePath(stroke: Stroke, smoothing: number): Path2D {
+function getStrokePath(stroke: Stroke, smoothing: number, isComplete: boolean = false): Path2D {
   const cached = strokePathCache.get(stroke);
   if (cached) return cached;
-  const options = getStrokeOptions(stroke.width, smoothing, stroke.tool);
+  const options = getStrokeOptions(stroke.width, smoothing, stroke.tool, isComplete);
   const outlinePoints = getStroke(stroke.points.map(p => [p.x, p.y, p.pressure]), options);
-  const path = new Path2D(getSvgPathFromStroke(outlinePoints));
+  const path = renderStrokeToPath2D(outlinePoints);
   strokePathCache.set(stroke, path);
   return path;
 }
@@ -630,6 +618,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   const pageDataMap = useRef<Map<string, Page>>(new Map());
   const undoActions = useRef<Map<string, Array<{ type: 'add' | 'delete' | 'clear'; strokes: Stroke[] }>>>(new Map());
   const redoActions = useRef<Map<string, Array<{ type: 'add' | 'delete' | 'clear'; strokes: Stroke[] }>>>(new Map());
+  const activeCanvasRect = useRef<{ left: number; top: number; width: number; height: number; scaleX: number; scaleY: number } | null>(null);
 
   const pushPageUndo = useCallback((pageId: string, action: { type: 'add' | 'delete' | 'clear'; strokes: Stroke[] }) => {
     const uStack = undoActions.current.get(pageId) || [];
@@ -708,7 +697,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         // A. Draw Highlighters underneath
         page.strokes.forEach(s => {
           if (s.tool === 'highlighter') {
-            drawStrokeToContext(ctx, s);
+            drawStrokeToContext(ctx, s, true);
           }
         });
 
@@ -718,7 +707,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
             if ((s as any).shape) {
               drawShapeToContext(ctx, s);
             } else {
-              drawStrokeToContext(ctx, s);
+              drawStrokeToContext(ctx, s, true);
             }
           }
         });
@@ -726,7 +715,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
   }, [template, activeTheme]);
 
-  function drawStrokeToContext(ctx: CanvasRenderingContext2D, stroke: Stroke) {
+  function drawStrokeToContext(ctx: CanvasRenderingContext2D, stroke: Stroke, isComplete: boolean = false) {
     if ((stroke as any).shape) return;
 
     if (stroke.tool === 'tape') {
@@ -758,7 +747,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       return;
     }
 
-    const path = getStrokePath(stroke, settings.smoothing);
+    const path = getStrokePath(stroke, settings.smoothing, isComplete);
 
     ctx.save();
     if (stroke.tool === 'eraser') {
@@ -977,7 +966,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       // Strokes
       page.strokes.forEach(s => {
         if ((s as any).shape) drawShapeToContext(ctx, s);
-        else drawStrokeToContext(ctx, s);
+        else drawStrokeToContext(ctx, s, true);
       });
 
       return canvas.toDataURL('image/png');
@@ -1096,14 +1085,23 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
   }));
 
   function getPointerPosOnPage(e: React.PointerEvent | PointerEvent, pageId: string): Point {
-    const canvases = pageRefs.current.get(pageId);
-    if (!canvases?.canvas) return { x: 0, y: 0, pressure: 0.5, t: Date.now() };
-    const rect = canvases.canvas.getBoundingClientRect();
-    const scaleX = PAGE_WIDTH / rect.width;
-    const scaleY = PAGE_HEIGHT / rect.height;
+    let r = activeCanvasRect.current;
+    if (!r) {
+      const canvases = pageRefs.current.get(pageId);
+      if (!canvases?.canvas) return { x: 0, y: 0, pressure: 0.5, t: Date.now() };
+      const rect = canvases.canvas.getBoundingClientRect();
+      r = {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        scaleX: PAGE_WIDTH / rect.width,
+        scaleY: PAGE_HEIGHT / rect.height,
+      };
+    }
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: (e.clientX - r.left) * r.scaleX,
+      y: (e.clientY - r.top) * r.scaleY,
       pressure: calibratePressure(e.pressure, e.pointerType),
       t: Date.now(),
     };
@@ -1113,6 +1111,19 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     setActivePageId(pageId);
     setSelectedStrokes(null);
     setSelectedImage(null);
+
+    const canvases = pageRefs.current.get(pageId);
+    if (canvases?.canvas) {
+      const rect = canvases.canvas.getBoundingClientRect();
+      activeCanvasRect.current = {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        scaleX: PAGE_WIDTH / rect.width,
+        scaleY: PAGE_HEIGHT / rect.height,
+      };
+    }
 
     // 1. APPLE PENCIL: 100% Top-Level Hardware Priority
     if (e.pointerType === 'pen') {
@@ -1488,13 +1499,23 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         ? settings.highlighterColor
         : settings.penColor;
 
+      // Predictive inking for Apple Pencil (sub-10ms perceived latency)
+      let displayPoints = currentStroke.current;
+      if (e.pointerType === 'pen' && (e.nativeEvent as any).getPredictedEvents) {
+        const predictedEvents: PointerEvent[] = (e.nativeEvent as any).getPredictedEvents();
+        if (predictedEvents && predictedEvents.length > 0) {
+          const predictedPoints = predictedEvents.map(ev => getPointerPosOnPage(ev, pageId));
+          displayPoints = [...currentStroke.current, ...predictedPoints];
+        }
+      }
+
       const tempStroke: Stroke = {
         id: '',
         tool: tool as 'pen' | 'highlighter' | 'eraser' | 'tape',
         color: strokeColor,
         width: strokeWidth,
         opacity: tool === 'tape' ? 0.95 : tool === 'highlighter' ? 0.35 : settings.penOpacity,
-        points: currentStroke.current,
+        points: displayPoints,
         isRevealed: false,
       };
 
@@ -1502,15 +1523,16 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
         const pageCanvases = pageRefs.current.get(pageId);
         const mainCtx = pageCanvases?.canvas?.getContext('2d');
         if (mainCtx) {
-          drawStrokeToContext(mainCtx, tempStroke);
+          drawStrokeToContext(mainCtx, tempStroke, false);
         }
       } else {
-        drawStrokeToContext(ctx, tempStroke);
+        drawStrokeToContext(ctx, tempStroke, false);
       }
     }
   }
 
   function handlePointerUp(e: React.PointerEvent, pageId: string) {
+    activeCanvasRect.current = null;
     if (e.pointerType === 'pen') {
       isPenActive.current = false;
       lastPenTime.current = Date.now();
@@ -1723,9 +1745,15 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
       return;
     }
 
-    if (currentStroke.current.length < 2) {
+    if (currentStroke.current.length === 0) {
       clearOverlay();
       return;
+    }
+
+    if (currentStroke.current.length === 1) {
+      const p = currentStroke.current[0];
+      // Synthesize a sub-pixel pair so single taps produce a crisp, perfectly round ink dot (i, j, decimals, punctuation)
+      currentStroke.current.push({ ...p, x: p.x + 0.1, y: p.y + 0.1 });
     }
 
     // 4. Scribble-to-Erase (Signature GoodNotes Scratch-out Erase!)
