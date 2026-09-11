@@ -1757,7 +1757,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
 
     // 4. Scribble-to-Erase (Signature GoodNotes Scratch-out Erase!)
-    if ((tool === 'pen' || tool === 'highlighter') && settings.scribbleToErase !== false) {
+    if (tool === 'pen' && settings.scribbleToErase !== false) {
       const scribble = detectScribble(currentStroke.current);
       if (scribble) {
         const removed = findStrokesCoveredByScribble(page.strokes, currentStroke.current, scribble.bounds);

@@ -28,6 +28,7 @@ import {
   BookOpen,
   Sparkles,
   ArrowLeftRight,
+  Calculator as CalculatorIcon,
 } from 'lucide-react';
 
 export default function NotePage() {
@@ -140,15 +141,30 @@ export default function NotePage() {
       }
     };
 
+    const handleSettingsUpdate = (e: any) => {
+      if (e.detail) {
+        setAppSettings(e.detail);
+      } else {
+        const saved = localStorage.getItem('scribe-settings');
+        if (saved) {
+          try {
+            setAppSettings(JSON.parse(saved));
+          } catch {}
+        }
+      }
+    };
+
     window.addEventListener('contextmenu', handleContextMenu, { capture: true });
     window.addEventListener('selectstart', handleSelectStart, { capture: true });
     document.addEventListener('selectionchange', handleSelectionChange);
+    window.addEventListener('scribe-settings-updated', handleSettingsUpdate);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('contextmenu', handleContextMenu, { capture: true });
       window.removeEventListener('selectstart', handleSelectStart, { capture: true });
       document.removeEventListener('selectionchange', handleSelectionChange);
+      window.removeEventListener('scribe-settings-updated', handleSettingsUpdate);
     };
   }, [noteId]);
 
@@ -238,7 +254,7 @@ export default function NotePage() {
     setShowPaperMenu(false);
   }
 
-  const handleToolbarAction = async (action: 'export-pdf' | 'export-png' | 'import' | 'clear' | 'delete-page') => {
+  const handleToolbarAction = async (action: 'export-pdf' | 'export-png' | 'import' | 'clear' | 'delete-page' | 'calculator') => {
     if (action === 'export-pdf') {
       await handleExportPdf();
     } else if (action === 'export-png') {
@@ -274,6 +290,8 @@ export default function NotePage() {
           await handleDeletePage(pageToDelete.id);
         }
       }
+    } else if (action === 'calculator') {
+      setShowCalculator(v => !v);
     }
   };
 
@@ -538,6 +556,25 @@ export default function NotePage() {
               <span className="hidden sm:inline">Focus</span>
             </button>
 
+            {/* Calculator Button */}
+            {appSettings.showCalculator !== false && (
+              <button
+                onClick={() => setShowCalculator(v => !v)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-105 border border-[var(--border)] shadow-sm ${
+                  showCalculator
+                    ? 'bg-[var(--accent)] text-[var(--bg-primary)] shadow-md'
+                    : 'hover:bg-black/5 dark:hover:bg-white/5'
+                }`}
+                style={{
+                  background: showCalculator ? 'var(--accent)' : 'var(--bg-tertiary)',
+                  color: showCalculator ? 'var(--bg-primary)' : 'var(--text-primary)',
+                }}
+                title="Calculator (Press =)"
+              >
+                <CalculatorIcon size={16} />
+              </button>
+            )}
+
             {/* Settings */}
             <button
               onClick={() => setShowSettings(true)}
@@ -688,7 +725,15 @@ export default function NotePage() {
       {/* Settings Modal */}
       {showSettings && (
         <SettingsPanel
-          onClose={() => setShowSettings(false)}
+          onClose={() => {
+            setShowSettings(false);
+            const savedSettings = localStorage.getItem('scribe-settings');
+            if (savedSettings) {
+              try {
+                setAppSettings(JSON.parse(savedSettings));
+              } catch {}
+            }
+          }}
           currentNoteTemplate={note?.template}
           onUpdateCurrentNoteTemplate={async t => {
             if (note) {

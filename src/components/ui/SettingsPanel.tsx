@@ -46,6 +46,9 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
     const next = { ...settings, ...updates };
     setSettings(next);
     localStorage.setItem('scribe-settings', JSON.stringify(next));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('scribe-settings-updated', { detail: next }));
+    }
     if (updates.theme) {
       document.documentElement.setAttribute('data-theme', updates.theme);
       localStorage.setItem('scribe-theme', updates.theme);

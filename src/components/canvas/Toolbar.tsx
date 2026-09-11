@@ -16,7 +16,7 @@ interface ToolbarProps {
   onToggle: () => void;
   onUndo: () => void;
   onRedo: () => void;
-  onAction?: (action: 'export-pdf' | 'export-png' | 'import' | 'clear' | 'delete-page') => void;
+  onAction?: (action: 'export-pdf' | 'export-png' | 'import' | 'clear' | 'delete-page' | 'calculator') => void;
   theme?: 'light' | 'dark';
   paperColor?: string;
   position?: ToolbarPosition;
@@ -629,6 +629,25 @@ export default function Toolbar({
                   }`}
                   style={{ background: 'var(--toolbar-bg)' }}
                 >
+                  <button 
+                    onClick={() => { setShowMoreMenu(false); onAction?.('calculator'); }}
+                    className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="4" y="2" width="16" height="20" rx="2" />
+                        <line x1="8" y1="6" x2="16" y2="6" />
+                        <line x1="8" y1="10" x2="10" y2="10" />
+                        <line x1="14" y1="10" x2="16" y2="10" />
+                        <line x1="8" y1="14" x2="10" y2="14" />
+                        <line x1="14" y1="14" x2="16" y2="14" />
+                        <line x1="8" y1="18" x2="16" y2="18" />
+                      </svg>
+                      Calculator
+                    </span>
+                    <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-[var(--text-muted)] font-mono">=</kbd>
+                  </button>
+
                   <button 
                     onClick={() => { setShowMoreMenu(false); onAction?.('import'); }}
                     className="text-left px-3 py-2 text-sm font-medium rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors flex items-center justify-between"

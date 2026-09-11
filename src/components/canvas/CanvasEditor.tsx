@@ -1818,7 +1818,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     }
 
     // 4. Scribble to Erase (GoodNotes signature scratch-out!)
-    if ((tool === 'pen' || tool === 'highlighter') && settings.scribbleToErase !== false) {
+    if (tool === 'pen' && settings.scribbleToErase !== false) {
       const scribble = detectScribble(currentStroke.current);
       if (scribble) {
         const removed = findStrokesCoveredByScribble(committedStrokes.current, currentStroke.current, scribble.bounds);
