@@ -47,7 +47,7 @@ export default function NotePage() {
     highlighterWidth: 20,
     highlighterColor: '#f1c40f',
     eraserWidth: 20,
-    eraserMode: 'stroke',
+    eraserMode: 'pixel',
     tapeWidth: 32,
     tapeColor: '#f59e0b',
     smoothing: 0.5,
@@ -88,6 +88,10 @@ export default function NotePage() {
     const savedToolbarPosition = localStorage.getItem('scribe-toolbar-position') as ToolbarPosition | null;
     if (savedToolbarPosition && ['top', 'bottom', 'left', 'right'].includes(savedToolbarPosition)) {
       setToolbarPosition(savedToolbarPosition);
+    }
+    const savedEraserMode = localStorage.getItem('scribe-eraser-mode') as 'stroke' | 'pixel' | null;
+    if (savedEraserMode && (savedEraserMode === 'stroke' || savedEraserMode === 'pixel')) {
+      setToolSettings(prev => ({ ...prev, eraserMode: savedEraserMode }));
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -336,6 +340,15 @@ export default function NotePage() {
     try {
       localStorage.setItem('scribe-toolbar-position', pos);
     } catch {}
+  };
+
+  const handleToolSettingsChange = (newSettings: ToolSettings) => {
+    setToolSettings(newSettings);
+    if (newSettings.eraserMode) {
+      try {
+        localStorage.setItem('scribe-eraser-mode', newSettings.eraserMode);
+      } catch {}
+    }
   };
 
   const activePaperTheme = PAPER_THEMES[note?.paperColor || 'navy'] || PAPER_THEMES.navy;
@@ -685,7 +698,7 @@ export default function NotePage() {
         activeTool={activeTool}
         onToolChange={setActiveTool}
         toolSettings={toolSettings}
-        onSettingsChange={setToolSettings}
+        onSettingsChange={handleToolSettingsChange}
         showColorPicker={showColorPicker}
         onToggleColorPicker={() => setShowColorPicker(v => !v)}
         visible={showToolbar}

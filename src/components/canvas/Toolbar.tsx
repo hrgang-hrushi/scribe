@@ -257,7 +257,7 @@ export default function Toolbar({
                         type="button"
                         onClick={() => onSettingsChange({ ...toolSettings, eraserMode: 'stroke' })}
                         className={`py-1 text-xs font-semibold rounded-lg transition-all ${
-                          toolSettings.eraserMode !== 'pixel'
+                          toolSettings.eraserMode === 'stroke'
                             ? 'bg-[var(--accent)] text-[var(--bg-primary)] shadow-sm'
                             : 'hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-primary)]'
                         }`}
@@ -268,7 +268,7 @@ export default function Toolbar({
                         type="button"
                         onClick={() => onSettingsChange({ ...toolSettings, eraserMode: 'pixel' })}
                         className={`py-1 text-xs font-semibold rounded-lg transition-all ${
-                          toolSettings.eraserMode === 'pixel'
+                          toolSettings.eraserMode !== 'stroke'
                             ? 'bg-[var(--accent)] text-[var(--bg-primary)] shadow-sm'
                             : 'hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-primary)]'
                         }`}

@@ -1191,7 +1191,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     if (tool === 'eraser') {
       isDrawing.current = true;
       erasedStrokesThisDrag.current = [];
-      if (settings.eraserMode !== 'pixel') {
+      if (settings.eraserMode === 'stroke') {
         const eraserRadius = (settings.eraserWidth || 24) / 2;
         const hitStrokes = committedStrokes.current.filter(s => {
           if (settings.eraseHighlighterOnly && s.tool !== 'highlighter') return false;
@@ -1484,7 +1484,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     }
 
     // Stroke Eraser Engine: Cleanly deletes touched strokes in real-time
-    if (tool === 'eraser' && settings.eraserMode !== 'pixel') {
+    if (tool === 'eraser' && settings.eraserMode === 'stroke') {
       const eraserRadius = (settings.eraserWidth || 24) / 2;
       const hitStrokes = committedStrokes.current.filter(s => {
         if (settings.eraseHighlighterOnly && s.tool !== 'highlighter') return false;
@@ -1794,7 +1794,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     }
 
     // 3c. Handle Stroke Eraser commit (Batch undo for all deleted lines!)
-    if (tool === 'eraser' && settings.eraserMode !== 'pixel') {
+    if (tool === 'eraser' && settings.eraserMode === 'stroke') {
       if (erasedStrokesThisDrag.current.length > 0) {
         pushCanvasUndo({ type: 'delete', strokes: [...erasedStrokesThisDrag.current] });
         erasedStrokesThisDrag.current = [];

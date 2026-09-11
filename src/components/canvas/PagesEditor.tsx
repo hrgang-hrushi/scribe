@@ -1204,7 +1204,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     if (tool === 'eraser') {
       isDrawing.current = true;
       erasedStrokesThisDrag.current = [];
-      if (settings.eraserMode !== 'pixel') {
+      if (settings.eraserMode === 'stroke') {
         const page = pageDataMap.current.get(pageId);
         if (page) {
           const eraserRadius = (settings.eraserWidth || 24) / 2;
@@ -1410,7 +1410,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
 
     // Stroke Eraser Engine: Cleanly deletes touched strokes in real-time
-    if (tool === 'eraser' && settings.eraserMode !== 'pixel') {
+    if (tool === 'eraser' && settings.eraserMode === 'stroke') {
       const page = pageDataMap.current.get(pageId);
       if (page) {
         const eraserRadius = (settings.eraserWidth || 24) / 2;
@@ -1733,7 +1733,7 @@ export const PagesEditor = forwardRef<PagesEditorRef, PagesEditorProps>(({
     }
 
     // 3c. Handle Stroke Eraser commit (Batch undo for all deleted lines!)
-    if (tool === 'eraser' && settings.eraserMode !== 'pixel') {
+    if (tool === 'eraser' && settings.eraserMode === 'stroke') {
       if (erasedStrokesThisDrag.current.length > 0) {
         pushPageUndo(pageId, { type: 'delete', strokes: [...erasedStrokesThisDrag.current] });
         erasedStrokesThisDrag.current = [];
