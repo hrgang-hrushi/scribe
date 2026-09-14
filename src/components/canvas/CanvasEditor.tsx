@@ -21,6 +21,7 @@ import {
   type BoundingBox,
 } from '@/lib/canvas-gestures';
 import ImageElementOverlay from './ImageElementOverlay';
+import { compressUploadedFile } from '@/lib/image-compress';
 
 const strokePathCache = new WeakMap<Stroke, Path2D>();
 const shapePathCache = new WeakMap<Stroke, Path2D>();
@@ -166,7 +167,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     if (!overlay) return;
     const ctx = overlay.getContext('2d');
     if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     const centerX = (bounds.minX + bounds.maxX) / 2;
     const centerY = (bounds.minY + bounds.maxY) / 2;
@@ -340,7 +341,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
           const page = await pdf.getPage(pageNum);
-          const viewport = page.getViewport({ scale: 2.0 });
+          const viewport = page.getViewport({ scale: 1.5 });
           const tempCanvas = document.createElement('canvas');
           const ctx = tempCanvas.getContext('2d');
           tempCanvas.width = viewport.width;
@@ -350,10 +351,10 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
             await page.render({ canvasContext: ctx, viewport } as any).promise;
-            const src = tempCanvas.toDataURL('image/png');
+            const src = tempCanvas.toDataURL('image/jpeg', 0.82);
             
-            const displayWidth = viewport.width / 2;
-            const displayHeight = viewport.height / 2;
+            const displayWidth = Math.round(viewport.width / 1.5);
+            const displayHeight = Math.round(viewport.height / 1.5);
             
             newImages.push({
               id: crypto.randomUUID(),
@@ -377,33 +378,29 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
         triggerSave();
         redrawAll();
       } else {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const src = ev.target?.result as string;
-          const imgObj = new Image();
-          imgObj.onload = () => {
-            const maxW = 500;
-            const scale = imgObj.width > maxW ? maxW / imgObj.width : 1;
-            const w = imgObj.width * scale;
-            const h = imgObj.height * scale;
-            const newImg: ImageBlock = {
-              id: crypto.randomUUID(),
-              x: centerX - w / 2,
-              y: centerY - h / 2,
-              width: w,
-              height: h,
-              src,
-              locked: false,
-            };
-            committedImages.current = [...committedImages.current, newImg];
-            setImages([...committedImages.current]);
-            setSelectedImageIds([newImg.id]);
-            triggerSave();
-            redrawAll();
+        try {
+          const compressed = await compressUploadedFile(file, { maxDimension: 1400, quality: 0.82 });
+          const maxW = 500;
+          const scale = compressed.width > maxW ? maxW / compressed.width : 1;
+          const w = Math.round(compressed.width * scale);
+          const h = Math.round(compressed.height * scale);
+          const newImg: ImageBlock = {
+            id: crypto.randomUUID(),
+            x: Math.round(centerX - w / 2),
+            y: Math.round(centerY - h / 2),
+            width: w,
+            height: h,
+            src: compressed.dataUrl,
+            locked: false,
           };
-          imgObj.src = src;
-        };
-        reader.readAsDataURL(file);
+          committedImages.current = [...committedImages.current, newImg];
+          setImages([...committedImages.current]);
+          setSelectedImageIds([newImg.id]);
+          triggerSave();
+          redrawAll();
+        } catch (e) {
+          console.error('Image upload compression error:', e);
+        }
       }
     },
     saveAll: () => {
@@ -716,7 +713,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     const resize = () => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       setDimensions({ width: rect.width, height: rect.height });
       [bgCanvasRef.current, canvasRef.current, overlayCanvasRef.current].forEach(c => {
         if (!c) return;
@@ -750,7 +747,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
     ctx.save();
@@ -1120,7 +1117,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
           
           for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
             const page = await pdf.getPage(pageNum);
-            const viewport = page.getViewport({ scale: 2.0 });
+            const viewport = page.getViewport({ scale: 1.5 });
             const tempCanvas = document.createElement('canvas');
             const ctx = tempCanvas.getContext('2d');
             tempCanvas.width = viewport.width;
@@ -1130,9 +1127,9 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
               ctx.fillStyle = '#ffffff';
               ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
               await page.render({ canvasContext: ctx, viewport } as any).promise;
-              const src = tempCanvas.toDataURL('image/png');
-              const displayWidth = viewport.width / 2;
-              const displayHeight = viewport.height / 2;
+              const src = tempCanvas.toDataURL('image/jpeg', 0.82);
+              const displayWidth = Math.round(viewport.width / 1.5);
+              const displayHeight = Math.round(viewport.height / 1.5);
               
               newImages.push({
                 id: crypto.randomUUID(),
@@ -1345,7 +1342,7 @@ const CanvasEditor = forwardRef<CanvasEditorRef, CanvasEditorProps>(({
     if (!overlay) return;
     const ctx = overlay.getContext('2d');
     if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     // Handle Lasso Polygon
     if (isLassoing.current) {

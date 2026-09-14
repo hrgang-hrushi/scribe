@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { File, AlignJustify, Grid3X3, CircleDot, LayoutTemplate, Sun, Moon, Stethoscope, Cpu, Code2, Rocket, Layers } from 'lucide-react';
+import { File, AlignJustify, Grid3X3, CircleDot, LayoutTemplate, Sun, Moon, Stethoscope, Cpu, Code2, Rocket, Layers, Database, HardDrive, RefreshCw, Sparkles, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import type { AppSettings, NoteTemplate } from '@/lib/types';
 import { TEMPLATE_METADATA, TemplateMeta } from '@/lib/templates';
+import { getStorageStats, optimizeAllNotesStorage, optimizeNoteStorage, requestPersistentStorage, type StorageStats } from '@/lib/db';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -32,6 +33,10 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
   });
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+  const [isOptimizingStorage, setIsOptimizingStorage] = useState(false);
+  const [optimizeMessage, setOptimizeMessage] = useState<string | null>(null);
+  const [showNotesBreakdown, setShowNotesBreakdown] = useState(false);
 
   const filteredTemplates = TEMPLATE_METADATA.filter(
     t => selectedCategory === 'all' || t.category === selectedCategory
@@ -40,7 +45,52 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
   useEffect(() => {
     const saved = localStorage.getItem('scribe-settings');
     if (saved) setSettings(JSON.parse(saved));
+    refreshStorage();
   }, []);
+
+  async function refreshStorage() {
+    try {
+      const stats = await getStorageStats();
+      setStorageStats(stats);
+    } catch (e) {
+      console.warn('Storage fetch warning:', e);
+    }
+  }
+
+  async function handleOptimizeAll() {
+    setIsOptimizingStorage(true);
+    setOptimizeMessage(null);
+    try {
+      const res = await optimizeAllNotesStorage();
+      const mb = (res.totalSavedBytes / (1024 * 1024)).toFixed(1);
+      setOptimizeMessage(`Saved ${mb} MB across ${res.notesProcessed} notes (${res.imagesCompressed} images compressed)!`);
+      await refreshStorage();
+    } catch (e: any) {
+      setOptimizeMessage(`Optimization failed: ${e?.message || e}`);
+    } finally {
+      setIsOptimizingStorage(false);
+    }
+  }
+
+  async function handleOptimizeSingleNote(noteId: string) {
+    try {
+      const res = await optimizeNoteStorage(noteId);
+      const mb = (res.savedBytes / (1024 * 1024)).toFixed(1);
+      setOptimizeMessage(`Freed ${mb} MB on note!`);
+      await refreshStorage();
+    } catch (e: any) {
+      alert(`Optimization failed: ${e?.message || e}`);
+    }
+  }
+
+  async function handleEnablePersistence() {
+    const granted = await requestPersistentStorage();
+    if (granted) {
+      await refreshStorage();
+    } else {
+      alert('Persistent storage could not be enabled by Safari. Please add Scribe to your Home Screen as a PWA for unlimited persistent storage.');
+    }
+  }
 
   function updateSettings(updates: Partial<AppSettings>) {
     const next = { ...settings, ...updates };
@@ -248,6 +298,132 @@ export default function SettingsPanel({ onClose, currentNoteTemplate, onUpdateCu
                 style={{ left: settings.showCalculator !== false ? '26px' : '4px' }}
               />
             </button>
+          </div>
+
+          {/* Database & Storage Health */}
+          <div className="mb-6 p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)]/50">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Database size={16} className="text-[var(--accent)]" />
+                <label className="text-sm font-bold block" style={{ color: 'var(--text-primary)' }}>
+                  Storage & Database Health
+                </label>
+              </div>
+              <button
+                onClick={refreshStorage}
+                className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                title="Refresh Storage Stats"
+              >
+                <RefreshCw size={13} style={{ color: 'var(--text-muted)' }} />
+              </button>
+            </div>
+
+            {storageStats && (
+              <div className="space-y-3">
+                {/* Usage meter */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1 font-medium">
+                    <span style={{ color: 'var(--text-secondary)' }}>Used Storage</span>
+                    <span style={{ color: 'var(--text-primary)' }}>
+                      {(storageStats.usageBytes / (1024 * 1024)).toFixed(1)} MB
+                      {storageStats.quotaBytes > 0 && (
+                        <span className="opacity-60"> / {(storageStats.quotaBytes / (1024 * 1024)).toFixed(0)} MB</span>
+                      )}
+                    </span>
+                  </div>
+                  {storageStats.quotaBytes > 0 && (
+                    <div className="w-full h-1.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(100, Math.max(2, (storageStats.usageBytes / storageStats.quotaBytes) * 100))}%`,
+                          backgroundColor:
+                            storageStats.usageBytes / storageStats.quotaBytes > 0.8 ? '#ef4444' : 'var(--accent)',
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Persistence status */}
+                <div className="flex items-center justify-between text-xs py-1">
+                  <span style={{ color: 'var(--text-secondary)' }}>Storage Mode</span>
+                  {storageStats.persisted ? (
+                    <span className="text-emerald-500 font-semibold flex items-center gap-1">
+                      <CheckCircle2 size={12} /> Permanent (PWA Quota)
+                    </span>
+                  ) : (
+                    <button
+                      onClick={handleEnablePersistence}
+                      className="text-[var(--accent)] font-semibold underline hover:opacity-80"
+                    >
+                      Request Persistent Storage
+                    </button>
+                  )}
+                </div>
+
+                {optimizeMessage && (
+                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-500 text-xs font-medium animate-fade-in">
+                    {optimizeMessage}
+                  </div>
+                )}
+
+                {/* 1-Click Optimize Button */}
+                <button
+                  onClick={handleOptimizeAll}
+                  disabled={isOptimizingStorage}
+                  className="w-full py-2.5 px-3 rounded-lg font-bold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                  style={{ background: 'var(--accent)', color: 'var(--bg-primary)' }}
+                >
+                  <Sparkles size={14} />
+                  <span>{isOptimizingStorage ? 'Optimizing & Compressing...' : 'Optimize & Free Up Storage'}</span>
+                </button>
+
+                {/* Expandable Breakdown */}
+                {storageStats.notes.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setShowNotesBreakdown(v => !v)}
+                      className="text-[11px] font-semibold flex items-center gap-1 opacity-75 hover:opacity-100 transition-opacity mt-1"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      {showNotesBreakdown ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      <span>Note Storage Breakdown ({storageStats.notes.length} notes)</span>
+                    </button>
+
+                    {showNotesBreakdown && (
+                      <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {storageStats.notes.map(n => (
+                          <div
+                            key={n.id}
+                            className="flex items-center justify-between p-2 rounded-lg text-xs"
+                            style={{ background: 'var(--bg-secondary)' }}
+                          >
+                            <div className="min-w-0 flex-1 mr-2">
+                              <p className="font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                                {n.title}
+                              </p>
+                              <p className="text-[10px] opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                {n.pageCount} sheets • {n.imageCount} images • {(n.approximateBytes / (1024 * 1024)).toFixed(1)} MB
+                              </p>
+                            </div>
+                            {n.imageCount > 0 && (
+                              <button
+                                onClick={() => handleOptimizeSingleNote(n.id)}
+                                className="px-2 py-1 rounded text-[10px] font-bold shrink-0 hover:opacity-80"
+                                style={{ background: 'var(--bg-tertiary)', color: 'var(--accent)' }}
+                              >
+                                Optimize
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Keyboard Shortcuts */}

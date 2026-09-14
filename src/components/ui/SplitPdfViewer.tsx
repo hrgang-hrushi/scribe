@@ -168,11 +168,11 @@ export default function SplitPdfViewer({
 
       canvas.toBlob((blob) => {
         if (blob) {
-          const file = new File([blob], `pdf-ref-page-${currentPage}.png`, { type: 'image/png' });
+          const file = new File([blob], `pdf-ref-page-${currentPage}.jpg`, { type: 'image/jpeg' });
           onInsertToNote(file);
         }
         setInserting(false);
-      }, 'image/png');
+      }, 'image/jpeg', 0.82);
     } catch (err) {
       console.error('Insert to note error:', err);
       setInserting(false);

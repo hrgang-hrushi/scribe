@@ -3,7 +3,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AnimatePresence } from 'framer-motion';
-import { getPagesForNote, updatePage, updateNote, db, addPage } from '@/lib/db';
+import {
+  getPagesForNote,
+  updatePage,
+  updateNote,
+  db,
+  addPage,
+  optimizeNoteStorage,
+  exportNoteBackup,
+  requestPersistentStorage,
+} from '@/lib/db';
 import type { Note, Page, Tool, ToolSettings, PaperColor, ToolbarPosition } from '@/lib/types';
 import { INK_COLORS, PAPER_THEMES } from '@/lib/types';
 import CanvasEditor from '@/components/canvas/CanvasEditor';
@@ -25,10 +34,17 @@ import {
   Maximize2,
   Palette,
   ChevronLeft,
+  ChevronRight,
   BookOpen,
   Sparkles,
   ArrowLeftRight,
   Calculator as CalculatorIcon,
+  ShieldAlert,
+  ShieldCheck,
+  Wrench,
+  Download,
+  Home as HomeIcon,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function NotePage() {
@@ -72,10 +88,29 @@ export default function NotePage() {
   const [splitPosition, setSplitPosition] = useState<'left' | 'right'>('left');
   const [showPlayground, setShowPlayground] = useState(false);
   const [appSettings, setAppSettings] = useState<any>({});
+  const [crashDetected, setCrashDetected] = useState(false);
+  const [safeMode, setSafeMode] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizeFeedback, setOptimizeFeedback] = useState<string | null>(null);
   const editorRef = useRef<any>(null);
 
   useEffect(() => {
-    loadData();
+    requestPersistentStorage();
+    const crashKey = `scribe_crash_lock_${noteId}`;
+    const previousAttempts = parseInt(sessionStorage.getItem(crashKey) || '0', 10);
+
+    if (previousAttempts >= 2) {
+      setCrashDetected(true);
+      setIsLoading(false);
+    } else {
+      sessionStorage.setItem(crashKey, String(previousAttempts + 1));
+      loadData();
+    }
+
+    const stableTimer = setTimeout(() => {
+      sessionStorage.removeItem(crashKey);
+    }, 3500);
+
     const savedTheme = (localStorage.getItem('scribe-theme') as 'light' | 'dark') || 'dark';
     setTheme(savedTheme);
     document.documentElement.setAttribute('data-theme', savedTheme);
@@ -164,6 +199,7 @@ export default function NotePage() {
     window.addEventListener('scribe-settings-updated', handleSettingsUpdate);
 
     return () => {
+      clearTimeout(stableTimer);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('contextmenu', handleContextMenu, { capture: true });
       window.removeEventListener('selectstart', handleSelectStart, { capture: true });
@@ -174,27 +210,76 @@ export default function NotePage() {
 
   async function loadData() {
     setIsLoading(true);
-    const n = await db.notes.get(noteId);
-    if (n) {
-      setNote(n);
-      // Auto-adapt pen color if paper is dark navy vs light
-      if (n.paperColor === 'navy' || n.paperColor === 'dark') {
-        setToolSettings(prev => ({
-          ...prev,
-          penColor: prev.penColor === '#000000' ? '#ffffff' : prev.penColor,
-          quickColors: ['#ffffff', '#ff453a', '#32ade6'],
-        }));
-      } else if (n.paperColor === 'white' || n.paperColor === 'cream') {
-        setToolSettings(prev => ({
-          ...prev,
-          penColor: prev.penColor === '#ffffff' ? '#1a1a2e' : prev.penColor,
-          quickColors: ['#1a1a2e', '#ff453a', '#32ade6'],
-        }));
+    try {
+      const n = await db.notes.get(noteId);
+      if (n) {
+        setNote(n);
+        // Auto-adapt pen color if paper is dark navy vs light
+        if (n.paperColor === 'navy' || n.paperColor === 'dark') {
+          setToolSettings(prev => ({
+            ...prev,
+            penColor: prev.penColor === '#000000' ? '#ffffff' : prev.penColor,
+            quickColors: ['#ffffff', '#ff453a', '#32ade6'],
+          }));
+        } else if (n.paperColor === 'white' || n.paperColor === 'cream') {
+          setToolSettings(prev => ({
+            ...prev,
+            penColor: prev.penColor === '#ffffff' ? '#1a1a2e' : prev.penColor,
+            quickColors: ['#1a1a2e', '#ff453a', '#32ade6'],
+          }));
+        }
       }
+      const p = await getPagesForNote(noteId);
+      setPages(p);
+      setIsLoading(false);
+
+      // Check if note contains oversized images and quietly optimize in background
+      const hasHeavyImages = p.some(pg => pg.images?.some(img => img.src?.startsWith('data:image/png') || (img.src?.length || 0) > 250000));
+      if (hasHeavyImages) {
+        setTimeout(() => {
+          optimizeNoteStorage(noteId).catch(() => {});
+        }, 1500);
+      }
+    } catch (err) {
+      console.error('Failed to load note:', err);
+      setIsLoading(false);
+      setCrashDetected(true);
     }
-    const p = await getPagesForNote(noteId);
-    setPages(p);
-    setIsLoading(false);
+  }
+
+  async function handleAutoOptimize() {
+    setIsOptimizing(true);
+    setOptimizeFeedback(null);
+    try {
+      const res = await optimizeNoteStorage(noteId);
+      const savedMb = (res.savedBytes / (1024 * 1024)).toFixed(1);
+      setOptimizeFeedback(`Successfully compressed ${res.compressedImages} images and freed ${savedMb} MB!`);
+      const refreshedPages = await getPagesForNote(noteId);
+      setPages(refreshedPages);
+      sessionStorage.removeItem(`scribe_crash_lock_${noteId}`);
+      setTimeout(() => {
+        setCrashDetected(false);
+        setIsOptimizing(false);
+      }, 1000);
+    } catch (e: any) {
+      setOptimizeFeedback(`Optimization failed: ${e?.message || e}`);
+      setIsOptimizing(false);
+    }
+  }
+
+  async function handleDownloadBackup() {
+    try {
+      const json = await exportNoteBackup(noteId);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(note?.title || 'note').replace(/[^a-zA-Z0-9_-]/g, '_')}-backup.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(`Export failed: ${e?.message || e}`);
+    }
   }
 
   function handleUndo() {
@@ -205,7 +290,10 @@ export default function NotePage() {
     editorRef.current?.redo();
   }
 
-  async function handleSave(pageData: Page) {
+  const saveDebounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const pendingPageSave = useRef<Page | null>(null);
+
+  const executeSave = async (pageData: Page) => {
     if (!pageData || !pageData.id) return;
     setSaveStatus('saving');
     setSaveError(null);
@@ -220,11 +308,26 @@ export default function NotePage() {
       }
       setSaveStatus('saved');
     } catch (err: any) {
-      const errorMsg = err?.message || err?.name || String(err);
+      const isQuota = err?.name === 'QuotaExceededError' || err?.message?.includes('quota') || err?.message?.includes('Quota');
+      const errorMsg = isQuota
+        ? 'Database storage quota reached. Please optimize images in Settings.'
+        : (err?.message || err?.name || String(err));
       console.error('Failed to save page:', err);
       setSaveError(errorMsg);
       setSaveStatus('offline');
     }
+  };
+
+  function handleSave(pageData: Page) {
+    if (!pageData || !pageData.id) return;
+    pendingPageSave.current = pageData;
+    setSaveStatus('saving');
+    if (saveDebounceTimeout.current) clearTimeout(saveDebounceTimeout.current);
+    saveDebounceTimeout.current = setTimeout(() => {
+      if (pendingPageSave.current) {
+        executeSave(pendingPageSave.current);
+      }
+    }, 400);
   }
 
   async function handleRename() {
@@ -236,12 +339,17 @@ export default function NotePage() {
   }
 
   async function handleManualSave() {
+    if (saveDebounceTimeout.current) {
+      clearTimeout(saveDebounceTimeout.current);
+    }
     if (editorRef.current?.saveAll) {
       editorRef.current.saveAll();
+    } else if (pendingPageSave.current) {
+      await executeSave(pendingPageSave.current);
     } else if (pages[currentPage]) {
-      await handleSave(pages[currentPage]);
+      await executeSave(pages[currentPage]);
     } else if (pages.length > 0) {
-      await handleSave(pages[0]);
+      await executeSave(pages[0]);
     }
   }
 
@@ -353,11 +461,119 @@ export default function NotePage() {
 
   const activePaperTheme = PAPER_THEMES[note?.paperColor || 'navy'] || PAPER_THEMES.navy;
 
+  if (crashDetected && !safeMode) {
+    return (
+      <div
+        className="h-full w-full flex flex-col items-center justify-center p-6 select-none font-sans"
+        style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+      >
+        <div className="w-full max-w-lg p-8 rounded-3xl glass-panel border border-[var(--border)] shadow-2xl flex flex-col items-center text-center animate-fade-in">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 mb-5">
+            <ShieldAlert size={36} />
+          </div>
+
+          <h2 className="text-xl font-bold mb-2">Memory Protection Triggered</h2>
+          <p className="text-sm opacity-75 mb-6 leading-relaxed">
+            Safari encountered memory limits while attempting to open this note (often caused by large PDFs or uncompressed images).
+            <br />
+            <strong>Your notes and handwriting are safely preserved in storage.</strong>
+          </p>
+
+          {optimizeFeedback && (
+            <div className="w-full p-3.5 mb-5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs font-semibold animate-fade-in">
+              {optimizeFeedback}
+            </div>
+          )}
+
+          <div className="w-full flex flex-col gap-3">
+            <button
+              onClick={() => {
+                setSafeMode(true);
+                setCrashDetected(false);
+                loadData();
+              }}
+              className="w-full py-3.5 px-4 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] shadow-md flex items-center justify-center gap-2"
+              style={{ background: 'var(--accent)', color: 'var(--bg-primary)' }}
+            >
+              <ShieldCheck size={18} />
+              <span>Open in Safe Mode (Single-Sheet Low Memory)</span>
+            </button>
+
+            <button
+              onClick={handleAutoOptimize}
+              disabled={isOptimizing}
+              className="w-full py-3 px-4 rounded-xl font-semibold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] border border-[var(--border)] flex items-center justify-center gap-2"
+              style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+            >
+              <Wrench size={16} />
+              <span>{isOptimizing ? 'Compressing Note Images...' : 'Optimize & Compress Note Storage'}</span>
+            </button>
+
+            <button
+              onClick={handleDownloadBackup}
+              className="w-full py-3 px-4 rounded-xl font-semibold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] border border-[var(--border)] flex items-center justify-center gap-2"
+              style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+            >
+              <Download size={16} />
+              <span>Export Note Backup (.json)</span>
+            </button>
+
+            <button
+              onClick={() => router.push('/')}
+              className="w-full py-3 px-4 rounded-xl font-semibold text-sm opacity-70 hover:opacity-100 transition-opacity flex items-center justify-center gap-2 mt-2"
+            >
+              <HomeIcon size={16} />
+              <span>Return to Dashboard</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="h-full flex flex-col overflow-hidden relative font-sans"
       style={{ background: 'var(--bg-primary)' }}
     >
+      {/* Safe Mode Navigation Banner */}
+      {safeMode && (
+        <div className="flex items-center justify-between px-4 py-2 bg-amber-500/10 border-b border-amber-500/25 text-amber-500 text-xs font-semibold z-30">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={15} />
+            <span>Safe Mode (Single-Sheet Minimal RAM)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+              className="px-2.5 py-1 rounded-md bg-amber-500/15 disabled:opacity-30 hover:bg-amber-500/25 flex items-center gap-1 cursor-pointer"
+            >
+              <ChevronLeft size={13} /> Prev
+            </button>
+            <span className="font-mono font-bold">
+              Sheet {currentPage + 1} of {Math.max(1, pages.length)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.min(pages.length - 1, p + 1))}
+              disabled={currentPage >= pages.length - 1}
+              className="px-2.5 py-1 rounded-md bg-amber-500/15 disabled:opacity-30 hover:bg-amber-500/25 flex items-center gap-1 cursor-pointer"
+            >
+              Next <ChevronRight size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setSafeMode(false)}
+              className="ml-3 px-2.5 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500/30 transition-colors cursor-pointer"
+            >
+              Exit Safe Mode
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Bar (Distraction-Free Zen Mode Support) */}
       {!focusMode && (
         <div
@@ -655,7 +871,7 @@ export default function NotePage() {
                 note?.pageType === 'infinite' ? (
                   <CanvasEditor
                     ref={editorRef}
-                    page={pages[currentPage]}
+                    page={pages[currentPage] || pages[0]}
                     template={note?.template || 'dotted'}
                     paperColor={note?.paperColor || 'navy'}
                     tool={activeTool}
@@ -667,7 +883,7 @@ export default function NotePage() {
                 ) : (
                   <PagesEditor
                     ref={editorRef}
-                    pages={pages}
+                    pages={safeMode ? [pages[currentPage] || pages[0]] : pages}
                     template={note?.template || 'dotted'}
                     paperColor={note?.paperColor || 'navy'}
                     tool={activeTool}

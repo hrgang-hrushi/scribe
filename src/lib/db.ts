@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { ClassItem, Note, Page, Stroke, TextBox, ImageBlock } from './types';
+import { compressImageDataUrl } from './image-compress';
 
 class ScribeDatabase extends Dexie {
   classes!: EntityTable<ClassItem, 'id'>;
@@ -229,3 +230,167 @@ export async function searchAll(query: string): Promise<{ notes: Note[]; classes
   const matchedClasses = allClasses.filter(c => c.name.toLowerCase().includes(q));
   return { notes: matchedNotes, classes: matchedClasses };
 }
+
+export interface StorageNoteBreakdown {
+  id: string;
+  title: string;
+  classId: string;
+  className?: string;
+  pageCount: number;
+  strokeCount: number;
+  imageCount: number;
+  approximateBytes: number;
+  isOversized: boolean;
+}
+
+export interface StorageStats {
+  usageBytes: number;
+  quotaBytes: number;
+  persisted: boolean;
+  notes: StorageNoteBreakdown[];
+  totalOversizedNotes: number;
+}
+
+export async function requestPersistentStorage(): Promise<boolean> {
+  if (typeof window !== 'undefined' && navigator.storage && navigator.storage.persist) {
+    try {
+      const isPersisted = await navigator.storage.persisted();
+      if (!isPersisted) {
+        return await navigator.storage.persist();
+      }
+      return true;
+    } catch (e) {
+      console.warn('Storage persist request warning:', e);
+    }
+  }
+  return false;
+}
+
+export async function getStorageStats(): Promise<StorageStats> {
+  let usageBytes = 0;
+  let quotaBytes = 0;
+  let persisted = false;
+
+  if (typeof window !== 'undefined' && navigator.storage) {
+    try {
+      if (navigator.storage.estimate) {
+        const estimate = await navigator.storage.estimate();
+        usageBytes = estimate.usage || 0;
+        quotaBytes = estimate.quota || 0;
+      }
+      if (navigator.storage.persisted) {
+        persisted = await navigator.storage.persisted();
+      }
+    } catch (e) {
+      console.warn('Storage estimate warning:', e);
+    }
+  }
+
+  const allClasses = await db.classes.toArray();
+  const classMap = new Map(allClasses.map(c => [c.id, c.name]));
+  const allNotes = await db.notes.toArray();
+  const allPages = await db.pages.toArray();
+
+  const notePageMap = new Map<string, Page[]>();
+  allPages.forEach(p => {
+    const list = notePageMap.get(p.noteId) || [];
+    list.push(p);
+    notePageMap.set(p.noteId, list);
+  });
+
+  const breakdowns: StorageNoteBreakdown[] = allNotes.map(n => {
+    const pages = notePageMap.get(n.id) || [];
+    let strokeCount = 0;
+    let imageCount = 0;
+    let bytes = JSON.stringify(n).length;
+
+    pages.forEach(p => {
+      strokeCount += p.strokes?.length || 0;
+      imageCount += p.images?.length || 0;
+      bytes += JSON.stringify(p).length;
+    });
+
+    return {
+      id: n.id,
+      title: n.title,
+      classId: n.classId,
+      className: classMap.get(n.classId) || 'Uncategorized',
+      pageCount: pages.length,
+      strokeCount,
+      imageCount,
+      approximateBytes: bytes,
+      isOversized: bytes > 3 * 1024 * 1024,
+    };
+  });
+
+  breakdowns.sort((a, b) => b.approximateBytes - a.approximateBytes);
+
+  return {
+    usageBytes,
+    quotaBytes,
+    persisted,
+    notes: breakdowns,
+    totalOversizedNotes: breakdowns.filter(b => b.isOversized).length,
+  };
+}
+
+export async function optimizeNoteStorage(noteId: string): Promise<{ savedBytes: number; compressedImages: number }> {
+  const pages = await db.pages.where('noteId').equals(noteId).toArray();
+  let savedBytes = 0;
+  let compressedImages = 0;
+
+  for (const page of pages) {
+    if (!page.images || page.images.length === 0) continue;
+    let modified = false;
+    const initialBytes = JSON.stringify(page.images).length;
+
+    const newImages = await Promise.all(
+      page.images.map(async (img) => {
+        if (!img.src) return img;
+        if (img.src.startsWith('data:image/png') || img.src.length > 200000) {
+          const compressedSrc = await compressImageDataUrl(img.src, { maxDimension: 1400, quality: 0.82 });
+          if (compressedSrc.length < img.src.length) {
+            compressedImages++;
+            modified = true;
+            return {
+              ...img,
+              src: compressedSrc,
+              originalSrc: undefined,
+            };
+          }
+        }
+        return img;
+      })
+    );
+
+    if (modified) {
+      const finalBytes = JSON.stringify(newImages).length;
+      savedBytes += Math.max(0, initialBytes - finalBytes);
+      await db.pages.update(page.id, { images: newImages });
+    }
+  }
+
+  return { savedBytes, compressedImages };
+}
+
+export async function optimizeAllNotesStorage(): Promise<{ totalSavedBytes: number; notesProcessed: number; imagesCompressed: number }> {
+  const allNotes = await db.notes.toArray();
+  let totalSavedBytes = 0;
+  let imagesCompressed = 0;
+
+  for (const note of allNotes) {
+    const res = await optimizeNoteStorage(note.id);
+    totalSavedBytes += res.savedBytes;
+    imagesCompressed += res.compressedImages;
+  }
+
+  return { totalSavedBytes, notesProcessed: allNotes.length, imagesCompressed };
+}
+
+export async function exportNoteBackup(noteId: string): Promise<string> {
+  const note = await db.notes.get(noteId);
+  if (!note) throw new Error('Note not found');
+  const pages = await db.pages.where('noteId').equals(noteId).sortBy('order');
+  return JSON.stringify({ note, pages, exportDate: new Date().toISOString(), version: 'scribe-backup-v1' }, null, 2);
+}
+
